@@ -141,8 +141,7 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 
 		th->seq = htonl(seq);
 
-		if (!(skb_shinfo(skb)->gso_type & SKB_GSO_TCP_ACCECN))
-			th->cwr = 0;
+		th->cwr &= !!(skb_shinfo(skb)->gso_type & SKB_GSO_TCP_ACCECN);
 	}
 
 	/* Following permits TCP Small Queues to work well with GSO :
