@@ -944,11 +944,6 @@ struct tcp_skb_cb {
 
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
-static inline u8 tcp_accecn_skb_cb_ace(const struct sk_buff *skb)
-{
-	return (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ACE) >> 6;
-}
-
 static inline void tcp_accecn_copy_skb_cb_ace(const struct sk_buff *from,
 					      struct sk_buff *to)
 {
