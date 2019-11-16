@@ -247,7 +247,7 @@ static bool tcp_in_quickack_mode(struct sock *sk)
 
 static void tcp_ecn_queue_cwr(struct tcp_sock *tp)
 {
-	/* Do not set this flag if in AccECN mode! */
+	/* Do not set CWR if in AccECN mode! */
 	if (tcp_ecn_status(tp) == TCP_ECN_OK)
 		tp->ecn_flags |= TCP_ECN_QUEUE_CWR;
 }
