@@ -363,6 +363,11 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_DEMAND_CWR	4
 #define	TCP_ECN_SEEN		8
 
+static inline bool tcp_ecn_ok(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_OK;
+}
+
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
 	TCP_TW_RST = 1,
