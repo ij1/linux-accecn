@@ -318,9 +318,7 @@ static void __tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
  */
 static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
-    u8 ace;
-
-    ace = tcp_accecn_ace(th);
+    u8 ace = tcp_accecn_ace(th);
     return ace && ace != 3;
 }
 
