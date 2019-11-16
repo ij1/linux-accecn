@@ -1460,7 +1460,6 @@ static bool tcp_shifted_skb(struct sock *sk, struct sk_buff *prev,
 	}
 
 	TCP_SKB_CB(prev)->tcp_flags |= TCP_SKB_CB(skb)->tcp_flags;
-	TCP_SKB_CB(prev)->tcp_res_flags |= TCP_SKB_CB(skb)->tcp_res_flags;
 	if (tcp_accecn_ok(tp))
 		tcp_accecn_copy_skb_cb_ace(skb, prev);
 	TCP_SKB_CB(prev)->eor = TCP_SKB_CB(skb)->eor;
@@ -4580,7 +4579,6 @@ static bool tcp_try_coalesce(struct sock *sk,
 	TCP_SKB_CB(to)->end_seq = TCP_SKB_CB(from)->end_seq;
 	TCP_SKB_CB(to)->ack_seq = TCP_SKB_CB(from)->ack_seq;
 	TCP_SKB_CB(to)->tcp_flags |= TCP_SKB_CB(from)->tcp_flags;
-	TCP_SKB_CB(to)->tcp_res_flags |= TCP_SKB_CB(from)->tcp_res_flags;
 	if (tcp_accecn_ok(tcp_sk(sk)))
 		tcp_accecn_copy_skb_cb_ace(from, to);
 

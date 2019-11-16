@@ -1726,7 +1726,6 @@ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
 		 */
 		thtail->fin |= th->fin;
 		TCP_SKB_CB(tail)->tcp_flags |= TCP_SKB_CB(skb)->tcp_flags;
-		TCP_SKB_CB(tail)->tcp_res_flags |= TCP_SKB_CB(skb)->tcp_res_flags;
 		if (tcp_accecn_ok(tcp_sk(sk)))
 			tcp_accecn_copy_skb_cb_ace(tail, skb);
 
@@ -1795,7 +1794,6 @@ static void tcp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
 	TCP_SKB_CB(skb)->end_seq = (TCP_SKB_CB(skb)->seq + th->syn + th->fin +
 				    skb->len - th->doff * 4);
 	TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
-	TCP_SKB_CB(skb)->tcp_res_flags = tcp_res_flag_byte(th);
 	TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
 	TCP_SKB_CB(skb)->tcp_tw_isn = 0;
 	TCP_SKB_CB(skb)->ip_dsfield = ipv4_get_dsfield(iph);

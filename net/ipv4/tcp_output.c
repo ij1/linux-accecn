@@ -316,14 +316,12 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 	if (tcp_ecn_status(tp) == TCP_ACCECN_PENDING) {
 		int ect = tcp_accecn_rcv_ect(tp);
 
-		TCP_SKB_CB(skb)->tcp_flags &= ~(TCPHDR_ECE | TCPHDR_CWR);
+		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
 		TCP_SKB_CB(skb)->tcp_flags |=
 			TCPHDR_CWR * (ect != INET_ECN_ECT_0) |
 			TCPHDR_ECE * (ect == INET_ECN_ECT_1);
 		if (ect & 2)
-			TCP_SKB_CB(skb)->tcp_res_flags |= TCPHDR_AE;
-		else
-			TCP_SKB_CB(skb)->tcp_res_flags &= ~TCPHDR_AE;
+			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
 		tcp_accecn_set_snt_ect(tp, inet_sk(sk)->tos & INET_ECN_MASK);
 	}
 }
@@ -354,7 +352,7 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_ECE | TCPHDR_CWR;
 		if (use_accecn) {
 			/* Request AccECN */
-			TCP_SKB_CB(skb)->tcp_res_flags |= TCPHDR_AE;
+			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
 			tcp_set_ecn_status(tp, TCP_ACCECN_PENDING);
 			tcp_accecn_set_snt_ect(tp, inet_sk(sk)->tos & INET_ECN_MASK);
 		} else {
@@ -369,8 +367,7 @@ static void tcp_ecn_clear_syn(struct sock *sk, struct sk_buff *skb)
 		/* tp->ecn_flags are cleared at a later point in time when
 		 * SYN ACK is ultimatively being received.
 		 */
-		TCP_SKB_CB(skb)->tcp_flags &= ~(TCPHDR_ECE | TCPHDR_CWR);
-		TCP_SKB_CB(skb)->tcp_res_flags &= ~TCPHDR_AE;
+		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
 	}
 }
 
@@ -1161,8 +1158,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	th->seq			= htonl(tcb->seq);
 	th->ack_seq		= htonl(rcv_nxt);
 	*(((__be16 *)th) + 6)	= htons(((tcp_header_size >> 2) << 12) |
-					(tcb->tcp_res_flags & 0x0F) << 8 |
-					tcb->tcp_flags);
+					(tcb->tcp_flags & TCPHDR_FLAGS_MASK));
 
 	th->check		= 0;
 	th->urg_ptr		= 0;
@@ -1411,7 +1407,6 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 	flags = TCP_SKB_CB(skb)->tcp_flags;
 	TCP_SKB_CB(skb)->tcp_flags = flags & ~(TCPHDR_FIN | TCPHDR_PSH);
 	TCP_SKB_CB(buff)->tcp_flags = flags;
-	TCP_SKB_CB(buff)->tcp_res_flags = TCP_SKB_CB(skb)->tcp_res_flags;
 	TCP_SKB_CB(buff)->sacked = TCP_SKB_CB(skb)->sacked;
 	tcp_skb_fragment_eor(skb, buff);
 
@@ -2259,7 +2254,6 @@ static int tcp_mtu_probe(struct sock *sk)
 			}
 			TCP_SKB_CB(skb)->seq += copy;
 		}
-		TCP_SKB_CB(nskb)->tcp_res_flags |= TCP_SKB_CB(skb)->tcp_res_flags;
 		if (tcp_accecn_ok(tp))
 			tcp_accecn_copy_skb_cb_ace(skb, nskb);
 

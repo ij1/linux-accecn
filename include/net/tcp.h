@@ -868,8 +868,10 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 #define TCPHDR_URG 0x20
 #define TCPHDR_ECE 0x40
 #define TCPHDR_CWR 0x80
-#define TCPHDR_AE 0x01
+#define TCPHDR_AE 0x100
+#define TCPHDR_FLAGS_MASK 0x1ff
 
+#define TCPHDR_ACE (TCPHDR_ECE | TCPHDR_CWR | TCPHDR_AE)
 #define TCPHDR_SYN_ECN	(TCPHDR_SYN | TCPHDR_ECE | TCPHDR_CWR)
 #define TCPHDR_SYNACK_ACCECN (TCPHDR_SYN | TCPHDR_ACK | TCPHDR_CWR)
 
@@ -895,8 +897,7 @@ struct tcp_skb_cb {
 			u16	tcp_gso_size;
 		};
 	};
-	__u8		tcp_res_flags;	/* TCP reserved flags. (tcp[12]) */
-	__u8		tcp_flags;	/* TCP header flags. (tcp[13])	*/
+	__u16		tcp_flags;	/* TCP header flags. (tcp[12-13])	*/
 
 	__u8		sacked;		/* State flags for SACK.	*/
 #define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	*/
@@ -945,21 +946,15 @@ struct tcp_skb_cb {
 
 static inline u8 tcp_accecn_skb_cb_ace(const struct sk_buff *skb)
 {
-	return (TCP_SKB_CB(skb)->tcp_res_flags & TCPHDR_AE) << 2
-		| ((TCP_SKB_CB(skb)->tcp_flags
-		    & (TCPHDR_ECE | TCPHDR_CWR)) >> 6);
+	return (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ACE) >> 6;
 }
 
 static inline void tcp_accecn_copy_skb_cb_ace(const struct sk_buff *from,
 					      struct sk_buff *to)
 {
-	const u8 res_flags = TCP_SKB_CB(to)->tcp_res_flags & ~TCPHDR_AE;
-	const u8 flags = TCP_SKB_CB(to)->tcp_flags & ~(TCPHDR_ECE | TCPHDR_CWR);
-
-	TCP_SKB_CB(to)->tcp_res_flags = res_flags |
-		(TCP_SKB_CB(from)->tcp_res_flags & TCPHDR_AE);
-	TCP_SKB_CB(to)->tcp_flags = flags |
-		(TCP_SKB_CB(from)->tcp_flags & (TCPHDR_ECE | TCPHDR_CWR));
+	TCP_SKB_CB(to)->tcp_flags =
+		(TCP_SKB_CB(to)->tcp_flags & ~TCPHDR_ACE) |
+		(TCP_SKB_CB(from)->tcp_flags & TCPHDR_ACE);
 }
 
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb)
