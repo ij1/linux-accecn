@@ -1232,8 +1232,8 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 		tcp_update_skb_after_send(sk, oskb, prior_wstamp);
 		tcp_rate_skb_sent(sk, oskb);
 	}
+	/* Ensure we'll eventually send the final received_ce value */
 	if (tcp_accecn_ok(tp) && tp->received_ce_tx != tp->received_ce)
-		/* Ensure we'll eventually send the final received_ce value */
 		tcp_send_delayed_ack(sk);
 	return err;
 }
