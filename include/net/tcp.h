@@ -403,7 +403,7 @@ static inline bool tcp_ecn_ok(const struct tcp_sock *tp)
 	return tcp_ecn_status(tp) >= TCP_ECN_OK;
 }
 
-static inline bool tcp_accecn_ok(const struct tcp_sock *tp)
+static inline bool tcp_ecnmode_accecn(const struct tcp_sock *tp)
 {
 	return tcp_ecn_status(tp) == TCP_ACCECN_OK;
 }
@@ -725,7 +725,7 @@ static inline u32 __tcp_set_rto(const struct tcp_sock *tp)
 
 static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
 {
-	tp->pred_flags = tcp_accecn_ok(tp) ?
+	tp->pred_flags = tcp_ecnmode_accecn(tp) ?
 		htonl((tp->tcp_header_len << 26)
 		      | ((tp->delivered_ce & 7) << 22)
 		      | ntohl(TCP_FLAG_ACK) | snd_wnd) :
