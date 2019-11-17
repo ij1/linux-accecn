@@ -1,5 +1,5 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: add tp to prepare to accecn code
+Subject: [PATCH] tcp: add tp & icsk to prepare for accecn code
 
 No functional changes.
 
