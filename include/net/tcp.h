@@ -428,6 +428,11 @@ static inline void tcp_accecn_set_rcv_ect(struct tcp_sock *tp, int ect)
 	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_OFF);
 }
 
+static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
+{
+	return tp->received_ce - tp->received_ce_tx;
+}
+
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
 	TCP_TW_RST = 1,

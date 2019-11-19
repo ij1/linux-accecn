@@ -390,9 +390,7 @@ tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 {
 	if (likely(tcp_ecnmode_accecn(tp))) {
-		u32 diff = tp->received_ce - tp->received_ce_tx;
-
-		tp->received_ce_tx += min_t(u32, diff,
+		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_CEP_MAX_DELTA);
 		th->ece = !!(tp->received_ce_tx & 0x1);
 		th->cwr = !!(tp->received_ce_tx & 0x2);
