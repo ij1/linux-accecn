@@ -293,7 +293,7 @@ static void __tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
 			/* If we have yet to send previous ACE updates, force
 			 * an ACK as the delta is too large
 			 */
-			if (tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_CEP_MAX_DELTA - 1)
+			if (tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_ACE_MAX_DELTA - 1)
 				inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 		} else if (!(tp->ecn_flags & TCP_ECN_DEMAND_CWR)) {
 			/* Better not delay acks, sender can have a very low cwnd */

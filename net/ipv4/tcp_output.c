@@ -391,7 +391,7 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 {
 	if (likely(tcp_ecnmode_accecn(tp))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
-					    TCP_ACCECN_CEP_MAX_DELTA);
+					    TCP_ACCECN_ACE_MAX_DELTA);
 		th->ece = !!(tp->received_ce_tx & 0x1);
 		th->cwr = !!(tp->received_ce_tx & 0x2);
 		th->ae = !!(tp->received_ce_tx & 0x4);

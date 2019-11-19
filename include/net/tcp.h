@@ -2396,7 +2396,7 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 
 /* See draft-ietf-tcpm-accurate-ecn for the latest values */
 #define TCP_ACCECN_CEP_INIT 5
-#define TCP_ACCECN_CEP_MAX_DELTA 6
+#define TCP_ACCECN_ACE_MAX_DELTA 6
 
 /* To avoid/detect middlebox interference, not all counters start at 0 */
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
