@@ -1,4 +1,16 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] l4s ect1 identifier
+Subject: [PATCH] tcp: L4S ECT(1) identifier for CC modules
+
+When ECN is successfully negociated for a TCP flow, it defaults to
+always use ECT(0) in the IP header. L4S service, however, needs to
+use ECT(1).
+
+This patch enables congestion control algorithms to control whether
+ECT(0) or ECT(1) should be used on a per-segment basis. A new
+CA module flag (TCP_CONG_WANTS_ECT_1) defines the behavior
+expected by the CA when not-yet initialized for the connection.
+As such, it implicitely assumes that the CA also has the
+TCP_CONG_NEEDS_ECN set.
+
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
