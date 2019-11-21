@@ -311,7 +311,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ECE;
 	else if (tcp_ca_needs_ecn(sk) ||
 		 tcp_bpf_ca_needs_ecn(sk))
-		__INET_ECN_xmit(sk, tcp_ca_wants_ect_1(sk));
+		INET_ECN_xmit(sk);
 }
 
 /* Packet ECN state for a SYN.  */
@@ -335,7 +335,7 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_ECE | TCPHDR_CWR;
 		tp->ecn_flags = TCP_ECN_OK;
 		if (tcp_ca_needs_ecn(sk) || bpf_needs_ecn)
-			__INET_ECN_xmit(sk, tcp_ca_wants_ect_1(sk));
+			INET_ECN_xmit(sk);
 	}
 }
 
@@ -367,7 +367,7 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 		/* Not-retransmitted data segment: set ECT and inject CWR. */
 		if (skb->len != tcp_header_len &&
 		    !before(TCP_SKB_CB(skb)->seq, tp->snd_nxt)) {
-			__INET_ECN_xmit(sk, tp->ecn_flags & TCP_ECN_ECT_1);
+			INET_ECN_xmit(sk);
 			if (tp->ecn_flags & TCP_ECN_QUEUE_CWR) {
 				tp->ecn_flags &= ~TCP_ECN_QUEUE_CWR;
 				th->cwr = 1;
