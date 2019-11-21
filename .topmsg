@@ -1,0 +1,7 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: accecn GSO support
+
+Handling of CWR flag differs between RFC 3168 ECN and AccECN,
+GSO needs to take this into account.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
