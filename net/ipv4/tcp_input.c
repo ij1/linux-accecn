@@ -248,7 +248,7 @@ static bool tcp_in_quickack_mode(struct sock *sk)
 static void tcp_ecn_queue_cwr(struct tcp_sock *tp)
 {
 	/* Do not set CWR if in AccECN mode! */
-	if (tcp_ecn_status(tp) == TCP_ECN_OK)
+	if (tcp_ecn_mode_rfc3168(tp))
 		tp->ecn_flags |= TCP_ECN_QUEUE_CWR;
 }
 
@@ -347,7 +347,7 @@ bool tcp_accecn_syn_feedback(struct tcp_sock *tp, int ace, int sent_ect,
 {
 	int ect = INET_ECN_NOT_ECT;
 	if (tcp_ecn_mode_pending(tp)) {
-		pr_warn("bad status %d\n", tcp_ecn_status(tp));
+		pr_warn("bad mode %d\n", tp->ecn_flags & TCP_ECN_MODE_ANY);
 		goto reject;
 	}
 
@@ -385,14 +385,14 @@ static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
 	case 0:
 	case 7:
 	case 5:
-		tcp_set_ecn_status(tp, TCP_ECN_DISABLED);
+		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
 	case 1:
 		if (tcp_ecn_ok(tp))
 			/* Downgrade from AccECN, or requested initially */
-			tcp_set_ecn_status(tp, TCP_ECN_OK);
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		else
-			tcp_set_ecn_status(tp, TCP_ECN_DISABLED);
+			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
 	default:
 		/* Sending the final packet of the 3WHS will move the ecn status
@@ -407,34 +407,34 @@ static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
 static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 			    const struct sk_buff *skb)
 {
-	if (tcp_ecn_status(tp) == TCP_ACCECN_PENDING) {
+	if (tcp_ecn_mode_pending(tp)) {
 		if (!tcp_accecn_syn_requested(th))
 			/* Downgrade to classic ECN feedback */
-			tcp_set_ecn_status(tp, TCP_ECN_OK);
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		else
 			tcp_accecn_set_rcv_ect(tp,
 					       TCP_SKB_CB(skb)->ip_dsfield &
 					       INET_ECN_MASK);
 	}
-	if (tcp_ecn_status(tp) == TCP_ECN_OK && (!th->ece || !th->cwr))
-		tcp_set_ecn_status(tp, TCP_ECN_DISABLED);
+	if (tcp_ecn_mode_pending(tp) && (!th->ece || !th->cwr))
+		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
 static int tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	WARN(tcp_ecn_status(tp) == TCP_ACCECN_PENDING &&
+	WARN(tcp_ecn_mode_pending(tp) &&
 	     /* In TCP_SYN_SENT, we will parse the SYN+ACK through tcp_ack()
 	      * before sending the final ACK of the 3WHS--which will move us
 	      * to TCP_ACCECN_OK after echoing the SYN+ACK ECT codepoint.
 	      */
 	     sk->sk_state == TCP_ESTABLISHED,
 	     "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
-	switch (tcp_ecn_status(tp)) {
-	case TCP_ACCECN_OK:
+	switch (tp->ecn_flags & TCP_ECN_MODE_ANY) {
+	case TCP_ECN_MODE_ACCECN:
 		return (tcp_accecn_ace(th) + 8 - (tp->delivered_ce & 7)) & 7;
-	case TCP_ECN_OK:
+	case TCP_ECN_MODE_RFC3168:
 		return th->ece && !th->syn;
 	default:
 		return 0;

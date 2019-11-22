@@ -405,17 +405,17 @@ static void tcp_accecn_openreq_child(struct tcp_sock *tp,
 
 	switch (ace) {
 	case 0:
-		tcp_set_ecn_status(tp, TCP_ECN_DISABLED);
+		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
 	case 7:
 	case 5:
 	case 1:
 		/* Unused but legal values */
-		tcp_set_ecn_status(tp, TCP_ACCECN_OK);
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tcp_accecn_init_counters(tp);
 		break;
 	default:
-		tcp_set_ecn_status(tp, TCP_ACCECN_PENDING);
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
 		tcp_accecn_syn_feedback(tp, ace, tcp_rsk(req)->ect_snt,
 					TCP_ACCECN_OK);
 		break;

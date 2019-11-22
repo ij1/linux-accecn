@@ -313,7 +313,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		 tcp_bpf_ca_needs_ecn(sk))
 		INET_ECN_xmit(sk);
 	/* Check if we want to negotiate AccECN */
-	if (tcp_ecn_status(tp) == TCP_ACCECN_PENDING) {
+	if (tcp_ecn_mode_pending(tp)) {
 		int ect = tcp_accecn_rcv_ect(tp);
 
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
@@ -398,7 +398,7 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 	} else {
 		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
 		__tcp_accecn_echo_ect(th, tcp_accecn_rcv_ect(tp));
-		tcp_set_ecn_status(tp, TCP_ACCECN_OK);
+		tcp_ecn_mode_set(tp, TCP_MODE_ACCECN);
 	}
 }
 
@@ -410,9 +410,9 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (tcp_ecn_ok(tp)) {
+	if (tcp_ecn_mode_any(tp)) {
 		INET_ECN_xmit(sk);
-		if (tcp_ecn_status(tp) >= TCP_ACCECN_OK) {
+		if (tcp_ecn_mode_accecn(tp)) {
 			tcp_accecn_set_ace(th, tp);
 			skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
 		} else {
