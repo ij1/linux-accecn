@@ -394,7 +394,7 @@ static inline bool tcp_ecn_disabled(const struct tcp_sock *tp)
 
 static inline bool tcp_ecn_mode_pending(const struct tcp_sock *tp)
 {
-	return tp->ecn_flags & TCP_ECN_MODE_PENDING;
+	return (tp->ecn_flags & TCP_ECN_MODE_PENDING) == TCP_ECN_MODE_PENDING;
 }
 
 static inline void tcp_ecn_mode_set(struct tcp_sock *tp, u8 mode)
