@@ -310,13 +310,13 @@ static void tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
 static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th)
 {
 	if (tcp_ecn_ok(tp) && (!th->ece || th->cwr))
-		tp->ecn_flags &= ~TCP_ECN_OK;
+		tcp_ecn_mode_set(TCP_ECN_OFF);
 }
 
 static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th)
 {
 	if (tcp_ecn_ok(tp) && (!th->ece || !th->cwr))
-		tp->ecn_flags &= ~TCP_ECN_OK;
+		tcp_ecn_mode_set(TCP_ECN_OFF);
 }
 
 static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *th)
