@@ -418,7 +418,7 @@ static void tcp_accecn_openreq_child(struct sock *sk,
 	default:
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
 		tcp_accecn_syn_feedback(sk, ace, tcp_rsk(req)->ect_snt,
-					TCP_ACCECN_OK);
+					TCP_ECN_MODE_ACCECN);
 		break;
 	}
 }
@@ -427,12 +427,14 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 				  const struct request_sock *req,
 				  const struct sk_buff *skb)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
+
 	if (tcp_rsk(req)->accecn_ok)
 		tcp_accecn_openreq_child(sk, req, skb);
 	else if (inet_rsk(req)->ecn_ok)
-		tcp_ecn_mode_set(inet_rsk(req)->ecn_ok ?
-				 TCP_ECN_MODE_RFC3168 :
-				 TCP_ECN_OFF);
+		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
+				     TCP_ECN_MODE_RFC3168 :
+				     TCP_ECN_DISABLED);
 }
 
 void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)
