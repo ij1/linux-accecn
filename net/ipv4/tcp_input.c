@@ -346,7 +346,8 @@ bool tcp_accecn_syn_feedback(struct tcp_sock *tp, u8 ace, u8 sent_ect,
 			     u8 end_state)
 {
 	u8 ect = INET_ECN_NOT_ECT;
-	if (WARN_ONCE(!tcp_ecn_mode_pending(tp)))
+	if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
+		      tp->ecn_flags & TCP_ECN_MODE_ANY))
 		goto reject;
 
 	/* We may want to define another sysctl than hog ecn_fallback, as we're
