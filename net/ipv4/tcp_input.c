@@ -342,10 +342,10 @@ static inline int tcp_accecn_echoed_ect(int ace)
 /* Caller should ensure that ACE is reflecting a valid ECT codepoint before
  * calling this.
  */
-bool tcp_accecn_syn_feedback(struct tcp_sock *tp, int ace, int sent_ect,
-			    int end_state)
+bool tcp_accecn_syn_feedback(struct tcp_sock *tp, u8 ace, u8 sent_ect,
+			     u8 end_state)
 {
-	int ect = INET_ECN_NOT_ECT;
+	u8 ect = INET_ECN_NOT_ECT;
 	if (WARN_ONCE(!tcp_ecn_mode_pending(tp)))
 		goto reject;
 

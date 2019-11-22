@@ -410,13 +410,13 @@ static inline void __tcp_set_ecn_flags(struct tcp_sock *tp, int val, int mask,
 		((val & mask) << offset);
 }
 
-static inline int __tcp_read_ecn_flags(const struct tcp_sock *tp, int mask,
+static inline u8 __tcp_read_ecn_flags(const struct tcp_sock *tp, int mask,
 					int offset)
 {
 	return (tp->ecn_flags >> offset) & mask;
 }
 
-static inline int tcp_accecn_snt_ect(const struct tcp_sock *tp)
+static inline u8 tcp_accecn_snt_ect(const struct tcp_sock *tp)
 {
 	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_SHIFT);
 }
@@ -426,7 +426,7 @@ static inline void tcp_accecn_set_snt_ect(struct tcp_sock *tp, int ect)
 	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_SHIFT);
 }
 
-static inline int tcp_accecn_rcv_ect(const struct tcp_sock *tp)
+static inline u8 tcp_accecn_rcv_ect(const struct tcp_sock *tp)
 {
 	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_SHIFT);
 }
@@ -2405,7 +2405,7 @@ static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 	tp->received_ce_tx = TCP_ACCECN_CEP_INIT;
 }
 
-bool tcp_accecn_syn_feedback(struct tcp_sock *tp, int ace, int sent_ect,
-			     int end_state);
+bool tcp_accecn_syn_feedback(struct tcp_sock *tp, u8 ace, u8 sent_ect,
+			     u8 end_state);
 
 #endif	/* _TCP_H */
