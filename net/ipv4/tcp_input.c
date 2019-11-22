@@ -442,14 +442,13 @@ static int tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 		   */
 		  sk->sk_state == TCP_ESTABLISHED,
 		  "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
-	switch (tp->ecn_flags & TCP_ECN_MODE_ANY) {
-	case TCP_ECN_MODE_ACCECN:
+
+	if (tcp_ecn_mode_accecn(tp))
 		return (tcp_accecn_ace(th) + 8 - (tp->delivered_ce & 7)) & 7;
-	case TCP_ECN_MODE_RFC3168:
+	else if (tcp_ecn_mode_rfc3168(tp))
 		return th->ece && !th->syn;
-	default:
+	else
 		return 0;
-	}
 }
 
 /* Buffer size and advertised window tuning.
