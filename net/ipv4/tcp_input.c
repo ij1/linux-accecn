@@ -383,7 +383,6 @@ accept:
 	return true;
 
 reject:
-	pr_warn("Rejected SYN feedback\n");
 	tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 	return false;
 }
