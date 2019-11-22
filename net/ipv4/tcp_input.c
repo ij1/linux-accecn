@@ -247,7 +247,7 @@ static bool tcp_in_quickack_mode(struct sock *sk)
 
 static void tcp_ecn_queue_cwr(struct tcp_sock *tp)
 {
-	if (tcp_ecn_ok(tp))
+	if (tcp_ecn_mode_rfc3168(tp))
 		tp->ecn_flags |= TCP_ECN_QUEUE_CWR;
 }
 
@@ -303,25 +303,25 @@ static void __tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
 
 static void tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
 {
-	if (tcp_ecn_ok(tcp_sk(sk)))
+	if (tcp_ecn_mode_rfc3168(tcp_sk(sk)))
 		__tcp_ecn_check_ce(sk, skb);
 }
 
 static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th)
 {
-	if (tcp_ecn_ok(tp) && (!th->ece || th->cwr))
-		tcp_ecn_mode_set(TCP_ECN_OFF);
+	if (tcp_ecn_mode_rfc3168(tp) && (!th->ece || th->cwr))
+		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
 static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th)
 {
-	if (tcp_ecn_ok(tp) && (!th->ece || !th->cwr))
-		tcp_ecn_mode_set(TCP_ECN_OFF);
+	if (tcp_ecn_mode_rfc3168(tp) && (!th->ece || !th->cwr))
+		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
 static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *th)
 {
-	if (th->ece && !th->syn && tcp_ecn_ok(tp))
+	if (th->ece && !th->syn && tcp_ecn_mode_rfc3168(tp))
 		return true;
 	return false;
 }

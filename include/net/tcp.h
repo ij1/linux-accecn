@@ -383,6 +383,11 @@ static inline bool tcp_ecn_mode_accecn(const struct tcp_sock *tp)
 	return tp->ecn_flags & TCP_ECN_MODE_ACCECN;
 }
 
+static inline bool tcp_ecn_disabled(const struct tcp_sock *tp)
+{
+	return !tcp_ecn_mode_any(tp);
+}
+
 static inline bool tcp_ecn_mode_pending(const struct tcp_sock *tp)
 {
 	return tp->ecn_flags & TCP_ECN_MODE_PENDING;
