@@ -740,7 +740,7 @@ static inline u32 __tcp_set_rto(const struct tcp_sock *tp)
 
 static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
 {
-	u32 ace = tcp_ecnmode_accecn(tp) ? (tp->delivered_ce & 0x7) : 0;
+	u32 ace = tcp_ecn_mode_accecn(tp) ? (tp->delivered_ce & 0x7) : 0;
 
 	tp->pred_flags = htonl((tp->tcp_header_len << 26) |
 			       ace |

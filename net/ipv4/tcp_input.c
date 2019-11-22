@@ -388,7 +388,7 @@ static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
 	case 1:
-		if (tcp_ecn_ok(tp))
+		if (tcp_ecn_mode_pending(tp))
 			/* Downgrade from AccECN, or requested initially */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		else
@@ -398,7 +398,7 @@ static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
 		/* Sending the final packet of the 3WHS will move the ecn status
 		 * to TCP_ACCECN_OK */
 		if (tcp_accecn_syn_feedback(tp, ace, tcp_accecn_snt_ect(tp),
-					    TCP_ACCECN_PENDING))
+					    TCP_ECN_MODE_PENDING))
 			tcp_accecn_set_rcv_ect(tp, ip_dsfield & INET_ECN_MASK);
 		break;
 	}

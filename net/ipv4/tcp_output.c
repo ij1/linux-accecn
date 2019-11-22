@@ -356,7 +356,7 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
 			tcp_accecn_set_snt_ect(tp, inet_sk(sk)->tos & INET_ECN_MASK);
 		} else {
-			tcp_ecnmode_set(tp, TCP_ECN_MODE_RFC3168);
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		}
 	}
 }
@@ -389,7 +389,7 @@ tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 
 static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 {
-	if (likely(tcp_ecnmode_accecn(tp))) {
+	if (likely(tcp_ecn_mode_accecn(tp))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
 		th->ece = !!(tp->received_ce_tx & 0x1);
@@ -398,7 +398,7 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 	} else {
 		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
 		__tcp_accecn_echo_ect(th, tcp_accecn_rcv_ect(tp));
-		tcp_ecn_mode_set(tp, TCP_MODE_ACCECN);
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	}
 }
 
@@ -1229,7 +1229,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 		tcp_rate_skb_sent(sk, oskb);
 	}
 	/* Ensure we'll eventually send the final received_ce value */
-	if (tcp_ecnmode_accecn(tp) && tp->received_ce_tx != tp->received_ce)
+	if (tcp_ecn_mode_accecn(tp) && tp->received_ce_tx != tp->received_ce)
 		tcp_send_delayed_ack(sk);
 	return err;
 }
@@ -2250,7 +2250,7 @@ static int tcp_mtu_probe(struct sock *sk)
 			}
 			TCP_SKB_CB(skb)->seq += copy;
 		}
-		if (tcp_ecnmode_accecn(tp))
+		if (tcp_ecn_mode_accecn(tp))
 			tcp_accecn_copy_skb_cb_ace(skb, nskb);
 
 		len += copy;
