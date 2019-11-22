@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -342,9 +341,10 @@ static inline int tcp_accecn_echoed_ect(int ace)
 /* Caller should ensure that ACE is reflecting a valid ECT codepoint before
  * calling this.
  */
-bool tcp_accecn_syn_feedback(struct tcp_sock *tp, u8 ace, u8 sent_ect,
-			     u8 end_state)
+bool tcp_accecn_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect, u8 end_state)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
+
 	u8 ect = INET_ECN_NOT_ECT;
 	if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
 		      tp->ecn_flags & TCP_ECN_MODE_ANY))
@@ -357,7 +357,20 @@ bool tcp_accecn_syn_feedback(struct tcp_sock *tp, u8 ace, u8 sent_ect,
 		goto accept;
 	ect = tcp_accecn_echoed_ect(ace);
 	if (ect != sent_ect && ect != INET_ECN_CE) {
-		pr_warn("got=%d expected=%\n", ect, sent_ect);
+		struct inet_sock *inet = inet_sk(sk);
+		if (sk->sk_family == AF_INET) {
+			net_dbg_ratelimited("ECT mismatch on path to %pI4:%u/%u got=%d expected=%d\n",
+					    &inet->inet_daddr,
+					    ntohs(inet->inet_dport),
+					    inet->inet_num,
+                                            ect, sent_ect);
+		} else if (sk->sk_family == AF_INET6) {
+			net_dbg_ratelimited("ECT mismatch on path to %pI6:%u/%u got=%d expected=%d\n",
+					    &sk->sk_v6_daddr,
+					    ntohs(inet->inet_dport),
+                                            inet->inet_num,
+                                            ect, sent_ect);
+		}
 		goto reject;
 	}
 
@@ -375,9 +388,10 @@ reject:
 }
 
 /* See Table 2 of the AccECN draft */
-static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
+static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			       u8 ip_dsfield)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ace = tcp_accecn_ace(th);
 
 	switch (ace) {
@@ -394,7 +408,7 @@ static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
 	default:
 		/* Sending the final packet of the 3WHS will move the ecn status
 		 * to TCP_ACCECN_OK */
-		if (tcp_accecn_syn_feedback(tp, ace, tcp_accecn_snt_ect(tp),
+		if (tcp_accecn_syn_feedback(sk, ace, tcp_accecn_snt_ect(tp),
 					    TCP_ECN_MODE_PENDING))
 			tcp_accecn_set_rcv_ect(tp, ip_dsfield & INET_ECN_MASK);
 		break;
@@ -6074,7 +6088,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    state to ESTABLISHED..."
 		 */
 
-		tcp_ecn_rcv_synack(tp, th, TCP_SKB_CB(skb)->ip_dsfield);
+		tcp_ecn_rcv_synack(sk, th, TCP_SKB_CB(skb)->ip_dsfield);
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_try_undo_spurious_syn(sk);

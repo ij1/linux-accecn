@@ -397,10 +397,11 @@ void tcp_openreq_init_rwin(struct request_sock *req,
 }
 EXPORT_SYMBOL(tcp_openreq_init_rwin);
 
-static void tcp_accecn_openreq_child(struct tcp_sock *tp,
+static void tcp_accecn_openreq_child(struct sock *sk,
 				     const struct request_sock *req,
 				     const struct sk_buff *skb)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ace = tcp_accecn_ace(tcp_hdr(skb));
 
 	switch (ace) {
@@ -416,18 +417,18 @@ static void tcp_accecn_openreq_child(struct tcp_sock *tp,
 		break;
 	default:
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
-		tcp_accecn_syn_feedback(tp, ace, tcp_rsk(req)->ect_snt,
+		tcp_accecn_syn_feedback(sk, ace, tcp_rsk(req)->ect_snt,
 					TCP_ACCECN_OK);
 		break;
 	}
 }
 
-static void tcp_ecn_openreq_child(struct tcp_sock *tp,
+static void tcp_ecn_openreq_child(struct sock *sk,
 				  const struct request_sock *req,
 				  const struct sk_buff *skb)
 {
 	if (tcp_rsk(req)->accecn_ok)
-		tcp_accecn_openreq_child(tp, req, skb);
+		tcp_accecn_openreq_child(sk, req, skb);
 	else if (inet_rsk(req)->ecn_ok)
 		tcp_ecn_mode_set(inet_rsk(req)->ecn_ok ?
 				 TCP_ECN_MODE_RFC3168 :
@@ -575,7 +576,7 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 	if (skb->len >= TCP_MSS_DEFAULT + newtp->tcp_header_len)
 		newicsk->icsk_ack.last_seg_size = skb->len - newtp->tcp_header_len;
 	newtp->rx_opt.mss_clamp = req->mss;
-	tcp_ecn_openreq_child(newtp, req, skb);
+	tcp_ecn_openreq_child(newsk, req, skb);
 	newtp->fastopen_req = NULL;
 	RCU_INIT_POINTER(newtp->fastopen_rsk, NULL);
 
