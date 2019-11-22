@@ -360,19 +360,45 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 
 /* ECN Status */
 #define TCP_ECN_DISABLED	0
-#define TCP_ECN_OK		BIT(0)
-#define TCP_ACCECN_OK		BIT(1)
-#define TCP_ECN_STATUS_BITS	2
-#define TCP_ECN_STATUS_MASK	((1 << TCP_ECN_STATUS_BITS) - 1)
-#define TCP_ACCECN_PENDING	(TCP_ECN_OK | TCP_ACCECN_OK)
+#define	TCP_ECN_MODE_RFC3168	0x1
+#define	TCP_ECN_QUEUE_CWR	0x2
+#define	TCP_ECN_DEMAND_CWR	0x4
+#define	TCP_ECN_SEEN		0x8
+#define TCP_ECN_MODE_ACCECN	0x10
 
-#define	TCP_ECN_SEEN		BIT(TCP_ECN_STATUS_BITS)
-/* TCP_ECN_OK flags */
-#define	TCP_ECN_QUEUE_CWR	BIT(TCP_ECN_STATUS_BITS + 2)
-#define	TCP_ECN_DEMAND_CWR	BIT(TCP_ECN_STATUS_BITS + 3)
+#define TCP_ECN_OFF		0
+#define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
+#define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
+
 /* TCP_ACCECN_* mask offsets where sent/received ECT are stored */
-#define TCP_ACCECN_SNT_ECT_OFF	(TCP_ECN_STATUS_BITS + 2)
-#define TCP_ACCECN_RCV_ECT_OFF	(TCP_ECN_STATUS_BITS + 4)
+#define TCP_ACCECN_SNT_ECT_SHIFT	5
+#define TCP_ACCECN_RCV_ECT_SHIFT	7
+
+static inline bool tcp_ecn_mode_any(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_ANY;
+}
+
+static inline bool tcp_ecn_mode_rfc3168(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_RFC3168;
+}
+
+static inline bool tcp_ecn_mode_accecn(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_ACCECN;
+}
+
+static inline bool tcp_ecn_mode_pending(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_PENDING;
+}
+
+static inline void tcp_ecn_mode_set(u8 mode)
+{
+	tp->ecn_flags &= ~TCP_ECN_MODE_ANY;
+	tp->ecn_flags |= mode;
+}
 
 static inline void __tcp_set_ecn_flags(struct tcp_sock *tp, int val, int mask,
 				       int offset)
@@ -387,44 +413,24 @@ static inline int __tcp_read_ecn_flags(const struct tcp_sock *tp, int mask,
 	return (tp->ecn_flags >> offset) & mask;
 }
 
-static inline int tcp_ecn_status(const struct tcp_sock *tp)
-{
-	return __tcp_read_ecn_flags(tp, TCP_ECN_STATUS_MASK, 0);
-}
-
-static inline void tcp_set_ecn_status(struct tcp_sock *tp, int status)
-{
-	__tcp_set_ecn_flags(tp, status, TCP_ECN_STATUS_MASK, 0);
-}
-
-static inline bool tcp_ecn_ok(const struct tcp_sock *tp)
-{
-	return tcp_ecn_status(tp) >= TCP_ECN_OK;
-}
-
-static inline bool tcp_ecnmode_accecn(const struct tcp_sock *tp)
-{
-	return tcp_ecn_status(tp) == TCP_ACCECN_OK;
-}
-
 static inline int tcp_accecn_snt_ect(const struct tcp_sock *tp)
 {
-	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_OFF);
+	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_SHIFT);
 }
 
 static inline void tcp_accecn_set_snt_ect(struct tcp_sock *tp, int ect)
 {
-	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_OFF);
+	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_SHIFT);
 }
 
 static inline int tcp_accecn_rcv_ect(const struct tcp_sock *tp)
 {
-	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_OFF);
+	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_SHIFT);
 }
 
 static inline void tcp_accecn_set_rcv_ect(struct tcp_sock *tp, int ect)
 {
-	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_OFF);
+	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_SHIFT);
 }
 
 static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)

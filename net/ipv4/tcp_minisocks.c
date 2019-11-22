@@ -429,9 +429,9 @@ static void tcp_ecn_openreq_child(struct tcp_sock *tp,
 	if (tcp_rsk(req)->accecn_ok)
 		tcp_accecn_openreq_child(tp, req, skb);
 	else if (inet_rsk(req)->ecn_ok)
-		tcp_set_ecn_status(tp, TCP_ECN_OK);
-	else
-		tcp_set_ecn_status(tp, TCP_ECN_DISABLED);
+		tcp_ecn_mode_set(inet_rsk(req)->ecn_ok ?
+				 TCP_ECN_MODE_RFC3168 :
+				 TCP_ECN_OFF);
 }
 
 void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)

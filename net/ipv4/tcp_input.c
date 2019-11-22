@@ -346,7 +346,7 @@ bool tcp_accecn_syn_feedback(struct tcp_sock *tp, int ace, int sent_ect,
 			    int end_state)
 {
 	int ect = INET_ECN_NOT_ECT;
-	if (tcp_ecn_status(tp) != TCP_ACCECN_PENDING) {
+	if (tcp_ecn_mode_pending(tp)) {
 		pr_warn("bad status %d\n", tcp_ecn_status(tp));
 		goto reject;
 	}
@@ -363,7 +363,7 @@ bool tcp_accecn_syn_feedback(struct tcp_sock *tp, int ace, int sent_ect,
 	}
 
 accept:
-	tcp_set_ecn_status(tp, end_state);
+	tcp_ecn_mode_set(tp, end_state);
 	tcp_accecn_init_counters(tp);
 	if (ect == INET_ECN_CE)
 		tp->delivered_ce++;
@@ -371,7 +371,7 @@ accept:
 
 reject:
 	pr_warn("Rejected SYN feedback\n");
-	tcp_set_ecn_status(tp, TCP_ECN_DISABLED);
+	tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 	return false;
 }
 
