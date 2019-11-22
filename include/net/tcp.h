@@ -358,14 +358,40 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 	}
 }
 
-#define	TCP_ECN_OK		1
-#define	TCP_ECN_QUEUE_CWR	2
-#define	TCP_ECN_DEMAND_CWR	4
-#define	TCP_ECN_SEEN		8
+#define	TCP_ECN_MODE_RFC3168	0x1
+#define	TCP_ECN_QUEUE_CWR	0x2
+#define	TCP_ECN_DEMAND_CWR	0x4
+#define	TCP_ECN_SEEN		0x8
+#define TCP_ECN_MODE_ACCECN	0x10
 
-static inline bool tcp_ecn_ok(const struct tcp_sock *tp)
+#define TCP_ECN_OFF		0
+#define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
+#define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
+
+static inline bool tcp_ecn_mode_any(const struct tcp_sock *tp)
 {
-	return tp->ecn_flags & TCP_ECN_OK;
+	return tp->ecn_flags & TCP_ECN_MODE_ANY;
+}
+
+static inline bool tcp_ecn_mode_rfc3168(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_RFC3168;
+}
+
+static inline bool tcp_ecn_mode_accecn(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_ACCECN;
+}
+
+static inline bool tcp_ecn_mode_pending(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_PENDING;
+}
+
+static inline void tcp_ecn_mode_set(u8 mode)
+{
+	tp->ecn_flags &= ~TCP_ECN_MODE_ANY;
+	tp->ecn_flags |= mode;
 }
 
 enum tcp_tw_status {
