@@ -366,7 +366,7 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_SEEN		0x8
 #define TCP_ECN_MODE_ACCECN	0x10
 
-#define TCP_ECN_OFF		0
+#define TCP_ECN_DISABLED	0
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
 #define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
 
@@ -389,12 +389,17 @@ static inline bool tcp_ecn_mode_accecn(const struct tcp_sock *tp)
 	return tp->ecn_flags & TCP_ECN_MODE_ACCECN;
 }
 
+static inline bool tcp_ecn_disabled(const struct tcp_sock *tp)
+{
+	return !tcp_ecn_mode_any(tp);
+}
+
 static inline bool tcp_ecn_mode_pending(const struct tcp_sock *tp)
 {
 	return tp->ecn_flags & TCP_ECN_MODE_PENDING;
 }
 
-static inline void tcp_ecn_mode_set(u8 mode)
+static inline void tcp_ecn_mode_set(struct tcp_sock *tp, u8 mode)
 {
 	tp->ecn_flags &= ~TCP_ECN_MODE_ANY;
 	tp->ecn_flags |= mode;
