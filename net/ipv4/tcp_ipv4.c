@@ -1726,7 +1726,7 @@ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
 		 */
 		thtail->fin |= th->fin;
 		TCP_SKB_CB(tail)->tcp_flags |= TCP_SKB_CB(skb)->tcp_flags;
-		if (tcp_ecnmode_accecn(tcp_sk(sk)))
+		if (tcp_ecn_mode_accecn(tcp_sk(sk)))
 			tcp_accecn_copy_skb_cb_ace(tail, skb);
 
 		if (TCP_SKB_CB(skb)->has_rxtstamp) {

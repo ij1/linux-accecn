@@ -256,7 +256,7 @@ static void tcp_ecn_accept_cwr(struct sock *sk, const struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (!tcp_ecnmode_accecn(tp) && tcp_hdr(skb)->cwr) {
+	if (!tcp_ecn_mode_accecn(tp) && tcp_hdr(skb)->cwr) {
 		tp->ecn_flags &= ~TCP_ECN_DEMAND_CWR;
 
 		/* If the sender is telling us it has entered CWR, then its
@@ -289,7 +289,7 @@ static void __tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
 		if (tcp_ca_needs_ecn(sk))
 			tcp_ca_event(sk, CA_EVENT_ECN_IS_CE);
 
-		if (tcp_ecnmode_accecn(tp)) {
+		if (tcp_ecn_mode_accecn(tp)) {
 			/* If we have yet to send previous ACE updates, force
 			 * an ACK as the delta is too large
 			 */
@@ -1457,7 +1457,7 @@ static bool tcp_shifted_skb(struct sock *sk, struct sk_buff *prev,
 	}
 
 	TCP_SKB_CB(prev)->tcp_flags |= TCP_SKB_CB(skb)->tcp_flags;
-	if (tcp_ecnmode_accecn(tp))
+	if (tcp_ecn_mode_accecn(tp))
 		tcp_accecn_copy_skb_cb_ace(skb, prev);
 	TCP_SKB_CB(prev)->eor = TCP_SKB_CB(skb)->eor;
 	if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN)
@@ -3689,7 +3689,7 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	delivered = tp->delivered - prior_delivered;
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
 	if (saw_ece) {
-		if (tcp_ecnmode_accecn(tp)) {
+		if (tcp_ecn_mode_accecn(tp)) {
 			if (
 			    /* (flag & (FLAG_SND_UNA_ADVANCED | FLAG_NOT_DUP | */
 				     /* FLAG_DATA_SACKED)) || */
@@ -4576,7 +4576,7 @@ static bool tcp_try_coalesce(struct sock *sk,
 	TCP_SKB_CB(to)->end_seq = TCP_SKB_CB(from)->end_seq;
 	TCP_SKB_CB(to)->ack_seq = TCP_SKB_CB(from)->ack_seq;
 	TCP_SKB_CB(to)->tcp_flags |= TCP_SKB_CB(from)->tcp_flags;
-	if (tcp_ecnmode_accecn(tcp_sk(sk)))
+	if (tcp_ecn_mode_accecn(tcp_sk(sk)))
 		tcp_accecn_copy_skb_cb_ace(from, to);
 
 	if (TCP_SKB_CB(from)->has_rxtstamp) {
