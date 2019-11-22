@@ -364,13 +364,13 @@ bool tcp_accecn_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect, u8 end_state)
 					    &inet->inet_daddr,
 					    ntohs(inet->inet_dport),
 					    inet->inet_num,
-                                            ect, sent_ect);
+					    ect, sent_ect);
 		} else if (sk->sk_family == AF_INET6) {
 			net_dbg_ratelimited("ECT mismatch on path to %pI6:%u/%u got=%d expected=%d\n",
 					    &sk->sk_v6_daddr,
 					    ntohs(inet->inet_dport),
-                                            inet->inet_num,
-                                            ect, sent_ect);
+					    inet->inet_num,
+					    ect, sent_ect);
 		}
 		goto reject;
 	}
