@@ -435,13 +435,13 @@ static int tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	WARN(tcp_ecn_mode_pending(tp) &&
-	     /* In TCP_SYN_SENT, we will parse the SYN+ACK through tcp_ack()
-	      * before sending the final ACK of the 3WHS--which will move us
-	      * to TCP_ACCECN_OK after echoing the SYN+ACK ECT codepoint.
-	      */
-	     sk->sk_state == TCP_ESTABLISHED,
-	     "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
+	WARN_ONCE(tcp_ecn_mode_pending(tp) &&
+		  /* In TCP_SYN_SENT, we will parse the SYN+ACK through tcp_ack()
+		   * before sending the final ACK of the 3WHS--which will move us
+		   * to TCP_ACCECN_OK after echoing the SYN+ACK ECT codepoint.
+		   */
+		  sk->sk_state == TCP_ESTABLISHED,
+		  "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
 	switch (tp->ecn_flags & TCP_ECN_MODE_ANY) {
 	case TCP_ECN_MODE_ACCECN:
 		return (tcp_accecn_ace(th) + 8 - (tp->delivered_ce & 7)) & 7;
