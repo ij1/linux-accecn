@@ -358,8 +358,6 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 	}
 }
 
-/* ECN Status */
-#define TCP_ECN_DISABLED	0
 #define	TCP_ECN_MODE_RFC3168	0x1
 #define	TCP_ECN_QUEUE_CWR	0x2
 #define	TCP_ECN_DEMAND_CWR	0x4

@@ -346,10 +346,8 @@ bool tcp_accecn_syn_feedback(struct tcp_sock *tp, int ace, int sent_ect,
 			    int end_state)
 {
 	int ect = INET_ECN_NOT_ECT;
-	if (tcp_ecn_mode_pending(tp)) {
-		pr_warn("bad mode %d\n", tp->ecn_flags & TCP_ECN_MODE_ANY);
+	if (WARN_ONCE(!tcp_ecn_mode_pending(tp)))
 		goto reject;
-	}
 
 	/* We may want to define another sysctl than hog ecn_fallback, as we're
 	 * constraining the negotiation more than providing a non-ECN fallback.
@@ -382,12 +380,12 @@ static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th,
 	u8 ace = tcp_accecn_ace(th);
 
 	switch (ace) {
-	case 0:
-	case 7:
-	case 5:
+	case 0x0:
+	case 0x5:
+	case 0x7:
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
-	case 1:
+	case 0x1:
 		if (tcp_ecn_mode_pending(tp))
 			/* Downgrade from AccECN, or requested initially */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
