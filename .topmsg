@@ -1,6 +1,6 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: helper for ECN OK checks
+Subject: [PATCH] tcp: helpers for ECN mode handling
 
-Create a helper for TCP_ECN_OK check. No functional changes.
+Create helpers for TCP ECN modes. No functional changes.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
