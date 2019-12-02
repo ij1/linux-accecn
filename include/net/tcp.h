@@ -368,10 +368,6 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
 #define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
 
-/* TCP_ACCECN_* mask offsets where sent/received ECT are stored */
-#define TCP_ACCECN_SNT_ECT_SHIFT	5
-#define TCP_ACCECN_RCV_ECT_SHIFT	7
-
 static inline bool tcp_ecn_mode_any(const struct tcp_sock *tp)
 {
 	return tp->ecn_flags & TCP_ECN_MODE_ANY;
