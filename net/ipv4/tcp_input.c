@@ -408,9 +408,9 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 	default:
 		/* Sending the final packet of the 3WHS will move the ecn status
 		 * to TCP_ACCECN_OK */
-		if (tcp_accecn_syn_feedback(sk, ace, tcp_accecn_snt_ect(tp),
+		if (tcp_accecn_syn_feedback(sk, ace, tp->accecn_snt_ect,
 					    TCP_ECN_MODE_PENDING))
-			tcp_accecn_set_rcv_ect(tp, ip_dsfield & INET_ECN_MASK);
+			tp->accecn_rcv_ect = ip_dsfield & INET_ECN_MASK;
 		break;
 	}
 }
@@ -423,9 +423,8 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 			/* Downgrade to classic ECN feedback */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		else
-			tcp_accecn_set_rcv_ect(tp,
-					       TCP_SKB_CB(skb)->ip_dsfield &
-					       INET_ECN_MASK);
+			tp->accecn_rcv_ect = TCP_SKB_CB(skb)->ip_dsfield &
+					     INET_ECN_MASK;
 	}
 	if (tcp_ecn_mode_pending(tp) && (!th->ece || !th->cwr))
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);

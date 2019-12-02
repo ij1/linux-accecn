@@ -403,39 +403,6 @@ static inline void tcp_ecn_mode_set(struct tcp_sock *tp, u8 mode)
 	tp->ecn_flags |= mode;
 }
 
-static inline void __tcp_set_ecn_flags(struct tcp_sock *tp, u32 val, u32 mask,
-				       int offset)
-{
-	tp->ecn_flags = (tp->ecn_flags & ~(mask << offset)) |
-		((val & mask) << offset);
-}
-
-static inline u8 __tcp_read_ecn_flags(const struct tcp_sock *tp, u32 mask,
-					int offset)
-{
-	return (tp->ecn_flags >> offset) & mask;
-}
-
-static inline u8 tcp_accecn_snt_ect(const struct tcp_sock *tp)
-{
-	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_SHIFT);
-}
-
-static inline void tcp_accecn_set_snt_ect(struct tcp_sock *tp, u8 ect)
-{
-	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_SNT_ECT_SHIFT);
-}
-
-static inline u8 tcp_accecn_rcv_ect(const struct tcp_sock *tp)
-{
-	return __tcp_read_ecn_flags(tp, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_SHIFT);
-}
-
-static inline void tcp_accecn_set_rcv_ect(struct tcp_sock *tp, u8 ect)
-{
-	__tcp_set_ecn_flags(tp, ect, INET_ECN_MASK, TCP_ACCECN_RCV_ECT_SHIFT);
-}
-
 static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
 {
 	return tp->received_ce - tp->received_ce_tx;
