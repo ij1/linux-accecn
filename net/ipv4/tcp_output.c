@@ -410,27 +410,28 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (tcp_ecn_mode_any(tp)) {
-		INET_ECN_xmit(sk);
-		if (tcp_ecn_mode_accecn(tp)) {
-			tcp_accecn_set_ace(th, tp);
-			skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
-		} else {
-			/* Not-retransmitted data segment: set ECT and inject CWR. */
-			if (skb->len != tcp_header_len &&
-			    !before(TCP_SKB_CB(skb)->seq, tp->snd_nxt)) {
-				if (tp->ecn_flags & TCP_ECN_QUEUE_CWR) {
-					tp->ecn_flags &= ~TCP_ECN_QUEUE_CWR;
-					th->cwr = 1;
-					skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ECN;
-				}
-			} else if (!tcp_ca_needs_ecn(sk)) {
-				/* ACK or retransmitted segment: clear ECT|CE */
-				INET_ECN_dontxmit(sk);
+	if (!tcp_ecn_mode_any(tp))
+		return;
+
+	INET_ECN_xmit(sk);
+	if (tcp_ecn_mode_accecn(tp)) {
+		tcp_accecn_set_ace(th, tp);
+		skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
+	} else {
+		/* Not-retransmitted data segment: set ECT and inject CWR. */
+		if (skb->len != tcp_header_len &&
+		    !before(TCP_SKB_CB(skb)->seq, tp->snd_nxt)) {
+			if (tp->ecn_flags & TCP_ECN_QUEUE_CWR) {
+				tp->ecn_flags &= ~TCP_ECN_QUEUE_CWR;
+				th->cwr = 1;
+				skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ECN;
 			}
-			if (tp->ecn_flags & TCP_ECN_DEMAND_CWR)
-				th->ece = 1;
+		} else if (!tcp_ca_needs_ecn(sk)) {
+			/* ACK or retransmitted segment: clear ECT|CE */
+			INET_ECN_dontxmit(sk);
 		}
+		if (tp->ecn_flags & TCP_ECN_DEMAND_CWR)
+			th->ece = 1;
 	}
 }
 
