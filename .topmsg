@@ -1,8 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: extend tcp_flags for to allow AE bit/ACE field
+Subject: [PATCH] tcp: extend TCP flags to allow AE bit/ACE field
 
 With AccECN, there's one additional TCP flag to be used (AE)
 and ACE field that overloads the definition of AE, CWR, and
-ECE flags.
+ECE flags. As tcp_flags was previously only 1 byte, the
+byte-order stuff needs to be added to it's handling.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
