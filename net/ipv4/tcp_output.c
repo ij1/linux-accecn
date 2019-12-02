@@ -314,7 +314,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		INET_ECN_xmit(sk);
 	/* Check if we want to negotiate AccECN */
 	if (tcp_ecn_mode_pending(tp)) {
-		int ect = tp->accecn_rcv_ect;
+		int ect = tp->ect_rcv;
 
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
 		TCP_SKB_CB(skb)->tcp_flags |=
@@ -322,7 +322,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 			TCPHDR_ECE * (ect == INET_ECN_ECT_1);
 		if (ect & 2)
 			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
-		tp->accecn_snt_ect = inet_sk(sk)->tos & INET_ECN_MASK;
+		tp->ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
 	}
 }
 
@@ -351,7 +351,7 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 			/* Request AccECN */
 			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
-			tp->accecn_snt_ect = inet_sk(sk)->tos & INET_ECN_MASK;
+			tp->ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
 		} else {
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		}
@@ -397,7 +397,7 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 		th->ae = !!(tp->received_ce_tx & 0x4);
 	} else {
 		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
-		__tcp_accecn_echo_ect(th, tp->accecn_rcv_ect);
+		__tcp_accecn_echo_ect(th, tp->ect_rcv);
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	}
 }
