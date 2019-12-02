@@ -825,7 +825,6 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 
 
 #define tcp_flag_byte(th) (((u_int8_t *)th)[13])
-#define tcp_flags_word(th) (((__be16 *)th)[6])
 
 #define TCPHDR_FIN 0x01
 #define TCPHDR_SYN 0x02
