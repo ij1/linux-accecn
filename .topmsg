@@ -1,0 +1,6 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: extend tcp_flags for to allow AE bit/ACE field
+
+With AccECN, there's one additional TCP flag to be used.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
