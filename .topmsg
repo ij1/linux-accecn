@@ -1,7 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: accecn GSO support
 
-Handling of CWR flag differs between RFC 3168 ECN and AccECN,
-GSO needs to take this into account.
+Handling the CWR flag differs between RFC 3168 ECN and AccECN.
+Since the preceeding patches, TCP layer now breaks skbs such
+that no mixed-CWR skb is passed down and GRO never merges
+mixed CWR packets, this cwr special condition can be eliminated.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
