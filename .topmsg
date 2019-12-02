@@ -1,6 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: AccECN ACE field handling in GRO
+Subject: [PATCH] gro: prevent ACE field corruption
 
-AccECN and GRO.
+Due to different way the CWR field behaves in RFC3168 and
+AccECN, it is better to never let anything to receive
+a mixed-CWR skb, thus there's no need to set the relevant
+GSO/TSO flag.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
