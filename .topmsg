@@ -1,0 +1,9 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce -> tcp_ecn_field_check
+
+Rename tcp_ecn_check_ce to tcp_ecn_field_check. The extra
+"layer" in tcp_ecn_check_ce() function just checks
+for ECN being enabled, that can be moved into
+tcp_ecn_field_check rather than having the __ variant.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
