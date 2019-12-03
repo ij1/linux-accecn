@@ -393,11 +393,11 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 
 	switch (ace) {
 	case 0x0:
-	case 0x5:
 	case 0x7:
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
 	case 0x1:
+	case 0x5:
 		if (tcp_ecn_mode_pending(tp))
 			/* Downgrade from AccECN, or requested initially */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
