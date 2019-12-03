@@ -323,7 +323,7 @@ static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
 
 static void tcp_ecn_check_ce(struct sock *sk, const struct sk_buff *skb)
 {
-	if (tcp_ecn_mode_rfc3168(tcp_sk(sk)))
+	if (tcp_ecn_mode_any(tcp_sk(sk)))
 		__tcp_ecn_check_ce(sk, skb);
 }
 
