@@ -416,6 +416,7 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 	INET_ECN_xmit(sk);
 	if (tcp_ecn_mode_accecn(tp)) {
 		tcp_accecn_set_ace(th, tp);
+		skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
 	} else {
 		/* Not-retransmitted data segment: set ECT and inject CWR. */
 		if (skb->len != tcp_header_len &&
