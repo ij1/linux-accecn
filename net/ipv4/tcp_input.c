@@ -337,7 +337,7 @@ static inline int tcp_accecn_echoed_ect(int ace)
 	return INET_ECN_NOT_ECT;
 }
 
-bool tcp_accecn_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect, u8 end_state)
+bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ect = INET_ECN_NOT_ECT;
@@ -367,7 +367,6 @@ bool tcp_accecn_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect, u8 end_state)
 	}
 
 accept:
-	tcp_ecn_mode_set(tp, end_state);
 	tcp_accecn_init_counters(tp);
 	if (ect == INET_ECN_CE)
 		tp->delivered_ce++;
@@ -402,11 +401,13 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 			break;
 		}
-		/* Sending the final packet of the 3WHS will move the ecn status
-		 * to TCP_ACCECN_OK */
-		if (tcp_accecn_syn_feedback(sk, ace, tp->ect_snt,
-					    TCP_ECN_MODE_PENDING))
+		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->ect_snt)) {
 			tp->ect_rcv = ip_dsfield & INET_ECN_MASK;
+			/* Sending the final packet of the 3WHS will move
+			 * the ecn status to TCP_ACCECN_OK
+			 */
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
+		}
 		break;
 	}
 }

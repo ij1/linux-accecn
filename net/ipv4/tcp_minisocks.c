@@ -416,8 +416,9 @@ static void tcp_accecn_openreq_child(struct sock *sk,
 		tcp_accecn_init_counters(tp);
 		break;
 	default:
-		tcp_accecn_syn_feedback(sk, ace, tcp_rsk(req)->ect_snt,
-					TCP_ECN_MODE_ACCECN);
+		if (tcp_accecn_validate_syn_feedback(sk, ace,
+						     tcp_rsk(req)->ect_snt))
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	}
 }
