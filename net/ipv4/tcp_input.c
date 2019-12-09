@@ -5708,7 +5708,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 
 	/* AccECN ACE counter tracks *all* segments, including pure acks, ... */
 	if (INET_ECN_is_ce(TCP_SKB_CB(skb)->ip_dsfield))
-		++tp->received_ce;
+		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
 	tcp_mstamp_refresh(tp);
 	if (unlikely(!sk->sk_rx_dst))
