@@ -340,11 +340,7 @@ static inline int tcp_accecn_echoed_ect(int ace)
 bool tcp_accecn_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect, u8 end_state)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-
 	u8 ect = INET_ECN_NOT_ECT;
-	if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
-		      tp->ecn_flags & TCP_ECN_MODE_ANY))
-		goto reject;
 
 	/* We may want to define another sysctl than hog ecn_fallback, as we're
 	 * constraining the negotiation more than providing a non-ECN fallback.
@@ -401,6 +397,11 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		break;
 	default:
+		if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
+			      tp->ecn_flags & TCP_ECN_MODE_ANY)) {
+			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
+			break;
+		}
 		/* Sending the final packet of the 3WHS will move the ecn status
 		 * to TCP_ACCECN_OK */
 		if (tcp_accecn_syn_feedback(sk, ace, tp->ect_snt,
