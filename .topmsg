@@ -1,5 +1,5 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce() -> tcp_handle_ip_ecn_field()
+Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce() -> tcp_ecn_field_check()
 
 Rename tcp_ecn_check_ce to tcp_ecn_field_check. The extra
 "layer" in tcp_ecn_check_ce() function just checks
