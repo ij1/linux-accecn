@@ -3706,9 +3706,7 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
 	if (saw_ece) {
 		if (tcp_ecn_mode_accecn(tp)) {
-			if ((flag & FLAG_FORWARD_PROGRESS) ||
-			    (tp->rx_opt.saw_tstamp &&
-			     tp->rx_opt.rcv_tsval >= tp->rx_opt.ts_recent))
+			if (flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS))
 				delivered_ce = saw_ece;
 			else
 				goto end;
