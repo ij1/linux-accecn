@@ -325,8 +325,8 @@ static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
     return ace && ace != 3;
 }
 
-/* Infer the received ECT from the ACE field */
-static inline int tcp_accecn_echoed_ect(int ace)
+/* Infer the ECT value our SYN arrived with from the echoed ACE field */
+static inline int tcp_accecn_extract_syn_ect(u8 ace)
 {
 	if (ace & 1)
 		return INET_ECN_ECT_1;
@@ -345,7 +345,7 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback)
 		goto accept;
 
-	ect = tcp_accecn_echoed_ect(ace);
+	ect = tcp_accecn_extract_syn_ect(ace);
 	if (ect != sent_ect && ect != INET_ECN_CE) {
 		struct inet_sock *inet = inet_sk(sk);
 		if (sk->sk_family == AF_INET) {
