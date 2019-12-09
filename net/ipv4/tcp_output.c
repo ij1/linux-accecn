@@ -371,7 +371,7 @@ static void tcp_ecn_clear_syn(struct sock *sk, struct sk_buff *skb)
 	}
 }
 
-static void __tcp_accecn_echo_ect(struct tcphdr *th, int ect)
+static void tcp_accecn_echo_syn_ect(struct tcphdr *th, int ect)
 {
 	th->ae = !!(ect & 2);
 	th->cwr = ect != INET_ECN_ECT_0;
@@ -382,7 +382,7 @@ static void
 tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 {
 	if (tcp_rsk(req)->accecn_ok)
-		__tcp_accecn_echo_ect(th, tcp_rsk(req)->ect_rcv);
+		tcp_accecn_echo_syn_ect(th, tcp_rsk(req)->ect_rcv);
 	else if (inet_rsk(req)->ecn_ok)
 		th->ece = 1;
 }
@@ -397,7 +397,7 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 		th->ae = !!(tp->received_ce_tx & 0x4);
 	} else {
 		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
-		__tcp_accecn_echo_ect(th, tp->ect_rcv);
+		tcp_accecn_echo_syn_ect(th, tp->ect_rcv);
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	}
 }
