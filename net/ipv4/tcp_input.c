@@ -424,7 +424,7 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
-static int tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
+static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -3745,7 +3745,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
 	bool use_fast_path;
-	int saw_ece = 0; /* Did we receive ECE/an AccECN ACE update? */
+	u32 saw_ece = 0; /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
 	sack_state.first_sackt = 0;
