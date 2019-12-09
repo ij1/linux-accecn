@@ -314,7 +314,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		INET_ECN_xmit(sk);
 	/* Check if we want to negotiate AccECN */
 	if (tcp_ecn_mode_pending(tp)) {
-		int ect = tp->ect_rcv;
+		u8 ect = tp->ect_rcv;
 
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
 		TCP_SKB_CB(skb)->tcp_flags |=
@@ -370,7 +370,7 @@ static void tcp_ecn_clear_syn(struct sock *sk, struct sk_buff *skb)
 	}
 }
 
-static void tcp_accecn_echo_syn_ect(struct tcphdr *th, int ect)
+static void tcp_accecn_echo_syn_ect(struct tcphdr *th, u8 ect)
 {
 	th->ae = !!(ect & 2);
 	th->cwr = ect != INET_ECN_ECT_0;
