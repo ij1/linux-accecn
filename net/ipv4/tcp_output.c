@@ -348,7 +348,6 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 	if (use_ecn) {
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_ECE | TCPHDR_CWR;
 		if (use_accecn) {
-			/* Request AccECN */
 			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
 			tp->ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
