@@ -342,8 +342,9 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ect = INET_ECN_NOT_ECT;
 
-	if (!sock_net((struct sock*)tp)->ipv4.sysctl_tcp_ecn_fallback)
+	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback)
 		goto accept;
+
 	ect = tcp_accecn_echoed_ect(ace);
 	if (ect != sent_ect && ect != INET_ECN_CE) {
 		struct inet_sock *inet = inet_sk(sk);
