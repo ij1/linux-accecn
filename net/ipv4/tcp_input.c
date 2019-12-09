@@ -401,9 +401,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->ect_snt)) {
 			tp->ect_rcv = ip_dsfield & INET_ECN_MASK;
-			/* Sending the final packet of the 3WHS will move
-			 * the ecn status to TCP_ACCECN_OK
-			 */
+			/* Sending the final packet of 3WHS sets AccECN mode */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
 		}
 		break;
