@@ -337,9 +337,6 @@ static inline int tcp_accecn_echoed_ect(int ace)
 	return INET_ECN_NOT_ECT;
 }
 
-/* Caller should ensure that ACE is reflecting a valid ECT codepoint before
- * calling this.
- */
 bool tcp_accecn_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect, u8 end_state)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
