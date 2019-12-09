@@ -1,2 +1,16 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] accecn/gro-support
+Subject: [PATCH] gro: prevent ACE field corruption & better AccECN handling
+
+There are important differences in how the CWR field behaves
+in RFC3168 and AccECN.
+
+Thus, it is better to never let anything to receive
+a mixed-CWR skb. Set the Accurate ECN GSO/TSO flag to
+avoid send side corrupting CWR bits.
+
+There is no harm done from not immediately forwarding the
+CWR'ed segment with RFC3168 ECN. This, it's better to not
+do an immediate flush as it would impact performance with
+AccECN whenever the ACE field results in CWR bit being 1.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
