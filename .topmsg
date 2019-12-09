@@ -1,0 +1,8 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: create FLAG_TS_PROGRESS
+
+Whenever timestamp advances, it declares progress which
+can be used the other parts of the stack to decide that
+the ACK is the most recent one seen so far.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
