@@ -1,0 +1,6 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: reorganize SYN ECN code
+
+No functional changes.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
