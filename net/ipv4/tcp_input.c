@@ -3701,10 +3701,9 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
 	if (ecn_alert) {
 		if (tcp_ecn_mode_accecn(tp)) {
-			if (flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS))
-				delivered_ce = ecn_alert;
-			else
+			if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 				goto end;
+			delivered_ce = ecn_alert;
 		} else {
 			delivered_ce = delivered;
 		}
