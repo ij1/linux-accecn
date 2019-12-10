@@ -1,10 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce() -> tcp_data_ip_ecn_field()
+Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce() -> tcp_handle_ip_ecn_field()
 
-Rename tcp_ecn_check_ce to tcp_data_ip_ecn_field.
-
-The extra "layer" in tcp_ecn_check_ce() function just
-checks for ECN being enabled, that can be moved into
+Rename tcp_ecn_check_ce to tcp_ecn_field_check. The extra
+"layer" in tcp_ecn_check_ce() function just checks
+for ECN being enabled, that can be moved into
 tcp_ecn_field_check rather than having the __ variant.
 
 No functional changes.
