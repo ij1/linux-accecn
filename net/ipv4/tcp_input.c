@@ -3690,7 +3690,7 @@ static void tcp_xmit_recovery(struct sock *sk, int rexmit)
 
 /* Returns the number of packets newly acked or sacked by the current ACK */
 static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
-			       u32 saw_ece, int flag)
+			       u32 ecn_alert, int flag)
 {
 	const struct net *net = sock_net(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -3699,10 +3699,10 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 
 	delivered = tp->delivered - prior_delivered;
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
-	if (saw_ece) {
+	if (ecn_alert) {
 		if (tcp_ecn_mode_accecn(tp)) {
 			if (flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS))
-				delivered_ce = saw_ece;
+				delivered_ce = ecn_alert;
 			else
 				goto end;
 		} else {
@@ -3743,7 +3743,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
 	bool use_fast_path;
-	u32 saw_ece = 0; /* Did we receive ECE/an AccECN ACE update? */
+	u32 ecn_alert = 0; /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
 	sack_state.first_sackt = 0;
@@ -3816,8 +3816,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		if (TCP_SKB_CB(skb)->sacked)
 			flag |= tcp_sacktag_write_queue(sk, skb, prior_snd_una,
 							&sack_state);
-		saw_ece = tcp_ecn_rcv_ecn_echo(sk, tcp_hdr(skb));
-		if (saw_ece > 0)
+		ecn_alert = tcp_ecn_rcv_ecn_echo(sk, tcp_hdr(skb));
+		if (ecn_alert > 0)
 			flag |= FLAG_ECE;
 	}
 
@@ -3855,7 +3855,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	if ((flag & FLAG_FORWARD_PROGRESS) || !(flag & FLAG_NOT_DUP))
 		sk_dst_confirm(sk);
 
-	delivered = tcp_newly_delivered(sk, delivered, saw_ece, flag);
+	delivered = tcp_newly_delivered(sk, delivered, ecn_alert, flag);
 	if (!use_fast_path)
 		tcp_ack_finish_slowpath(sk, flag);
 
@@ -3871,7 +3871,7 @@ no_queue:
 	if (flag & FLAG_DSACKING_ACK) {
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
-		tcp_newly_delivered(sk, delivered, saw_ece, flag);
+		tcp_newly_delivered(sk, delivered, ecn_alert, flag);
 		if (!use_fast_path)
 			tcp_ack_finish_slowpath(sk, flag);
 	}
@@ -3894,7 +3894,7 @@ old_ack:
 						&sack_state);
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
-		tcp_newly_delivered(sk, delivered, saw_ece, flag);
+		tcp_newly_delivered(sk, delivered, ecn_alert, flag);
 		tcp_xmit_recovery(sk, rexmit);
 	}
 
