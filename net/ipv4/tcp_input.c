@@ -3739,8 +3739,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	/* See if we can take anything off of the retransmit queue. */
 	flag |= tcp_clean_rtx_queue(sk, prior_fack, prior_snd_una, &sack_state);
 
-	tcp_in_ack_event(sk, flag);
-
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	/* AccECN counter might have overflow on large ACKs? */
@@ -3750,6 +3748,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		if (ecn_alert > 0)
 			flag |= FLAG_ECE;
 	}
+
+	tcp_in_ack_event(sk, flag);
 
 	if (tp->tlp_high_seq)
 		tcp_process_tlp_ack(sk, ack, flag);
