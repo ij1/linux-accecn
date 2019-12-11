@@ -347,6 +347,12 @@ static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 		return 0;
 }
 
+static u32 tcp_accecn_estimate_cep_delta(struct tcp_sock *tp,
+					 const struct tcphdr *th)
+{
+	return (tcp_accecn_ace(th) - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
+}
+
 /* Buffer size and advertised window tuning.
  *
  * 1. Tuning sk->sk_sndbuf, when connection enters established state.
@@ -3736,6 +3742,14 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	tcp_in_ack_event(sk, flag);
 
 	tcp_rack_update_reo_wnd(sk, &rs);
+
+	/* AccECN counter might have overflow on large ACKs? */
+	if (tcp_ecn_mode_accecn(tp) &&
+	    ((tp->delivered - delivered) > TCP_ACCECN_CEP_ACE_MASK)) {
+		ecn_alert = tcp_accecn_estimate_cep_delta(tp, tcp_hdr(skb));
+		if (ecn_alert > 0)
+			flag |= FLAG_ECE;
+	}
 
 	if (tp->tlp_high_seq)
 		tcp_process_tlp_ack(sk, ack, flag);
