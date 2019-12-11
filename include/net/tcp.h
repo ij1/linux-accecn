@@ -2344,4 +2344,6 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	return 0;
 }
 
+#define TCP_ACCECN_ACE_MAX_DELTA 6
+
 #endif	/* _TCP_H */
