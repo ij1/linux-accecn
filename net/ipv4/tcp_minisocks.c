@@ -402,7 +402,7 @@ static void tcp_ecn_openreq_child(struct tcp_sock *tp,
 {
 	tcp_ecn_mode_set(inet_rsk(req)->ecn_ok ?
 			 TCP_ECN_MODE_RFC3168 :
-			 TCP_ECN_OFF);
+			 TCP_ECN_DISABLED);
 }
 
 void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)
