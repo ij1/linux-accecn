@@ -3651,7 +3651,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 delivered = tp->delivered;
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
-	bool use_fast_path;
 	u32 ecn_alert = 0; /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
