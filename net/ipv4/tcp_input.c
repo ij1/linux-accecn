@@ -326,11 +326,24 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th)
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
-static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *th)
+static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 {
-	if (th->ece && !th->syn && tcp_ecn_mode_rfc3168(tp))
-		return true;
-	return false;
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	WARN_ONCE(tcp_ecn_mode_pending(tp) &&
+		  /* In TCP_SYN_SENT, we will parse the SYN+ACK through tcp_ack()
+		   * before sending the final ACK of the 3WHS--which will move us
+		   * to TCP_ACCECN_OK after echoing the SYN+ACK ECT codepoint.
+		   */
+		  sk->sk_state == TCP_ESTABLISHED,
+		  "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
+
+	if (tcp_ecn_mode_accecn(tp))
+		return (tcp_accecn_ace(th) + 8 - (tp->delivered_ce & 7)) & 7;
+	else if (tcp_ecn_mode_rfc3168(tp))
+		return th->ece && !th->syn;
+	else
+		return 0;
 }
 
 /* Buffer size and advertised window tuning.
