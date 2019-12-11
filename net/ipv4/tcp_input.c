@@ -3694,9 +3694,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	if (flag & FLAG_UPDATE_TS_RECENT)
 		flag |= tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq);
 
-	use_fast_path = (flag & (FLAG_SLOWPATH | FLAG_SND_UNA_ADVANCED)) ==
-		FLAG_SND_UNA_ADVANCED;
-	if (use_fast_path) {
+	if ((flag & (FLAG_SLOWPATH | FLAG_SND_UNA_ADVANCED)) ==
+	    FLAG_SND_UNA_ADVANCED) {
 		/* Window is constant, pure forward advance.
 		 * No more checks are required.
 		 * Note, we use the fact that SND.UNA>=SND.WL2.
