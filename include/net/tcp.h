@@ -848,6 +848,9 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 #define TCPHDR_ACE (TCPHDR_ECE | TCPHDR_CWR | TCPHDR_AE)
 #define TCPHDR_SYN_ECN	(TCPHDR_SYN | TCPHDR_ECE | TCPHDR_CWR)
 
+#define TCP_ACCECN_CEP_ACE_MASK 0x7
+#define TCP_ACCECN_ACE_MAX_DELTA 6
+
 /* This is what the send packet queuing engine uses to pass
  * TCP per-packet control information to the transmission code.
  * We also store the host-order sequence numbers in here too.
@@ -2343,7 +2346,5 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	}
 	return 0;
 }
-
-#define TCP_ACCECN_ACE_MAX_DELTA 6
 
 #endif	/* _TCP_H */
