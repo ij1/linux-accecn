@@ -435,7 +435,8 @@ static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 		  "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
 
 	if (tcp_ecn_mode_accecn(tp))
-		return (tcp_accecn_ace(th) + 8 - (tp->delivered_ce & 7)) & 7;
+		return (tcp_accecn_ace(th) - tp->delivered_ce) &
+		       TCP_ACCECN_CEP_ACE_MASK;
 	else if (tcp_ecn_mode_rfc3168(tp))
 		return th->ece && !th->syn;
 	else
@@ -3659,12 +3660,22 @@ static void tcp_process_tlp_ack(struct sock *sk, u32 ack, int flag)
 	}
 }
 
-static inline void tcp_in_ack_event(struct sock *sk, u32 flags)
+static inline void tcp_in_ack_event(struct sock *sk, int flag)
 {
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
-	if (icsk->icsk_ca_ops->in_ack_event)
-		icsk->icsk_ca_ops->in_ack_event(sk, flags);
+	if (icsk->icsk_ca_ops->in_ack_event) {
+		u32 ack_ev_flags = 0;
+		if (flag & FLAG_WIN_UPDATE)
+			ack_ev_flags |= CA_ACK_WIN_UPDATE;
+		if (flag & FLAG_SLOWPATH) {
+			ack_ev_flags = CA_ACK_SLOWPATH;
+			if (flag & FLAG_ECE)
+				ack_ev_flags |= CA_ACK_ECE;
+		}
+
+		icsk->icsk_ca_ops->in_ack_event(sk, ack_ev_flags);
+	}
 }
 
 /* Congestion control has updated the cwnd already. So if we're in
@@ -3712,17 +3723,6 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	}
 end:
 	return delivered;
-}
-
-static inline void tcp_ack_finish_slowpath(struct sock *sk, int flag)
-{
-	u32 ack_ev_flags = CA_ACK_SLOWPATH;
-
-	if (flag & FLAG_ECE)
-		ack_ev_flags |= CA_ACK_ECE;
-	if (flag & FLAG_WIN_UPDATE)
-		ack_ev_flags |= CA_ACK_WIN_UPDATE;
-	tcp_in_ack_event(sk, ack_ev_flags);
 }
 
 /* This routine deals with incoming acks, but not outgoing ones. */
@@ -3790,9 +3790,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	if (flag & FLAG_UPDATE_TS_RECENT)
 		flag |= tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq);
 
-	use_fast_path = (flag & (FLAG_SLOWPATH | FLAG_SND_UNA_ADVANCED)) ==
-		FLAG_SND_UNA_ADVANCED;
-	if (use_fast_path) {
+	if ((flag & (FLAG_SLOWPATH | FLAG_SND_UNA_ADVANCED)) ==
+	    FLAG_SND_UNA_ADVANCED) {
 		/* Window is constant, pure forward advance.
 		 * No more checks are required.
 		 * Note, we use the fact that SND.UNA>=SND.WL2.
@@ -3800,8 +3799,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		tcp_update_wl(tp, ack_seq);
 		tcp_snd_una_update(tp, ack);
 		flag |= FLAG_WIN_UPDATE;
-
-		tcp_in_ack_event(sk, CA_ACK_WIN_UPDATE);
 
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPHPACKS);
 	} else {
@@ -3832,6 +3829,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	/* See if we can take anything off of the retransmit queue. */
 	flag |= tcp_clean_rtx_queue(sk, prior_fack, prior_snd_una, &sack_state);
 
+	tcp_in_ack_event(sk, flag);
+
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	if (tp->tlp_high_seq)
@@ -3855,8 +3854,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		sk_dst_confirm(sk);
 
 	delivered = tcp_newly_delivered(sk, delivered, ecn_alert, flag);
-	if (!use_fast_path)
-		tcp_ack_finish_slowpath(sk, flag);
 
 	lost = tp->lost - lost;			/* freshly marked lost */
 	rs.is_ack_delayed = !!(flag & FLAG_ACK_MAYBE_DELAYED);
@@ -3866,13 +3863,12 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	return 1;
 
 no_queue:
+	tcp_in_ack_event(sk, flag);
 	/* If data was DSACKed, see if we can undo a cwnd reduction. */
 	if (flag & FLAG_DSACKING_ACK) {
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
 		tcp_newly_delivered(sk, delivered, ecn_alert, flag);
-		if (!use_fast_path)
-			tcp_ack_finish_slowpath(sk, flag);
 	}
 	/* If this ack opens up a zero window, clear backoff.  It was
 	 * being used to time the probes, and is probably far higher than
