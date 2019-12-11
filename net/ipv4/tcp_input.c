@@ -339,7 +339,8 @@ static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 		  "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
 
 	if (tcp_ecn_mode_accecn(tp))
-		return (tcp_accecn_ace(th) + 8 - (tp->delivered_ce & 7)) & 7;
+		return (tcp_accecn_ace(th) - tp->delivered_ce) &
+		       TCP_ACCECN_CEP_ACE_MASK;
 	else if (tcp_ecn_mode_rfc3168(tp))
 		return th->ece && !th->syn;
 	else
