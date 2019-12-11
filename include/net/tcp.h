@@ -1518,7 +1518,8 @@ static inline bool tcp_paws_reject(const struct tcp_options_received *rx_opt,
 
 static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
 {
-	u32 ace = tcp_ecn_mode_accecn(tp) ? (tp->delivered_ce & 0x7) : 0;
+	u32 ace = tcp_ecn_mode_accecn(tp) ?
+		  (tp->delivered_ce & TCP_ACCECN_CEP_ACE_MASK) : 0;
 
 	tp->pred_flags = htonl((tp->tcp_header_len << 26) |
 			       (ace << 22) |
