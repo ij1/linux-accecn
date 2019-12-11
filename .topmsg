@@ -1,0 +1,11 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: allow RFC3168 CWR to be set only for singular skbs
+
+Due to differences in interpreting the CWR bit between RFC3168
+and Accurate ECN, it is better to never pass a super skb which
+would need to be split into segment that have distinct CWR bits.
+
+This is probably not strictly necessary but allows removing
+th->cwr = 0; special case from GSO.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
