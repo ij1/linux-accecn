@@ -394,10 +394,6 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 		th->ece = !!(tp->received_ce_tx & 0x1);
 		th->cwr = !!(tp->received_ce_tx & 0x2);
 		th->ae = !!(tp->received_ce_tx & 0x4);
-	} else {
-		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
-		tcp_accecn_echo_syn_ect(th, tp->ect_rcv);
-		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	}
 }
 
