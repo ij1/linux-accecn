@@ -1908,15 +1908,13 @@ static void tcp_add_reno_sack(struct sock *sk, int num_dupack)
 
 /* Account for ACK, ACKing some data in Reno Recovery phase. */
 
-static u32 tcp_remove_reno_sacks(struct sock *sk, int acked)
+static void tcp_remove_reno_sacks(struct sock *sk, int acked)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 delta = 0;
 
 	if (acked > 0) {
 		/* One ACK acked hole. The rest eat duplicate ACKs. */
-		delta = max_t(int, acked - tp->sacked_out, 1);
-		tp->delivered += delta;
+		tp->delivered += max_t(int, acked - tp->sacked_out, 1);
 		if (acked - 1 >= tp->sacked_out)
 			tp->sacked_out = 0;
 		else
@@ -1924,7 +1922,6 @@ static u32 tcp_remove_reno_sacks(struct sock *sk, int acked)
 	}
 	tcp_check_reno_reordering(sk, acked);
 	tcp_verify_left_out(tp);
-	return delta;
 }
 
 static inline void tcp_reset_reno_sack(struct tcp_sock *tp)
@@ -3209,13 +3206,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 		}
 
 		if (tcp_is_reno(tp)) {
-			/* Estimate delivered amount two ways */
-			u32 pkts_delivered = tcp_remove_reno_sacks(sk, pkts_acked);
-			u32 seqno_delivered = (skb ? TCP_SKB_CB(skb)->seq : tp->snd_una) -
-					      prior_snd_una;
-			sack->delivered_bytes += min_t(u32,
-						       pkts_delivered * tp->mss_cache,
-						       seqno_delivered);
+			tcp_remove_reno_sacks(sk, pkts_acked);
 
 			/* If any of the cumulatively ACKed segments was
 			 * retransmitted, non-SACK case cannot confirm that
