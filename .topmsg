@@ -1,0 +1,7 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: AccECN needs to know delivered bytes
+
+ACE field wraparound validation requires the sender to know
+how many bytes were delivered. Add counter for that.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
