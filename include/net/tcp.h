@@ -2387,6 +2387,7 @@ static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 }
 
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
-void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb, u8 ect_snt);
+void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
+			  u8 syn_ect_snt);
 
 #endif	/* _TCP_H */

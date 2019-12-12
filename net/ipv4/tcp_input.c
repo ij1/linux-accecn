@@ -399,8 +399,8 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 			break;
 		}
-		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->ect_snt)) {
-			tp->ect_rcv = ip_dsfield & INET_ECN_MASK;
+		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
+			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
 			/* Sending the final packet of 3WHS sets AccECN mode */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
 		}
@@ -416,7 +416,7 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 			/* Downgrade to classic ECN feedback */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		else
-			tp->ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+			tp->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 	}
 	if (tcp_ecn_mode_pending(tp) && (!th->ece || !th->cwr))
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
@@ -6434,7 +6434,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		tp->lsndtime = tcp_jiffies32;
 
 		tcp_initialize_rcv_mss(sk);
-		tcp_accecn_third_ack(sk, skb, tp->ect_snt);
+		tcp_accecn_third_ack(sk, skb, tp->syn_ect_snt);
 		tcp_fast_path_on(tp);
 		break;
 
@@ -6599,7 +6599,7 @@ static void tcp_ecn_create_request(struct request_sock *req,
 	    (net->ipv4.sysctl_tcp_ecn || tcp_ca_needs_accecn(listen_sk))) {
 		inet_rsk(req)->ecn_ok = 1;
 		tcp_rsk(req)->accecn_ok = 1;
-		tcp_rsk(req)->ect_rcv =
+		tcp_rsk(req)->syn_ect_rcv =
 			TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 		return;
 	}
@@ -6630,8 +6630,8 @@ static void tcp_openreq_init(struct request_sock *req,
 	tcp_rsk(req)->snt_synack = 0;
 	tcp_rsk(req)->last_oow_ack_time = 0;
 	tcp_rsk(req)->accecn_ok = 0;
-	tcp_rsk(req)->ect_rcv = 0;
-	tcp_rsk(req)->ect_snt = 0;
+	tcp_rsk(req)->syn_ect_rcv = 0;
+	tcp_rsk(req)->syn_ect_snt = 0;
 	req->mss = rx_opt->mss_clamp;
 	req->ts_recent = rx_opt->saw_tstamp ? rx_opt->rcv_tsval : 0;
 	ireq->tstamp_ok = rx_opt->tstamp_ok;
