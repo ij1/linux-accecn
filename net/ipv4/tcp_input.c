@@ -3910,6 +3910,31 @@ old_ack:
 	return 0;
 }
 
+static void tcp_accecn_update_bytes(u32 *cnt, const char *from)
+{
+	u32 truncated = get_unaligned_be32(from - 1) & 0xffffff;
+	*cnt += (truncated - *cnt) & 0xffffff;
+}
+
+static void tcp_parse_accecn_option(int len, const char *ptr,
+				    struct tcp_options_received *opt_rx)
+{
+	if (len >= 3) {
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
+					ptr - 1);
+	}
+	if (len >= 6) {
+		ptr += 3;
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
+					ptr - 1);
+	}
+	if (len >= 9) {
+		ptr += 3;
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
+					ptr - 1);
+	}
+}
+
 static void tcp_parse_fastopen_option(int len, const unsigned char *cookie,
 				      bool syn, struct tcp_fastopen_cookie *foc,
 				      bool exp_opt)
@@ -4085,10 +4110,16 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
+				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
+				    get_unaligned_be16(ptr) ==
+				    TCPOPT_ACCECN_MAGIC)
+					tcp_parse_accecn_option(opsize -
+						TCPOLEN_EXP_ACCECN_BASE,
+						ptr + 2, opt_rx);
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */
-				if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
+				else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
 				    get_unaligned_be16(ptr) ==
 				    TCPOPT_FASTOPEN_MAGIC)
 					tcp_parse_fastopen_option(opsize -
