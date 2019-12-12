@@ -422,31 +422,31 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
-static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
+static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *th)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
-
-	WARN_ONCE(tcp_ecn_mode_pending(tp) &&
-		  /* In TCP_SYN_SENT, we will parse the SYN+ACK through tcp_ack()
-		   * before sending the final ACK of the 3WHS--which will move us
-		   * to TCP_ACCECN_OK after echoing the SYN+ACK ECT codepoint.
-		   */
-		  sk->sk_state == TCP_ESTABLISHED,
-		  "Incomplete AccECN negociation in an ESTABLISHED connection!\n");
-
-	if (tcp_ecn_mode_accecn(tp))
-		return (tcp_accecn_ace(th) - tp->delivered_ce) &
-		       TCP_ACCECN_CEP_ACE_MASK;
-	else if (tcp_ecn_mode_rfc3168(tp))
-		return th->ece && !th->syn;
-	else
-		return 0;
+	if (th->ece && !th->syn && tcp_ecn_mode_rfc3168(tp))
+		return 1;
+	return 0;
 }
 
-static u32 tcp_accecn_estimate_cep_delta(struct tcp_sock *tp,
-					 const struct tcphdr *th)
+static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct tcphdr *th,
+				u32 delivered_pkts, u32 delivered_bytes,
+				int flag)
 {
-	return (tcp_accecn_ace(th) - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
+	u32 delta, safe_delta;
+
+	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
+	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+		return 0;
+
+	delta = (tcp_accecn_ace(th) - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
+	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
+		return delta;
+
+	safe_delta = delivered_pkts -
+		     ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
+
+	return safe_delta;
 }
 
 /* Buffer size and advertised window tuning.
@@ -1249,6 +1249,7 @@ static bool tcp_check_dsack(struct sock *sk, const struct sk_buff *ack_skb,
 
 struct tcp_sacktag_state {
 	u32	reord;
+	u32	delivered_bytes;
 	/* Timestamps for earliest and latest never-retransmitted segment
 	 * that was SACKed. RTO needs the earliest RTT to stay conservative,
 	 * but congestion control should still get an accurate delay signal.
@@ -1320,7 +1321,7 @@ static int tcp_match_skb_to_sack(struct sock *sk, struct sk_buff *skb,
 static u8 tcp_sacktag_one(struct sock *sk,
 			  struct tcp_sacktag_state *state, u8 sacked,
 			  u32 start_seq, u32 end_seq,
-			  int dup_sack, int pcount,
+			  int dup_sack, int pcount, u32 plen,
 			  u64 xmit_time)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1379,6 +1380,7 @@ static u8 tcp_sacktag_one(struct sock *sk,
 		state->flag |= FLAG_DATA_SACKED;
 		tp->sacked_out += pcount;
 		tp->delivered += pcount;  /* Out-of-order packets delivered */
+		state->delivered_bytes += plen;
 
 		/* Lost marker hint past SACKed? Tweak RFC3517 cnt */
 		if (tp->lost_skb_hint &&
@@ -1420,7 +1422,7 @@ static bool tcp_shifted_skb(struct sock *sk, struct sk_buff *prev,
 	 * tcp_highest_sack_seq() when skb is highest_sack.
 	 */
 	tcp_sacktag_one(sk, state, TCP_SKB_CB(skb)->sacked,
-			start_seq, end_seq, dup_sack, pcount,
+			start_seq, end_seq, dup_sack, pcount, skb->len,
 			tcp_skb_timestamp_us(skb));
 	tcp_rate_skb_delivered(sk, skb, state->rate);
 
@@ -1712,6 +1714,7 @@ static struct sk_buff *tcp_sacktag_walk(struct sk_buff *skb, struct sock *sk,
 						TCP_SKB_CB(skb)->end_seq,
 						dup_sack,
 						tcp_skb_pcount(skb),
+						skb->len,
 						tcp_skb_timestamp_us(skb));
 			tcp_rate_skb_delivered(sk, skb, state->rate);
 			if (TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_ACKED)
@@ -3252,6 +3255,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 			tp->sacked_out -= acked_pcount;
 		} else if (tcp_is_sack(tp)) {
 			tp->delivered += acked_pcount;
+			sack->delivered_bytes += skb->len;
 			if (!tcp_skb_spurious_retrans(tp, skb))
 				tcp_rack_advance(tp, sacked, scb->end_seq,
 						 tcp_skb_timestamp_us(skb));
@@ -3707,27 +3711,19 @@ static void tcp_xmit_recovery(struct sock *sk, int rexmit)
 
 /* Returns the number of packets newly acked or sacked by the current ACK */
 static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
-			       u32 ecn_alert, int flag)
+			       u32 ecn_count, int flag)
 {
 	const struct net *net = sock_net(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 delivered_ce = 0;
-	u32 delivered;
+	u32 delivered, delivered_ce;
 
 	delivered = tp->delivered - prior_delivered;
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
-	if (ecn_alert) {
-		if (tcp_ecn_mode_accecn(tp)) {
-			if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
-				goto end;
-			delivered_ce = ecn_alert;
-		} else {
-			delivered_ce = delivered;
-		}
+	if (ecn_count) {
+		delivered_ce = tcp_ecn_mode_accecn(tp) ? ecn_count : delivered;
 		tp->delivered_ce += delivered_ce;
 		NET_ADD_STATS(net, LINUX_MIB_TCPDELIVEREDCE, delivered_ce);
 	}
-end:
 	return delivered;
 }
 
@@ -3747,9 +3743,10 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 delivered = tp->delivered;
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
-	u32 ecn_alert = 0; /* Did we receive ECE/an AccECN ACE update? */
+	u32 ecn_count = 0; /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
+	sack_state.delivered_bytes = 0;
 	sack_state.first_sackt = 0;
 	sack_state.rate = &rs;
 
@@ -3817,8 +3814,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		if (TCP_SKB_CB(skb)->sacked)
 			flag |= tcp_sacktag_write_queue(sk, skb, prior_snd_una,
 							&sack_state);
-		ecn_alert = tcp_ecn_rcv_ecn_echo(sk, tcp_hdr(skb));
-		if (ecn_alert > 0)
+		ecn_count = tcp_ecn_rcv_ecn_echo(tp, tcp_hdr(skb));
+		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
 
@@ -3836,11 +3833,15 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
-	/* AccECN counter might have overflow on large ACKs? */
 	if (tcp_ecn_mode_accecn(tp) &&
-	    ((tp->delivered - delivered) > TCP_ACCECN_CEP_ACE_MASK)) {
-		ecn_alert = tcp_accecn_estimate_cep_delta(tp, tcp_hdr(skb));
-		if (ecn_alert > 0)
+	    ((flag & FLAG_SLOWPATH) ||
+	     /* AccECN counter might have overflow on large ACKs */
+	     (tp->delivered - delivered > TCP_ACCECN_CEP_ACE_MASK))) {
+		ecn_count = tcp_accecn_cep_delta(tp, tcp_hdr(skb),
+						 tp->delivered - delivered,
+						 sack_state.delivered_bytes,
+						 flag);
+		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
 
@@ -3866,7 +3867,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	if ((flag & FLAG_FORWARD_PROGRESS) || !(flag & FLAG_NOT_DUP))
 		sk_dst_confirm(sk);
 
-	delivered = tcp_newly_delivered(sk, delivered, ecn_alert, flag);
+	delivered = tcp_newly_delivered(sk, delivered, ecn_count, flag);
 
 	lost = tp->lost - lost;			/* freshly marked lost */
 	rs.is_ack_delayed = !!(flag & FLAG_ACK_MAYBE_DELAYED);
@@ -3881,7 +3882,7 @@ no_queue:
 	if (flag & FLAG_DSACKING_ACK) {
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
-		tcp_newly_delivered(sk, delivered, ecn_alert, flag);
+		tcp_newly_delivered(sk, delivered, ecn_count, flag);
 	}
 	/* If this ack opens up a zero window, clear backoff.  It was
 	 * being used to time the probes, and is probably far higher than
@@ -3902,7 +3903,7 @@ old_ack:
 						&sack_state);
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
-		tcp_newly_delivered(sk, delivered, ecn_alert, flag);
+		tcp_newly_delivered(sk, delivered, ecn_count, flag);
 		tcp_xmit_recovery(sk, rexmit);
 	}
 
