@@ -5842,7 +5842,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 			/* Bulk data transfer: receiver */
 			__skb_pull(skb, tcp_header_len);
 			tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield,
-						  skb->len);
+						  len - tcp_header_len);
 			eaten = tcp_queue_rcv(sk, skb, &fragstolen);
 
 			tcp_event_data_recv(sk, skb);
@@ -5879,7 +5879,8 @@ slow_path:
 		return;
 
 step5:
-	tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield, skb->len);
+	tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield,
+				  len - th->doff * 4);
 
 	if (tcp_ack(sk, skb, FLAG_SLOWPATH | FLAG_UPDATE_TS_RECENT) < 0)
 		goto discard;
