@@ -5453,10 +5453,12 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
-static void tcp_ecn_update_received_counters(struct tcp_sock *tp,
-					     struct sk_buff *skb)
+/* Updates Accurate ECN received counters from the received IP ECN field */
+static void tcp_ecn_received_counters(struct tcp_sock *tp, u8 ip_dsfield)
 {
-	switch (TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK) {
+	u8 ecn_field = ip_dsfield & INET_ECN_MASK;
+
+	switch (ecn_field) {
 	case INET_ECN_CE:
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
@@ -5624,7 +5626,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 	/* TCP congestion window tracking */
 	trace_tcp_probe(sk, skb);
 
-	tcp_ecn_update_received_counters(tp, skb);
+	tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield);
 
 	tcp_mstamp_refresh(tp);
 	if (unlikely(!sk->sk_rx_dst))
