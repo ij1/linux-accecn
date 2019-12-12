@@ -348,9 +348,25 @@ static u32 tcp_ecn_rcv_ecn_echo(struct sock *sk, const struct tcphdr *th)
 }
 
 static u32 tcp_accecn_estimate_cep_delta(struct tcp_sock *tp,
-					 const struct tcphdr *th)
+					 const struct tcphdr *th,
+					 u32 delivered_pkts,
+					 u32 delivered_bytes,
+					 int flag)
 {
-	return (tcp_accecn_ace(th) - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
+	u32 delta, safe_delta;
+
+	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
+	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+		return 0;
+
+	delta = (tcp_accecn_ace(th) - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
+	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
+		return delta;
+
+	safe_delta = delivered_pkts -
+		     ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
+
+	return safe_delta;
 }
 
 /* Buffer size and advertised window tuning.
@@ -3745,10 +3761,13 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
-	/* AccECN counter might have overflow on large ACKs? */
+	/* AccECN counter might have overflow on large ACKs */
 	if (tcp_ecn_mode_accecn(tp) &&
 	    ((tp->delivered - delivered) > TCP_ACCECN_CEP_ACE_MASK)) {
-		ecn_alert = tcp_accecn_estimate_cep_delta(tp, tcp_hdr(skb));
+		ecn_alert = tcp_accecn_estimate_cep_delta(tp, tcp_hdr(skb),
+							  tp->delivered - delivered,
+							  sack_state.delivered_bytes,
+							  flag);
 		if (ecn_alert > 0)
 			flag |= FLAG_ECE;
 	}
