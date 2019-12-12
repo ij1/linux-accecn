@@ -1126,6 +1126,7 @@ static bool tcp_check_dsack(struct sock *sk, const struct sk_buff *ack_skb,
 
 struct tcp_sacktag_state {
 	u32	reord;
+	u32	delivered_bytes;
 	/* Timestamps for earliest and latest never-retransmitted segment
 	 * that was SACKed. RTO needs the earliest RTT to stay conservative,
 	 * but congestion control should still get an accurate delay signal.
@@ -1197,7 +1198,7 @@ static int tcp_match_skb_to_sack(struct sock *sk, struct sk_buff *skb,
 static u8 tcp_sacktag_one(struct sock *sk,
 			  struct tcp_sacktag_state *state, u8 sacked,
 			  u32 start_seq, u32 end_seq,
-			  int dup_sack, int pcount,
+			  int dup_sack, int pcount, u32 plen,
 			  u64 xmit_time)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1256,6 +1257,7 @@ static u8 tcp_sacktag_one(struct sock *sk,
 		state->flag |= FLAG_DATA_SACKED;
 		tp->sacked_out += pcount;
 		tp->delivered += pcount;  /* Out-of-order packets delivered */
+		state->delivered_bytes += plen;
 
 		/* Lost marker hint past SACKed? Tweak RFC3517 cnt */
 		if (tp->lost_skb_hint &&
@@ -1297,7 +1299,7 @@ static bool tcp_shifted_skb(struct sock *sk, struct sk_buff *prev,
 	 * tcp_highest_sack_seq() when skb is highest_sack.
 	 */
 	tcp_sacktag_one(sk, state, TCP_SKB_CB(skb)->sacked,
-			start_seq, end_seq, dup_sack, pcount,
+			start_seq, end_seq, dup_sack, pcount, skb->len,
 			tcp_skb_timestamp_us(skb));
 	tcp_rate_skb_delivered(sk, skb, state->rate);
 
@@ -1587,6 +1589,7 @@ static struct sk_buff *tcp_sacktag_walk(struct sk_buff *skb, struct sock *sk,
 						TCP_SKB_CB(skb)->end_seq,
 						dup_sack,
 						tcp_skb_pcount(skb),
+						skb->len,
 						tcp_skb_timestamp_us(skb));
 			tcp_rate_skb_delivered(sk, skb, state->rate);
 			if (TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_ACKED)
@@ -1905,13 +1908,15 @@ static void tcp_add_reno_sack(struct sock *sk, int num_dupack)
 
 /* Account for ACK, ACKing some data in Reno Recovery phase. */
 
-static void tcp_remove_reno_sacks(struct sock *sk, int acked)
+static u32 tcp_remove_reno_sacks(struct sock *sk, int acked)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
+	u32 delta = 0;
 
 	if (acked > 0) {
 		/* One ACK acked hole. The rest eat duplicate ACKs. */
-		tp->delivered += max_t(int, acked - tp->sacked_out, 1);
+		delta = max_t(int, acked - tp->sacked_out, 1);
+		tp->delivered += delta;
 		if (acked - 1 >= tp->sacked_out)
 			tp->sacked_out = 0;
 		else
@@ -1919,6 +1924,7 @@ static void tcp_remove_reno_sacks(struct sock *sk, int acked)
 	}
 	tcp_check_reno_reordering(sk, acked);
 	tcp_verify_left_out(tp);
+	return delta;
 }
 
 static inline void tcp_reset_reno_sack(struct tcp_sock *tp)
@@ -3127,6 +3133,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 			tp->sacked_out -= acked_pcount;
 		} else if (tcp_is_sack(tp)) {
 			tp->delivered += acked_pcount;
+			sack->delivered_bytes += skb->len;
 			if (!tcp_skb_spurious_retrans(tp, skb))
 				tcp_rack_advance(tp, sacked, scb->end_seq,
 						 tcp_skb_timestamp_us(skb));
@@ -3202,7 +3209,13 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 		}
 
 		if (tcp_is_reno(tp)) {
-			tcp_remove_reno_sacks(sk, pkts_acked);
+			/* Estimate delivered amount two ways */
+			u32 pkts_delivered = tcp_remove_reno_sacks(sk, pkts_acked);
+			u32 seqno_delivered = (skb ? TCP_SKB_CB(skb)->seq : tp->snd_una) -
+					      prior_snd_una;
+			sack->delivered_bytes += min_t(u32,
+						       pkts_delivered * tp->mss_cache,
+						       seqno_delivered);
 
 			/* If any of the cumulatively ACKed segments was
 			 * retransmitted, non-SACK case cannot confirm that
@@ -3594,6 +3607,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
 	u32 prior_fack;
 
+	sack_state.delivered_bytes = 0;
 	sack_state.first_sackt = 0;
 	sack_state.rate = &rs;
 
