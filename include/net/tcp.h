@@ -2361,6 +2361,20 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 
 /* See draft-ietf-tcpm-accurate-ecn for the latest values */
 #define TCP_ACCECN_CEP_INIT 5
+#define TCP_ACCECN_E1B_INIT 0
+#define TCP_ACCECN_E0B_INIT 1
+#define TCP_ACCECN_CEB_INIT 0
+
+static inline void __tcp_accecn_init_bytes_counters(int *counter_array)
+{
+	BUILD_BUG_ON(INET_ECN_ECT_1 != 0x1);
+	BUILD_BUG_ON(INET_ECN_ECT_0 != 0x2);
+	BUILD_BUG_ON(INET_ECN_CE != 0x3);
+
+	counter_array[INET_ECN_ECT_0 - 1] = TCP_ACCECN_E0B_INIT;
+	counter_array[INET_ECN_ECT_1 - 1] = TCP_ACCECN_E1B_INIT;
+	counter_array[INET_ECN_CE - 1] = TCP_ACCECN_CEB_INIT;
+}
 
 /* To avoid/detect middlebox interference, not all counters start at 0 */
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
@@ -2368,6 +2382,8 @@ static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 	tp->delivered_ce = TCP_ACCECN_CEP_INIT;
 	tp->received_ce = TCP_ACCECN_CEP_INIT;
 	tp->received_ce_tx = TCP_ACCECN_CEP_INIT;
+	__tcp_accecn_init_bytes_counters(tp->received_ecn_bytes);
+	__tcp_accecn_init_bytes_counters(tp->delivered_ecn_bytes);
 }
 
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
