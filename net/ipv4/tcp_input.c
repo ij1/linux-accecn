@@ -5550,15 +5550,17 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 }
 
 static void tcp_ecn_update_received_counters(struct tcp_sock *tp,
-					     struct sk_buff *skb)
+					     struct sk_buff *skb,
+					     u32 payload_len)
 {
-	u32 payload_len = TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq;
-
 	switch (TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK) {
 	case INET_ECN_CE:
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
-		break;
+		/* Fall-through */
+	case INET_ECN_ECT_1:
+	case INET_ECN_ECT_0:
+		tp->delivered_ecn_bytes[ecn_field - 1] += payload_len;
 	}
 }
 
