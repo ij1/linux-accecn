@@ -5554,9 +5554,12 @@ static void tcp_ecn_update_received_counters(struct tcp_sock *tp,
 {
 	u32 payload_len = TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq;
 
-	/* AccECN ACE counter tracks *all* segments, including pure acks, ... */
-	if (INET_ECN_is_ce(TCP_SKB_CB(skb)->ip_dsfield))
+	switch (TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK) {
+	case INET_ECN_CE:
+		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+		break;
+	}
 }
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
