@@ -3747,7 +3747,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 delivered = tp->delivered;
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
-	bool use_fast_path;
 	u32 ecn_alert = 0; /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
@@ -5550,6 +5549,14 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
+static void tcp_ecn_update_received_counters(struct tcp_sock *tp,
+					     struct sk_buff *skb)
+{
+	/* AccECN ACE counter tracks *all* segments, including pure acks, ... */
+	if (INET_ECN_is_ce(TCP_SKB_CB(skb)->ip_dsfield))
+		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+}
+
 /* Accept RST for rcv_nxt - 1 after a FIN.
  * When tcp connections are abruptly terminated from Mac OSX (via ^C), a
  * FIN is sent followed by a RST packet. The RST is sent with the same
@@ -5710,9 +5717,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 	/* TCP congestion window tracking */
 	trace_tcp_probe(sk, skb);
 
-	/* AccECN ACE counter tracks *all* segments, including pure acks, ... */
-	if (INET_ECN_is_ce(TCP_SKB_CB(skb)->ip_dsfield))
-		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+	tcp_ecn_update_received_counters(tp, skb);
 
 	tcp_mstamp_refresh(tp);
 	if (unlikely(!sk->sk_rx_dst))
