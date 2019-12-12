@@ -5562,7 +5562,7 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 		/* Fall-through */
 	case INET_ECN_ECT_1:
 	case INET_ECN_ECT_0:
-		tp->delivered_ecn_bytes[ecn_field - 1] += payload_len;
+		tp->received_ecn_bytes[ecn_field - 1] += payload_len;
 	}
 }
 
