@@ -397,9 +397,7 @@ void tcp_openreq_init_rwin(struct request_sock *req,
 }
 EXPORT_SYMBOL(tcp_openreq_init_rwin);
 
-static void tcp_accecn_openreq_child(struct sock *sk,
-				     const struct request_sock *req,
-				     const struct sk_buff *skb)
+void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb, u8 ect_snt)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ace = tcp_accecn_ace(tcp_hdr(skb));
@@ -416,8 +414,7 @@ static void tcp_accecn_openreq_child(struct sock *sk,
 		tcp_accecn_init_counters(tp);
 		break;
 	default:
-		if (tcp_accecn_validate_syn_feedback(sk, ace,
-						     tcp_rsk(req)->ect_snt))
+		if (tcp_accecn_validate_syn_feedback(sk, ace, ect_snt))
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	}
@@ -430,7 +427,7 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (tcp_rsk(req)->accecn_ok)
-		tcp_accecn_openreq_child(sk, req, skb);
+		tcp_accecn_third_ack(sk, skb, tcp_rsk(req)->ect_snt);
 	else if (inet_rsk(req)->ecn_ok)
 		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
 				     TCP_ECN_MODE_RFC3168 :
