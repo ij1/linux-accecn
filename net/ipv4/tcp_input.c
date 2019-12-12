@@ -3619,23 +3619,15 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 {
 	const struct net *net = sock_net(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 delivered_ce = 0;
-	u32 delivered;
+	u32 delivered, delivered_ce;
 
 	delivered = tp->delivered - prior_delivered;
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
 	if (ecn_alert) {
-		if (tcp_ecn_mode_accecn(tp)) {
-			if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
-				goto end;
-			delivered_ce = ecn_alert;
-		} else {
-			delivered_ce = delivered;
-		}
+		delivered_ce = tcp_ecn_mode_accecn(tp) ? ecn_alert : delivered;
 		tp->delivered_ce += delivered_ce;
 		NET_ADD_STATS(net, LINUX_MIB_TCPDELIVEREDCE, delivered_ce);
 	}
-end:
 	return delivered;
 }
 
