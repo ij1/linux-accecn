@@ -5453,10 +5453,12 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
-static void tcp_ecn_update_received_counters(struct tcp_sock *tp,
-					     struct sk_buff *skb)
+/* Updates Accurate ECN received counters from the received IP ECN field */
+static void tcp_ecn_received_counters(struct tcp_sock *tp, u8 ip_dsfield)
 {
-	switch (TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK) {
+	u8 ecn_field = ip_dsfield & INET_ECN_MASK;
+
+	switch (ecn_field) {
 	case INET_ECN_CE:
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
@@ -5624,8 +5626,6 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 	/* TCP congestion window tracking */
 	trace_tcp_probe(sk, skb);
 
-	tcp_ecn_update_received_counters(tp, skb);
-
 	tcp_mstamp_refresh(tp);
 	if (unlikely(!sk->sk_rx_dst))
 		inet_csk(sk)->icsk_af_ops->sk_rx_dst_set(sk, skb);
@@ -5697,6 +5697,8 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 				    tp->rcv_nxt == tp->rcv_wup)
 					flag |= __tcp_replace_ts_recent(tp, tstamp_delta);
 
+				tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield);
+
 				/* We know that such packets are checksummed
 				 * on entry.
 				 */
@@ -5738,6 +5740,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 
 			/* Bulk data transfer: receiver */
 			__skb_pull(skb, tcp_header_len);
+			tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield);
 			eaten = tcp_queue_rcv(sk, skb, &fragstolen);
 
 			tcp_event_data_recv(sk, skb);
@@ -5774,6 +5777,8 @@ slow_path:
 		return;
 
 step5:
+	tcp_ecn_received_counters(tp, TCP_SKB_CB(skb)->ip_dsfield);
+
 	if (tcp_ack(sk, skb, FLAG_SLOWPATH | FLAG_UPDATE_TS_RECENT) < 0)
 		goto discard;
 
