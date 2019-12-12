@@ -5552,6 +5552,8 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 static void tcp_ecn_update_received_counters(struct tcp_sock *tp,
 					     struct sk_buff *skb)
 {
+	u32 payload_len = TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq;
+
 	/* AccECN ACE counter tracks *all* segments, including pure acks, ... */
 	if (INET_ECN_is_ce(TCP_SKB_CB(skb)->ip_dsfield))
 		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
