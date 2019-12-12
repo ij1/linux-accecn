@@ -3835,7 +3835,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	if (tcp_ecn_mode_accecn(tp) &&
 	    ((flag & FLAG_SLOWPATH) ||
-	     /* AccECN counter might have overflow on large ACKs */
+	     /* AccECN counter might overflow on large ACKs */
 	     (tp->delivered - delivered > TCP_ACCECN_CEP_ACE_MASK))) {
 		ecn_count = tcp_accecn_cep_delta(tp, tcp_hdr(skb),
 						 tp->delivered - delivered,
