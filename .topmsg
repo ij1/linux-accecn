@@ -4,4 +4,8 @@ Subject: [PATCH] tcp: AccECN needs to know delivered bytes
 ACE field wraparound validation requires the sender to know
 how many bytes were delivered. Add counter for that.
 
+Non-SACK calculation is quite annoying and inaccurate
+so let ACE calculations just default to the safe variant
+in that case.
+
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
