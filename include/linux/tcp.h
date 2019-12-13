@@ -92,7 +92,8 @@ struct tcp_options_received {
 		smc_ok : 1,	/* SMC seen on SYN packet		*/
 		snd_wscale : 4,	/* Window scaling received from sender	*/
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
-	u8	num_sacks;	/* Number of SACK blocks		*/
+	u8	num_sacks:3,	/* Number of SACK blocks		*/
+		ecn_bytes_len:2;/* AccECN option length			*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
 	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
 	u32	ecn_bytes[3];	/* AccECN ECT(1), ECT(0), CE bytes cnts */
@@ -221,7 +222,8 @@ struct tcp_sock {
 	u16	advmss;		/* Advertised MSS			*/
 	u8	compressed_ack;
 	u8	syn_ect_snt:2,	/* AccECN ECT memory, only */
-		syn_ect_rcv:2;	/* ... needed durign 3WHS + first seqno */
+		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
+		accecn_minlen:2;/* Minimum length of AccECN option sent */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
 	u8	chrono_type:2,	/* current chronograph type */

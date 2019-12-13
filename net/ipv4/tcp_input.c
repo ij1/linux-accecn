@@ -3921,17 +3921,17 @@ static void tcp_accecn_update_bytes(u32 *cnt, const char *from)
 static void tcp_parse_accecn_option(int len, const char *ptr,
 				    struct tcp_options_received *opt_rx)
 {
-	if (len >= 3) {
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
 		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
 					ptr - 1);
 	}
-	if (len >= 6) {
-		ptr += 3;
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
 		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
 					ptr - 1);
 	}
-	if (len >= 9) {
-		ptr += 3;
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
 		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
 					ptr - 1);
 	}
