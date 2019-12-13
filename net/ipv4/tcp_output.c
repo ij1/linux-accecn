@@ -739,16 +739,16 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 }
 
 /* Initial values for AccECN option */
-const u32 synack_ecn_bytes[3] = {
+u32 synack_ecn_bytes[3] = {
 	TCP_ACCECN_E1B_INIT, TCP_ACCECN_E0B_INIT, TCP_ACCECN_CEB_INIT
 }; 
 
-static int tcp_synack_options_fit_accecn(struct tcp_out_options *opts, int need,
-					 int remaining)
+static u32 tcp_synack_options_fit_accecn(struct tcp_out_options *opts, u32 need,
+					 unsigned int remaining)
 {
-	int max_combine_saving = 0;
+	u32 max_combine_saving = 0;
 
-	if ((opts->options & OPTION_SACK_ADVERTISE|OPTION_TS) ==
+	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
 	    OPTION_SACK_ADVERTISE)
 		max_combine_saving = 2;
 	else if (opts->options & OPTION_WSCALE)
@@ -831,10 +831,10 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 
 	if (treq->accecn_ok) {
 		if (remaining >= TCPOLEN_EXP_ACCECN_BASE) {
+			u32 need = TCPOLEN_EXP_ACCECN_BASE + 3 * 3;
 			opts->options |= OPTION_ACCECN;
 			opts->ecn_bytes = synack_ecn_bytes;
 			opts->num_ecn_bytes = 3;
-			need = TCPOLEN_EXP_ACCECN_BASE + 3 * 3;
 			if (unlikely(remaining < need))
 				need = tcp_synack_options_fit_accecn(opts, need,
 								     remaining);
