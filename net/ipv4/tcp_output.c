@@ -740,36 +740,44 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 	return MAX_TCP_OPTION_SPACE - remaining;
 }
 
-/* Initial values for AccECN option */
+/* Initial values for AccECN option, ordered is based on ECN field bits
+ * similar to received_ecn_bytes.
+ */
 u32 synack_ecn_bytes[3] = {
 	TCP_ACCECN_E1B_INIT, TCP_ACCECN_E0B_INIT, TCP_ACCECN_CEB_INIT
 };
 
-static u32 tcp_synack_options_fit_accecn(struct tcp_out_options *opts, u32 need,
-					 unsigned int remaining)
+static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
 {
-	u32 max_combine_saving = 0;
-
 	/* How much there's room for combining with the aligment padding? */
 	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
 	    OPTION_SACK_ADVERTISE)
-		max_combine_saving = 2;
+		return 2;
 	else if (opts->options & OPTION_WSCALE)
-		max_combine_saving = 1;
+		return 1;
+	return 0;
+}
 
-	while (opts->num_ecn_bytes > 0) {
-		int leftover_size = need & 0x3;
-		/* Larger than 2 cannot be combined currently with anuthing */
+static u32 tcp_options_fit_accecn(struct tcp_out_options *opts, u32 required,
+				  unsigned int remaining, u32 max_combine_saving)
+{
+	u32 size = TCP_ACCECN_MAXSIZE;
+
+	while (opts->num_ecn_bytes >= required) {
+		int leftover_size = size & 0x3;
+		/* Larger than 2 cannot be combined currently with anything */
 		if ((leftover_size > 2) || (max_combine_saving < leftover_size))
 			leftover_size = 0;
 
-		if (remaining >= need - leftover_size)
+		if (remaining >= size - leftover_size)
 			break;
 
 		opts->num_ecn_bytes--;
-		need -= TCPOLEN_ACCECN_PERCOUNTER;
+		size -= TCPOLEN_ACCECN_PERCOUNTER;
 	}
-	return need;
+	if (opts->num_ecn_bytes < required)
+		return 0;
+	return size;
 }
 
 /* Set up TCP options for SYN-ACKs. */
@@ -835,14 +843,13 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 
 	if (treq->accecn_ok) {
 		if (remaining >= TCPOLEN_EXP_ACCECN_BASE) {
-			u32 need = TCPOLEN_EXP_ACCECN_BASE +
-				   TCPOLEN_ACCECN_PERCOUNTER * TCP_ACCECN_NUMBCOUNTS;
+			u32 need = TCP_ACCECN_MAXSIZE;
 			opts->options |= OPTION_ACCECN;
 			opts->ecn_bytes = synack_ecn_bytes;
-			opts->num_ecn_bytes = TCP_ACCECN_NUMBCOUNTS;
+			opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
 			if (unlikely(remaining < need))
-				need = tcp_synack_options_fit_accecn(opts, need,
-								     remaining);
+				need = tcp_options_fit_accecn(opts, 0, remaining,
+							      tcp_synack_options_combine_saving(opts));
 			remaining -= need;
 		}
 	}
@@ -894,12 +901,20 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	}
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		const unsigned int required = TCPOLEN_EXP_ACCECN_BASE +
-					      TCPOLEN_ACCECN_PERCOUNTER *
-					      tp->accecn_minlen;
-		opts->options |= OPTION_ACCECN;
-		opts->ecn_bytes = tp->received_ecn_bytes;
-		opts->num_ecn_bytes = tp->accecn_minlen;
+		u32 need = TCP_ACCECN_MAXSIZE;
+		u32 remaining = MAX_TCP_OPTION_SPACE - size;
+		opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
+		if (unlikely(remaining < need))
+			need = tcp_options_fit_accecn(opts,
+						      tp->accecn_minlen,
+						      remaining,
+						      opts->num_sack_blocks > 0 ?
+						      2 : 0);
+		if (need > 0) {
+			opts->options |= OPTION_ACCECN;
+			opts->ecn_bytes = tp->received_ecn_bytes;
+			size += need;
+		}
 	}
 
 

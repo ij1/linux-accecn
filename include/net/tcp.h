@@ -217,8 +217,11 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCPOLEN_EXP_SMC_BASE_ALIGNED	8
 #define TCPOLEN_ACCECN_PERCOUNTER	3
 
-/* Maximum number of byte counters in AccECN option */
-#define TCP_ACCECN_NUMBCOUNTS		3
+/* Maximum number of byte counters in AccECN option + size */
+#define TCP_ACCECN_NUMCOUNTERS		3
+#define TCP_ACCECN_MAXSIZE		(TCPOLEN_EXP_ACCECN_BASE + \
+					 TCPOLEN_ACCECN_PERCOUNTER * \
+					 TCP_ACCECN_NUMCOUNTERS)
 
 /* Flags in tp->nonagle */
 #define TCP_NAGLE_OFF		1	/* Nagle's algo is disabled */
