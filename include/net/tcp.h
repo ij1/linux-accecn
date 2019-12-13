@@ -2364,8 +2364,8 @@ static inline void __tcp_accecn_init_bytes_counters(int *counter_array)
 	BUILD_BUG_ON(INET_ECN_ECT_0 != 0x2);
 	BUILD_BUG_ON(INET_ECN_CE != 0x3);
 
-	counter_array[INET_ECN_ECT_0 - 1] = TCP_ACCECN_E0B_INIT;
 	counter_array[INET_ECN_ECT_1 - 1] = TCP_ACCECN_E1B_INIT;
+	counter_array[INET_ECN_ECT_0 - 1] = TCP_ACCECN_E0B_INIT;
 	counter_array[INET_ECN_CE - 1] = TCP_ACCECN_CEB_INIT;
 }
 
