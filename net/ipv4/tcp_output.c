@@ -2216,8 +2216,6 @@ static int tcp_mtu_probe(struct sock *sk)
 			}
 			TCP_SKB_CB(skb)->seq += copy;
 		}
-		if (tcp_ecn_mode_accecn(tp))
-			tcp_accecn_copy_skb_cb_ace(skb, nskb);
 
 		len += copy;
 
