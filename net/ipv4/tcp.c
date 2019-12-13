@@ -442,6 +442,7 @@ void tcp_init_sock(struct sock *sk)
 
 	tp->tsoffset = 0;
 	tp->rack.reo_wnd_steps = 1;
+	tcp_accecn_init_counters(tp);
 
 	sk->sk_state = TCP_CLOSE;
 
