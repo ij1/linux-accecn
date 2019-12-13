@@ -2378,7 +2378,6 @@ static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 	tp->received_ce = TCP_ACCECN_CEP_INIT;
 	tp->received_ce_tx = TCP_ACCECN_CEP_INIT;
 	__tcp_accecn_init_bytes_counters(tp->received_ecn_bytes);
-	__tcp_accecn_init_bytes_counters(tp->delivered_ecn_bytes);
 }
 
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
