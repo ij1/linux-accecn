@@ -5585,6 +5585,15 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
+/* Maps ECT/CE bits to minimum length of AccECN option */
+static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
+{
+	unsigned int tmp = (ecnfield - 2) & INET_ECN_MASK;
+	/* Shift+XOR for 11 -> 10 */
+	return (tmp ^ (tmp >> 1)) + 1;
+}
+
+
 /* Updates Accurate ECN received counters from the received IP ECN field */
 static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 				      u32 payload_len)
@@ -5599,6 +5608,8 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 	case INET_ECN_ECT_1:
 	case INET_ECN_ECT_0:
 		tp->received_ecn_bytes[ecn_field - 1] += payload_len;
+		tp->accecn_minlen = max_t(u8, tp->accecn_minlen,
+					  tcp_ecn_field_to_accecn_len(ecn_field));
 	}
 }
 
