@@ -738,6 +738,10 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 	return MAX_TCP_OPTION_SPACE - remaining;
 }
 
+const u32 synack_ecn_bytes[3] = {
+	TCP_ACCECN_E1B_INIT, TCP_ACCECN_CEB_INIT, TCP_ACCECN_E0B_INIT,
+}; 
+
 /* Set up TCP options for SYN-ACKs. */
 static unsigned int tcp_synack_options(const struct sock *sk,
 				       struct request_sock *req,
@@ -800,7 +804,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 	if (treq->accecn_ok) {
 		if (remaining > TCPOLEN_EXP_ACCECN_BASE) {
 			opts->options |= OPTION_ACCECN;
-			/* FIXME: should send full length option */
+			opts->ecn_bytes = synack_ecn_bytes;
 			opts->num_ecn_bytes = 0;
 			remaining -= TCPOLEN_EXP_ACCECN_BASE;
 		}
