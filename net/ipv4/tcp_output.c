@@ -1228,9 +1228,6 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 		tcp_update_skb_after_send(sk, oskb, prior_wstamp);
 		tcp_rate_skb_sent(sk, oskb);
 	}
-	/* Ensure we'll eventually send the final received_ce value */
-	if (tcp_ecn_mode_accecn(tp) && tp->received_ce_tx != tp->received_ce)
-		tcp_send_delayed_ack(sk);
 	return err;
 }
 
@@ -2250,8 +2247,6 @@ static int tcp_mtu_probe(struct sock *sk)
 			}
 			TCP_SKB_CB(skb)->seq += copy;
 		}
-		if (tcp_ecn_mode_accecn(tp))
-			tcp_accecn_copy_skb_cb_ace(skb, nskb);
 
 		len += copy;
 

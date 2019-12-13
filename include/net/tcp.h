@@ -896,13 +896,6 @@ struct tcp_skb_cb {
 
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
-static inline void tcp_accecn_copy_skb_cb_ace(const struct sk_buff *from,
-					      struct sk_buff *to)
-{
-	TCP_SKB_CB(to)->tcp_flags &= ~TCPHDR_ACE;
-	TCP_SKB_CB(to)->tcp_flags |= TCP_SKB_CB(from)->tcp_flags & TCPHDR_ACE;
-}
-
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb)
 {
 	TCP_SKB_CB(skb)->bpf.data_end = skb->data + skb_headlen(skb);
