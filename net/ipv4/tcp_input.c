@@ -3910,10 +3910,14 @@ old_ack:
 	return 0;
 }
 
+/* Handles AccECN option ECT and CE 24-bit byte counters update into
+ * the u32 value in tcp_sock. As we're processing TCP options, it is
+ * safe to access from - 1.
+ */
 static void tcp_accecn_update_bytes(u32 *cnt, const char *from)
 {
-	u32 truncated = get_unaligned_be32(from - 1) & 0xffffff;
-	*cnt += (truncated - *cnt) & 0xffffff;
+	u32 truncated = get_unaligned_be32(from - 1) & 0xFFFFFFU;
+	*cnt += (truncated - *cnt) & 0xFFFFFFU;
 }
 
 static void tcp_parse_accecn_option(int len, const char *ptr,
