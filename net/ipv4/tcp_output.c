@@ -747,6 +747,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 				       struct tcp_fastopen_cookie *foc)
 {
 	struct inet_request_sock *ireq = inet_rsk(req);
+	struct tcp_request_sock *treq = tcp_rsk(req);
 	unsigned int remaining = MAX_TCP_OPTION_SPACE;
 
 #ifdef CONFIG_TCP_MD5SIG
@@ -793,6 +794,15 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 			opts->options |= OPTION_FAST_OPEN_COOKIE;
 			opts->fastopen_cookie = foc;
 			remaining -= need;
+		}
+	}
+
+	if (treq->accecn_ok) {
+		if (remaining > TCPOLEN_EXP_ACCECN_BASE) {
+			opts->options |= OPTION_ACCECN;
+			/* FIXME: should send full length option */
+			opts->num_ecn_bytes = 0;
+			remaining -= TCPOLEN_EXP_ACCECN_BASE;
 		}
 	}
 
