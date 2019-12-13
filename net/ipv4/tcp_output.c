@@ -463,6 +463,7 @@ static inline bool tcp_urg_mode(const struct tcp_sock *tp)
 #define OPTION_WSCALE		(1 << 3)
 #define OPTION_FAST_OPEN_COOKIE	(1 << 8)
 #define OPTION_SMC		(1 << 9)
+#define OPTION_ACCECN		(1 << 10)
 
 static void smc_options_write(__be32 *ptr, u16 *options)
 {
@@ -483,13 +484,16 @@ struct tcp_out_options {
 	u16 options;		/* bit field of OPTION_* */
 	u16 mss;		/* 0 to disable */
 	u8 ws;			/* window scale, 0 to disable */
-	u8 num_sack_blocks;	/* number of SACK blocks to include */
+	u8 num_sack_blocks:3,	/* number of SACK blocks to include */
+	   num_ecn_bytes:2;	/* number of AccECN fields needed */
 	u8 hash_size;		/* bytes in hash_location */
 	__u8 *hash_location;	/* temporary pointer, overloaded */
 	__u32 tsval, tsecr;	/* need to include OPTION_TS */
 	struct tcp_fastopen_cookie *fastopen_cookie;	/* Fast open cookie */
+	u32 *ecn_bytes;		/* AccECN ECT/CE byte counters */
 };
 
+#define NOP_LEFTOVER	((TCPOPT_NOP << 8) | TCPOPT_NOP)
 /* Write previously computed TCP options to the packet.
  *
  * Beware: Something in the Internet is very sensitive to the ordering of
@@ -507,6 +511,8 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			      struct tcp_out_options *opts)
 {
 	u16 options = opts->options;	/* mungable copy */
+	u16 leftover_bytes = NOP_LEFTOVER;	/* replace next NOPs if avail */
+	int leftover_size = 2;
 
 	if (unlikely(OPTION_MD5 & options)) {
 		*ptr++ = htonl((TCPOPT_NOP << 24) | (TCPOPT_NOP << 16) |
@@ -539,18 +545,42 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 		*ptr++ = htonl(opts->tsecr);
 	}
 
+	if (unlikely(OPTION_ACCECN & options)) {
+		u8 len = TCPOLEN_EXP_ACCECN_BASE + opts->num_ecn_bytes * 3;
+		*ptr++ = htonl((TCPOPT_EXP << 24) | (len << 16) |
+			       TCPOPT_ACCECN_MAGIC);
+		if (opts->num_ecn_bytes > 0) {
+			*ptr++ = htonl((opts->ecn_bytes[INET_ECN_ECT_0 - 1] << 8) |
+				       (opts->num_ecn_bytes > 1 ?
+				        (opts->ecn_bytes[INET_ECN_CE - 1] >> 16) & 0xff :
+				        TCPOPT_NOP));
+			if (opts->num_ecn_bytes == 2) {
+				leftover_bytes = (opts->ecn_bytes[INET_ECN_ECT_1 - 1] >> 8) & 0xffff;
+			} else {
+				*ptr++ = htonl((opts->ecn_bytes[INET_ECN_CE - 1] << 16) |
+					       ((opts->ecn_bytes[INET_ECN_ECT_1 - 1] >> 8) & 0xffff));
+				leftover_bytes = ((opts->ecn_bytes[INET_ECN_ECT_1 - 1] & 0xff) << 8) |
+						TCPOPT_NOP;
+				leftover_size = 1;
+			}
+		}
+	}
 	if (unlikely(OPTION_SACK_ADVERTISE & options)) {
-		*ptr++ = htonl((TCPOPT_NOP << 24) |
-			       (TCPOPT_NOP << 16) |
+		*ptr++ = htonl((leftover_bytes << 16) |
 			       (TCPOPT_SACK_PERM << 8) |
 			       TCPOLEN_SACK_PERM);
+		leftover_bytes = NOP_LEFTOVER;
 	}
 
 	if (unlikely(OPTION_WSCALE & options)) {
-		*ptr++ = htonl((TCPOPT_NOP << 24) |
+		u8 highbyte = TCPOPT_NOP;
+		if (unlikely(leftover_size == 1))
+			highbyte = leftover_bytes >> 8;
+		*ptr++ = htonl((highbyte << 24) |
 			       (TCPOPT_WINDOW << 16) |
 			       (TCPOLEN_WINDOW << 8) |
 			       opts->ws);
+		leftover_bytes = NOP_LEFTOVER;
 	}
 
 	if (unlikely(opts->num_sack_blocks)) {
@@ -558,8 +588,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			tp->duplicate_sack : tp->selective_acks;
 		int this_sack;
 
-		*ptr++ = htonl((TCPOPT_NOP  << 24) |
-			       (TCPOPT_NOP  << 16) |
+		*ptr++ = htonl((leftover_bytes << 16) |
 			       (TCPOPT_SACK <<  8) |
 			       (TCPOLEN_SACK_BASE + (opts->num_sack_blocks *
 						     TCPOLEN_SACK_PERBLOCK)));
@@ -571,6 +600,10 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 		}
 
 		tp->rx_opt.dsack = 0;
+	} else if (unlikely(leftover_bytes != NOP_LEFTOVER)) {
+		*ptr++ = htonl((leftover_bytes << 16) |
+			       (TCPOPT_NOP << 8) |
+			       TCPOPT_NOP);
 	}
 
 	if (unlikely(OPTION_FAST_OPEN_COOKIE & options)) {
