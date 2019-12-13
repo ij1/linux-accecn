@@ -758,6 +758,9 @@ static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
 	return 0;
 }
 
+/* AccECN can take here and there take advantage of NOPs for alignment of
+ * other options
+ */
 static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 				  int remaining, int max_combine_saving)
 {
