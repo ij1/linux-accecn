@@ -5596,17 +5596,19 @@ static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 				      u32 payload_len)
 {
-	u8 dsfield = TCP_SKB_CB(skb)->ip_dsfield;
-	u8 is_ce = (dsfield & (dsfield >> 1)) & 0x1;
-	u8 is_ecn = (dsfield | (dsfield >> 1)) & 0x1;
+	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 
-	/* ACE counter tracks *all* segments including pure acks */
-	tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
-	/* Warning: this will access index -1 (and add 0) for non-ECT packets */
-	tp->received_ecn_bytes[(dsfield & INET_ECN_MASK) - 1] += is_ecn * payload_len;
-	tp->ecn_flags |= is_ce << TCP_ECN_SEEN_SHIFT;
-	tp->accecn_minlen = max_t(u8, tp->accecn_minlen,
-				  tcp_ecn_field_to_accecn_len(ecn_field));
+	if (ecnfield != INET_ECN_NOT_ECT) {
+		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
+
+		tp->ecn_flags |= TCP_ECN_SEEN;
+		tp->received_ecn_bytes[ecnfield] += payload_len;
+		/* ACE counter tracks *all* segments including pure acks */
+		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+
+		tp->accecn_minlen = max_t(u8, tp->accecn_minlen,
+					  tcp_ecn_field_to_accecn_len(ecnfield));
+	}
 }
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
