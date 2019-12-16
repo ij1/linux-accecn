@@ -5582,9 +5582,13 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 /* Maps ECT/CE bits to minimum length of AccECN option */
 static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 {
-	unsigned int tmp = (ecnfield - 2) & INET_ECN_MASK;
+	unsigned int opt;
+
+	opt = (ecnfield - 2) & INET_ECN_MASK;
 	/* Shift+XOR for 11 -> 10 */
-	return (tmp ^ (tmp >> 1)) + 1;
+	opt = (opt ^ (opt >> 1)) + 1;
+
+	return opt;
 }
 
 
