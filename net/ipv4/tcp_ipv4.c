@@ -951,7 +951,7 @@ static int tcp_v4_send_synack(const struct sock *sk, struct dst_entry *dst,
 	skb = tcp_make_synack(sk, dst, req, foc, synack_type);
 
 	if (skb) {
-		tcp_rsk(req)->ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
+		tcp_rsk(req)->syn_ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
 		__tcp_v4_send_check(skb, ireq->ir_loc_addr, ireq->ir_rmt_addr);
 
 		rcu_read_lock();

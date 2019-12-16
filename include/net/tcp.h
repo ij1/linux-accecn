@@ -364,6 +364,8 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_SEEN		0x8
 #define TCP_ECN_MODE_ACCECN	0x10
 
+#define TCP_ECN_SEEN_SHIFT	3
+
 #define TCP_ECN_DISABLED	0
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
 #define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
@@ -895,13 +897,6 @@ struct tcp_skb_cb {
 };
 
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
-
-static inline void tcp_accecn_copy_skb_cb_ace(const struct sk_buff *from,
-					      struct sk_buff *to)
-{
-	TCP_SKB_CB(to)->tcp_flags &= ~TCPHDR_ACE;
-	TCP_SKB_CB(to)->tcp_flags |= TCP_SKB_CB(from)->tcp_flags & TCPHDR_ACE;
-}
 
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb)
 {
@@ -2371,5 +2366,7 @@ static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 }
 
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
+void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
+			  u8 syn_ect_snt);
 
 #endif	/* _TCP_H */
