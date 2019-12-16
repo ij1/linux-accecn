@@ -332,8 +332,7 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 }
 
 static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct tcphdr *th,
-				u32 delivered_pkts, u32 delivered_bytes,
-				int flag)
+				u32 delivered_pkts, int flag)
 {
 	u32 delta, safe_delta;
 
@@ -3737,7 +3736,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_cep_delta(tp, tcp_hdr(skb),
 						 tp->delivered - delivered,
-						 sack_state.delivered_bytes,
 						 flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
