@@ -337,6 +337,12 @@ static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct tcphdr *th,
 {
 	u32 delta, safe_delta;
 
+	if (!(flag & FLAG_SLOWPATH)) {
+		/* AccECN counter might overflow on large ACKs */
+		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
+			return 0;
+	}
+
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
@@ -3733,10 +3739,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
-	if (tcp_ecn_mode_accecn(tp) &&
-	    ((flag & FLAG_SLOWPATH) ||
-	     /* AccECN counter might overflow on large ACKs */
-	     (tp->delivered - delivered > TCP_ACCECN_CEP_ACE_MASK))) {
+	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_cep_delta(tp, tcp_hdr(skb),
 						 tp->delivered - delivered,
 						 sack_state.delivered_bytes,
