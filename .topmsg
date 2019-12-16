@@ -1,5 +1,5 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: accecn GSO support
+Subject: [PATCH] gso: accecn support
 
 Handling the CWR flag differs between RFC 3168 ECN and AccECN.
 Since the preceeding patches, TCP layer now breaks skbs such
