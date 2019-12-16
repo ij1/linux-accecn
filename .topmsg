@@ -1,7 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce() -> tcp_data_ip_ecn_field()
+Subject: [PATCH] tcp: rework {__,}tcp_ecn_check_ce() -> tcp_data_ecn_check()
 
-Rename tcp_ecn_check_ce to tcp_data_ip_ecn_field.
+Rename tcp_ecn_check_ce to tcp_data_ecn_check as it is
+called only for data segments, not for ACKs (with AccECN,
+also ACKs may get ECN bits).
 
 The extra "layer" in tcp_ecn_check_ce() function just
 checks for ECN being enabled, that can be moved into
