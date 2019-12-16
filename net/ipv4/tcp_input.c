@@ -5453,14 +5453,11 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 /* Updates Accurate ECN received counters from the received IP ECN field */
 static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb)
 {
-	u8 ecn_field = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+	u8 dsfield = TCP_SKB_CB(skb)->ip_dsfield;
+	u8 is_ce = (dsfield & (dsfield >> 1)) & 0x1;
 
-	switch (ecn_field) {
-	case INET_ECN_CE:
-		/* ACE counter tracks *all* segments including pure acks */
-		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
-		break;
-	}
+	/* ACE counter tracks *all* segments including pure acks */
+	tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 }
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
