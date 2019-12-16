@@ -1,0 +1,8 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: allow embedding leftover into option padding
+
+There is some waste space in the option usage due to padding
+of 32-bit fields. AccECN option can take advantage of those
+few bytes as its tail is often consuming just a few odd bytes.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
