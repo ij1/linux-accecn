@@ -307,15 +307,111 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 	}
 }
 
-static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th)
+/* §3.1.2 If a TCP server that implements AccECN receives a SYN with the three
+ * TCP header flags (AE, CWR and ECE) set to any combination other than 000,
+ * 011 or 111, it MUST negotiate the use of AccECN as if they had been set to
+ * 111.
+ */
+static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
-	if (tcp_ecn_mode_rfc3168(tp) && (!th->ece || th->cwr))
-		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
+    u8 ace = tcp_accecn_ace(th);
+    return ace && ace != 3;
 }
 
-static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th)
+/* Infer the ECT value our SYN arrived with from the echoed ACE field */
+static inline int tcp_accecn_extract_syn_ect(u8 ace)
 {
-	if (tcp_ecn_mode_rfc3168(tp) && (!th->ece || !th->cwr))
+	if (ace & 1)
+		return INET_ECN_ECT_1;
+	if (!(ace & 2))
+		return INET_ECN_ECT_0;
+	if (ace & 4)
+		return INET_ECN_CE;
+	return INET_ECN_NOT_ECT;
+}
+
+bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	u8 ect = INET_ECN_NOT_ECT;
+
+	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback)
+		goto accept;
+
+	ect = tcp_accecn_extract_syn_ect(ace);
+	if (ect != sent_ect && ect != INET_ECN_CE) {
+		struct inet_sock *inet = inet_sk(sk);
+		if (sk->sk_family == AF_INET) {
+			net_dbg_ratelimited("ECT mismatch on path to %pI4:%u/%u got=%d expected=%d\n",
+					    &inet->inet_daddr,
+					    ntohs(inet->inet_dport),
+					    inet->inet_num,
+					    ect, sent_ect);
+		} else if (sk->sk_family == AF_INET6) {
+			net_dbg_ratelimited("ECT mismatch on path to %pI6:%u/%u got=%d expected=%d\n",
+					    &sk->sk_v6_daddr,
+					    ntohs(inet->inet_dport),
+					    inet->inet_num,
+					    ect, sent_ect);
+		}
+		goto reject;
+	}
+
+accept:
+	tcp_accecn_init_counters(tp);
+	if (ect == INET_ECN_CE)
+		tp->delivered_ce++;
+	return true;
+
+reject:
+	tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
+	return false;
+}
+
+/* See Table 2 of the AccECN draft */
+static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
+			       u8 ip_dsfield)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	u8 ace = tcp_accecn_ace(th);
+
+	switch (ace) {
+	case 0x0:
+	case 0x7:
+		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
+		break;
+	case 0x1:
+	case 0x5:
+		if (tcp_ecn_mode_pending(tp))
+			/* Downgrade from AccECN, or requested initially */
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
+		break;
+	default:
+		if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
+			      tp->ecn_flags & TCP_ECN_MODE_ANY)) {
+			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
+			break;
+		}
+		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
+			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
+			/* Sending the final packet of 3WHS sets AccECN mode */
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
+		}
+		break;
+	}
+}
+
+static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
+			    const struct sk_buff *skb)
+{
+	if (tcp_ecn_mode_pending(tp)) {
+		if (!tcp_accecn_syn_requested(th))
+			/* Downgrade to classic ECN feedback */
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
+		else
+			tp->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+	}
+	if (tcp_ecn_mode_pending(tp) && (!th->ece || !th->cwr))
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
@@ -3809,6 +3905,39 @@ old_ack:
 	return 0;
 }
 
+/* Handles AccECN option ECT and CE 24-bit byte counters update into
+ * the u32 value in tcp_sock. As we're processing TCP options, it is
+ * safe to access from - 1.
+ */
+static void tcp_accecn_update_bytes(u32 *cnt, const char *from)
+{
+	u32 truncated = get_unaligned_be32(from - 1) & 0xFFFFFFU;
+	*cnt += (truncated - *cnt) & 0xFFFFFFU;
+}
+
+static void tcp_parse_accecn_option(int len, const char *ptr,
+				    struct tcp_options_received *opt_rx)
+{
+	opt_rx->accecn_len = 0;
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
+					ptr - 1);
+		opt_rx->accecn_len++;
+	}
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
+					ptr - 1);
+		opt_rx->accecn_len++;
+	}
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
+					ptr - 1);
+		opt_rx->accecn_len++;
+	}
+}
+
 static void tcp_parse_fastopen_option(int len, const unsigned char *cookie,
 				      bool syn, struct tcp_fastopen_cookie *foc,
 				      bool exp_opt)
@@ -3984,10 +4113,16 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
+				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
+				    get_unaligned_be16(ptr) ==
+				    TCPOPT_ACCECN_MAGIC)
+					tcp_parse_accecn_option(opsize -
+						TCPOLEN_EXP_ACCECN_BASE,
+						ptr + 2, opt_rx);
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */
-				if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
+				else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
 				    get_unaligned_be16(ptr) ==
 				    TCPOPT_FASTOPEN_MAGIC)
 					tcp_parse_fastopen_option(opsize -
@@ -5447,8 +5582,22 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
+/* Maps ECT/CE bits to minimum length of AccECN option */
+static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
+{
+	unsigned int opt;
+
+	opt = (ecnfield - 2) & INET_ECN_MASK;
+	/* Shift+XOR for 11 -> 10 */
+	opt = (opt ^ (opt >> 1)) + 1;
+
+	return opt;
+}
+
+
 /* Updates Accurate ECN received counters from the received IP ECN field */
-static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb)
+static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
+				      u32 payload_len)
 {
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 
@@ -5456,9 +5605,12 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb)
 		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
 
 		tp->ecn_flags |= TCP_ECN_SEEN;
-
+		tp->received_ecn_bytes[ecnfield] += payload_len;
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+
+		tp->accecn_minlen = max_t(u8, tp->accecn_minlen,
+					  tcp_ecn_field_to_accecn_len(ecnfield));
 	}
 }
 
@@ -5693,7 +5845,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 				    tp->rcv_nxt == tp->rcv_wup)
 					flag |= __tcp_replace_ts_recent(tp, tstamp_delta);
 
-				tcp_ecn_received_counters(tp, skb);
+				tcp_ecn_received_counters(tp, skb, 0);
 
 				/* We know that such packets are checksummed
 				 * on entry.
@@ -5736,7 +5888,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 
 			/* Bulk data transfer: receiver */
 			__skb_pull(skb, tcp_header_len);
-			tcp_ecn_received_counters(tp, skb);
+			tcp_ecn_received_counters(tp, skb, len - tcp_header_len);
 			eaten = tcp_queue_rcv(sk, skb, &fragstolen);
 
 			tcp_event_data_recv(sk, skb);
@@ -5773,7 +5925,7 @@ slow_path:
 		return;
 
 step5:
-	tcp_ecn_received_counters(tp, skb);
+	tcp_ecn_received_counters(tp, skb, len - th->doff * 4);
 
 	if (tcp_ack(sk, skb, FLAG_SLOWPATH | FLAG_UPDATE_TS_RECENT) < 0)
 		goto discard;
@@ -6009,7 +6161,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    state to ESTABLISHED..."
 		 */
 
-		tcp_ecn_rcv_synack(tp, th);
+		tcp_ecn_rcv_synack(sk, th, TCP_SKB_CB(skb)->ip_dsfield);
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_try_undo_spurious_syn(sk);
@@ -6132,7 +6284,7 @@ discard:
 		tp->snd_wl1    = TCP_SKB_CB(skb)->seq;
 		tp->max_window = tp->snd_wnd;
 
-		tcp_ecn_rcv_syn(tp, th);
+		tcp_ecn_rcv_syn(tp, th, skb);
 
 		tcp_mtup_init(sk);
 		tcp_sync_mss(sk, icsk->icsk_pmtu_cookie);
@@ -6329,6 +6481,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		tp->lsndtime = tcp_jiffies32;
 
 		tcp_initialize_rcv_mss(sk);
+		tcp_accecn_third_ack(sk, skb, tp->syn_ect_snt);
 		tcp_fast_path_on(tp);
 		break;
 
@@ -6489,6 +6642,15 @@ static void tcp_ecn_create_request(struct request_sock *req,
 	bool ect, ecn_ok;
 	u32 ecn_ok_dst;
 
+	if (tcp_accecn_syn_requested(th) &&
+	    (net->ipv4.sysctl_tcp_ecn || tcp_ca_needs_accecn(listen_sk))) {
+		inet_rsk(req)->ecn_ok = 1;
+		tcp_rsk(req)->accecn_ok = 1;
+		tcp_rsk(req)->syn_ect_rcv =
+			TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+		return;
+	}
+
 	if (!th_ecn)
 		return;
 
@@ -6514,6 +6676,9 @@ static void tcp_openreq_init(struct request_sock *req,
 	tcp_rsk(req)->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
 	tcp_rsk(req)->snt_synack = 0;
 	tcp_rsk(req)->last_oow_ack_time = 0;
+	tcp_rsk(req)->accecn_ok = 0;
+	tcp_rsk(req)->syn_ect_rcv = 0;
+	tcp_rsk(req)->syn_ect_snt = 0;
 	req->mss = rx_opt->mss_clamp;
 	req->ts_recent = rx_opt->saw_tstamp ? rx_opt->rcv_tsval : 0;
 	ireq->tstamp_ok = rx_opt->tstamp_ok;

@@ -304,7 +304,7 @@ static u16 tcp_select_window(struct sock *sk)
 /* Packet ECN state for a SYN-ACK */
 static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 {
-	const struct tcp_sock *tp = tcp_sk(sk);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_CWR;
 	if (tcp_ecn_disabled(tp))
@@ -312,6 +312,18 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 	else if (tcp_ca_needs_ecn(sk) ||
 		 tcp_bpf_ca_needs_ecn(sk))
 		INET_ECN_xmit(sk);
+	/* Check if we want to negotiate AccECN */
+	if (tcp_ecn_mode_pending(tp)) {
+		u8 ect = tp->syn_ect_rcv;
+
+		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
+		TCP_SKB_CB(skb)->tcp_flags |=
+			TCPHDR_CWR * (ect != INET_ECN_ECT_0) |
+			TCPHDR_ECE * (ect == INET_ECN_ECT_1);
+		if (ect & 2)
+			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
+		tp->syn_ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
+	}
 }
 
 /* Packet ECN state for a SYN.  */
@@ -319,8 +331,10 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	bool bpf_needs_ecn = tcp_bpf_ca_needs_ecn(sk);
+	bool use_accecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 3 ||
+		tcp_ca_needs_accecn(sk);
 	bool use_ecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 1 ||
-		tcp_ca_needs_ecn(sk) || bpf_needs_ecn;
+		tcp_ca_needs_ecn(sk) || bpf_needs_ecn || use_accecn;
 
 	if (!use_ecn) {
 		const struct dst_entry *dst = __sk_dst_get(sk);
@@ -336,23 +350,39 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 			INET_ECN_xmit(sk);
 
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_ECE | TCPHDR_CWR;
-		tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
+		if (use_accecn) {
+			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
+			tp->syn_ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
+		} else {
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
+		}
 	}
 }
 
 static void tcp_ecn_clear_syn(struct sock *sk, struct sk_buff *skb)
 {
-	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback)
+	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback) {
 		/* tp->ecn_flags are cleared at a later point in time when
 		 * SYN ACK is ultimatively being received.
 		 */
-		TCP_SKB_CB(skb)->tcp_flags &= ~(TCPHDR_ECE | TCPHDR_CWR);
+		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
+	}
+}
+
+static void tcp_accecn_echo_syn_ect(struct tcphdr *th, u8 ect)
+{
+	th->ae = !!(ect & 2);
+	th->cwr = ect != INET_ECN_ECT_0;
+	th->ece = ect == INET_ECN_ECT_1;
 }
 
 static void
 tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 {
-	if (inet_rsk(req)->ecn_ok)
+	if (tcp_rsk(req)->accecn_ok)
+		tcp_accecn_echo_syn_ect(th, tcp_rsk(req)->syn_ect_rcv);
+	else if (inet_rsk(req)->ecn_ok)
 		th->ece = 1;
 }
 
@@ -364,6 +394,10 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 		th->ece = !!(tp->received_ce_tx & 0x1);
 		th->cwr = !!(tp->received_ce_tx & 0x2);
 		th->ae = !!(tp->received_ce_tx & 0x4);
+	} else {
+		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
+		tcp_accecn_echo_syn_ect(th, tp->syn_ect_rcv);
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	}
 }
 
@@ -429,6 +463,7 @@ static inline bool tcp_urg_mode(const struct tcp_sock *tp)
 #define OPTION_WSCALE		(1 << 3)
 #define OPTION_FAST_OPEN_COOKIE	(1 << 8)
 #define OPTION_SMC		(1 << 9)
+#define OPTION_ACCECN		(1 << 10)
 
 static void smc_options_write(__be32 *ptr, u16 *options)
 {
@@ -449,13 +484,16 @@ struct tcp_out_options {
 	u16 options;		/* bit field of OPTION_* */
 	u16 mss;		/* 0 to disable */
 	u8 ws;			/* window scale, 0 to disable */
-	u8 num_sack_blocks;	/* number of SACK blocks to include */
+	u8 num_sack_blocks:3,	/* number of SACK blocks to include */
+	   num_ecn_bytes:2;	/* number of AccECN fields needed */
 	u8 hash_size;		/* bytes in hash_location */
 	__u8 *hash_location;	/* temporary pointer, overloaded */
 	__u32 tsval, tsecr;	/* need to include OPTION_TS */
 	struct tcp_fastopen_cookie *fastopen_cookie;	/* Fast open cookie */
+	u32 *ecn_bytes;		/* AccECN ECT/CE byte counters */
 };
 
+#define NOP_LEFTOVER	((TCPOPT_NOP << 8) | TCPOPT_NOP)
 /* Write previously computed TCP options to the packet.
  *
  * Beware: Something in the Internet is very sensitive to the ordering of
@@ -473,6 +511,8 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			      struct tcp_out_options *opts)
 {
 	u16 options = opts->options;	/* mungable copy */
+	u16 leftover_bytes = NOP_LEFTOVER;	/* replace next NOPs if avail */
+	int leftover_size = 2;
 
 	if (unlikely(OPTION_MD5 & options)) {
 		*ptr++ = htonl((TCPOPT_NOP << 24) | (TCPOPT_NOP << 16) |
@@ -505,18 +545,44 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 		*ptr++ = htonl(opts->tsecr);
 	}
 
+	if (unlikely(OPTION_ACCECN & options)) {
+		u8 len = TCPOLEN_EXP_ACCECN_BASE + opts->num_ecn_bytes * 3;
+		*ptr++ = htonl((TCPOPT_EXP << 24) | (len << 16) |
+			       TCPOPT_ACCECN_MAGIC);
+		if (opts->num_ecn_bytes > 0) {
+			*ptr++ = htonl((opts->ecn_bytes[INET_ECN_ECT_0 - 1] << 8) |
+				       (opts->num_ecn_bytes > 1 ?
+				        (opts->ecn_bytes[INET_ECN_CE - 1] >> 16) & 0xff :
+				        TCPOPT_NOP));
+			if (opts->num_ecn_bytes == 2) {
+				leftover_bytes = (opts->ecn_bytes[INET_ECN_ECT_1 - 1] >> 8) & 0xffff;
+			} else {
+				*ptr++ = htonl((opts->ecn_bytes[INET_ECN_CE - 1] << 16) |
+					       ((opts->ecn_bytes[INET_ECN_ECT_1 - 1] >> 8) & 0xffff));
+				leftover_bytes = ((opts->ecn_bytes[INET_ECN_ECT_1 - 1] & 0xff) << 8) |
+						TCPOPT_NOP;
+				leftover_size = 1;
+			}
+		}
+		if (tp != NULL)
+			tp->accecn_minlen = 0;
+	}
 	if (unlikely(OPTION_SACK_ADVERTISE & options)) {
-		*ptr++ = htonl((TCPOPT_NOP << 24) |
-			       (TCPOPT_NOP << 16) |
+		*ptr++ = htonl((leftover_bytes << 16) |
 			       (TCPOPT_SACK_PERM << 8) |
 			       TCPOLEN_SACK_PERM);
+		leftover_bytes = NOP_LEFTOVER;
 	}
 
 	if (unlikely(OPTION_WSCALE & options)) {
-		*ptr++ = htonl((TCPOPT_NOP << 24) |
+		u8 highbyte = TCPOPT_NOP;
+		if (unlikely(leftover_size == 1))
+			highbyte = leftover_bytes >> 8;
+		*ptr++ = htonl((highbyte << 24) |
 			       (TCPOPT_WINDOW << 16) |
 			       (TCPOLEN_WINDOW << 8) |
 			       opts->ws);
+		leftover_bytes = NOP_LEFTOVER;
 	}
 
 	if (unlikely(opts->num_sack_blocks)) {
@@ -524,8 +590,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			tp->duplicate_sack : tp->selective_acks;
 		int this_sack;
 
-		*ptr++ = htonl((TCPOPT_NOP  << 24) |
-			       (TCPOPT_NOP  << 16) |
+		*ptr++ = htonl((leftover_bytes << 16) |
 			       (TCPOPT_SACK <<  8) |
 			       (TCPOLEN_SACK_BASE + (opts->num_sack_blocks *
 						     TCPOLEN_SACK_PERBLOCK)));
@@ -537,6 +602,10 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 		}
 
 		tp->rx_opt.dsack = 0;
+	} else if (unlikely(leftover_bytes != NOP_LEFTOVER)) {
+		*ptr++ = htonl((leftover_bytes << 16) |
+			       (TCPOPT_NOP << 8) |
+			       TCPOPT_NOP);
 	}
 
 	if (unlikely(OPTION_FAST_OPEN_COOKIE & options)) {
@@ -671,6 +740,49 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 	return MAX_TCP_OPTION_SPACE - remaining;
 }
 
+/* Initial values for AccECN option, ordered is based on ECN field bits
+ * similar to received_ecn_bytes. Used for SYN/ACK AccECN option.
+ */
+u32 synack_ecn_bytes[3] = {
+	TCP_ACCECN_E1B_INIT, TCP_ACCECN_E0B_INIT, TCP_ACCECN_CEB_INIT
+};
+
+static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
+{
+	/* How much there's room for combining with the aligment padding? */
+	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
+	    OPTION_SACK_ADVERTISE)
+		return 2;
+	else if (opts->options & OPTION_WSCALE)
+		return 1;
+	return 0;
+}
+
+/* AccECN can take here and there take advantage of NOPs for alignment of
+ * other options
+ */
+static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
+				  int remaining, int max_combine_saving)
+{
+	int size = TCP_ACCECN_MAXSIZE;
+
+	while (opts->num_ecn_bytes >= required) {
+		int leftover_size = size & 0x3;
+		/* Larger than 2 cannot be combined currently with anything */
+		if ((leftover_size > 2) || (max_combine_saving < leftover_size))
+			leftover_size = 0;
+
+		if (remaining >= size - leftover_size)
+			break;
+
+		opts->num_ecn_bytes--;
+		size -= TCPOLEN_ACCECN_PERCOUNTER;
+	}
+	if (opts->num_ecn_bytes < required)
+		return 0;
+	return size;
+}
+
 /* Set up TCP options for SYN-ACKs. */
 static unsigned int tcp_synack_options(const struct sock *sk,
 				       struct request_sock *req,
@@ -680,6 +792,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 				       struct tcp_fastopen_cookie *foc)
 {
 	struct inet_request_sock *ireq = inet_rsk(req);
+	struct tcp_request_sock *treq = tcp_rsk(req);
 	unsigned int remaining = MAX_TCP_OPTION_SPACE;
 
 #ifdef CONFIG_TCP_MD5SIG
@@ -731,6 +844,19 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 
 	smc_set_option_cond(tcp_sk(sk), ireq, opts, &remaining);
 
+	if (treq->accecn_ok) {
+		if (remaining >= TCPOLEN_EXP_ACCECN_BASE) {
+			int need = TCP_ACCECN_MAXSIZE;
+			opts->options |= OPTION_ACCECN;
+			opts->ecn_bytes = synack_ecn_bytes;
+			opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
+			if (unlikely(remaining < need))
+				need = tcp_options_fit_accecn(opts, 0, remaining,
+							      tcp_synack_options_combine_saving(opts));
+			remaining -= need;
+		}
+	}
+
 	return MAX_TCP_OPTION_SPACE - remaining;
 }
 
@@ -776,6 +902,24 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 		size += TCPOLEN_SACK_BASE_ALIGNED +
 			opts->num_sack_blocks * TCPOLEN_SACK_PERBLOCK;
 	}
+
+	if (tcp_ecn_mode_accecn(tp)) {
+		int need = TCP_ACCECN_MAXSIZE;
+		int remaining = MAX_TCP_OPTION_SPACE - size;
+		opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
+		if (unlikely(remaining < need))
+			need = tcp_options_fit_accecn(opts,
+						      tp->accecn_minlen,
+						      remaining,
+						      opts->num_sack_blocks > 0 ?
+						      2 : 0);
+		if (need > 0) {
+			opts->options |= OPTION_ACCECN;
+			opts->ecn_bytes = tp->received_ecn_bytes;
+			size += need;
+		}
+	}
+
 
 	return size;
 }
@@ -2979,7 +3123,10 @@ int __tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb, int segs)
 			tcp_retrans_try_collapse(sk, skb, cur_mss);
 	}
 
-	/* RFC3168, section 6.1.1.1. ECN fallback */
+	/* RFC3168, section 6.1.1.1. ECN fallback
+	 * As AccECN uses the same SYN flags (+ AE), this check covers both
+	 * cases.
+	 */
 	if ((TCP_SKB_CB(skb)->tcp_flags & TCPHDR_SYN_ECN) == TCPHDR_SYN_ECN)
 		tcp_ecn_clear_syn(sk, skb);
 
