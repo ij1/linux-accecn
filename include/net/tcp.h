@@ -187,6 +187,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 /* Magic number to be after the option value for sharing TCP
  * experimental options. See draft-ietf-tcpm-experimental-options-00.txt
  */
+#define TCPOPT_ACCECN_MAGIC	0xACCE
 #define TCPOPT_FASTOPEN_MAGIC	0xF989
 #define TCPOPT_SMC_MAGIC	0xE2D4C3D9
 
@@ -202,6 +203,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCPOLEN_FASTOPEN_BASE  2
 #define TCPOLEN_EXP_FASTOPEN_BASE  4
 #define TCPOLEN_EXP_SMC_BASE   6
+#define TCPOLEN_EXP_ACCECN_BASE 4
 
 /* But this is what stacks really send out. */
 #define TCPOLEN_TSTAMP_ALIGNED		12
@@ -213,6 +215,13 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCPOLEN_MD5SIG_ALIGNED		20
 #define TCPOLEN_MSS_ALIGNED		4
 #define TCPOLEN_EXP_SMC_BASE_ALIGNED	8
+#define TCPOLEN_ACCECN_PERCOUNTER	3
+
+/* Maximum number of byte counters in AccECN option + size */
+#define TCP_ACCECN_NUMCOUNTERS		3
+#define TCP_ACCECN_MAXSIZE		(TCPOLEN_EXP_ACCECN_BASE + \
+					 TCPOLEN_ACCECN_PERCOUNTER * \
+					 TCP_ACCECN_NUMCOUNTERS)
 
 /* Flags in tp->nonagle */
 #define TCP_NAGLE_OFF		1	/* Nagle's algo is disabled */
@@ -358,10 +367,53 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 	}
 }
 
-#define	TCP_ECN_OK		1
-#define	TCP_ECN_QUEUE_CWR	2
-#define	TCP_ECN_DEMAND_CWR	4
-#define	TCP_ECN_SEEN		8
+#define	TCP_ECN_MODE_RFC3168	0x1
+#define	TCP_ECN_QUEUE_CWR	0x2
+#define	TCP_ECN_DEMAND_CWR	0x4
+#define	TCP_ECN_SEEN		0x8
+#define TCP_ECN_MODE_ACCECN	0x10
+
+#define TCP_ECN_SEEN_SHIFT	3
+
+#define TCP_ECN_DISABLED	0
+#define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
+#define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
+
+static inline bool tcp_ecn_mode_any(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_ANY;
+}
+
+static inline bool tcp_ecn_mode_rfc3168(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_RFC3168;
+}
+
+static inline bool tcp_ecn_mode_accecn(const struct tcp_sock *tp)
+{
+	return tp->ecn_flags & TCP_ECN_MODE_ACCECN;
+}
+
+static inline bool tcp_ecn_disabled(const struct tcp_sock *tp)
+{
+	return !tcp_ecn_mode_any(tp);
+}
+
+static inline bool tcp_ecn_mode_pending(const struct tcp_sock *tp)
+{
+	return (tp->ecn_flags & TCP_ECN_MODE_PENDING) == TCP_ECN_MODE_PENDING;
+}
+
+static inline void tcp_ecn_mode_set(struct tcp_sock *tp, u8 mode)
+{
+	tp->ecn_flags &= ~TCP_ECN_MODE_ANY;
+	tp->ecn_flags |= mode;
+}
+
+static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
+{
+	return tp->received_ce - tp->received_ce_tx;
+}
 
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
@@ -542,6 +594,7 @@ bool cookie_timestamp_decode(const struct net *net,
 			     struct tcp_options_received *opt);
 bool cookie_ecn_ok(const struct tcp_options_received *opt,
 		   const struct net *net, const struct dst_entry *dst);
+bool cookie_accecn_ok(const struct tcphdr *th);
 
 /* From net/ipv6/syncookies.c */
 int __cookie_v6_check(const struct ipv6hdr *iph, const struct tcphdr *th,
@@ -655,29 +708,6 @@ static inline void tcp_bound_rto(const struct sock *sk)
 static inline u32 __tcp_set_rto(const struct tcp_sock *tp)
 {
 	return usecs_to_jiffies((tp->srtt_us >> 3) + tp->rttvar_us);
-}
-
-static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
-{
-	tp->pred_flags = htonl((tp->tcp_header_len << 26) |
-			       ntohl(TCP_FLAG_ACK) |
-			       snd_wnd);
-}
-
-static inline void tcp_fast_path_on(struct tcp_sock *tp)
-{
-	__tcp_fast_path_on(tp, tp->snd_wnd >> tp->rx_opt.snd_wscale);
-}
-
-static inline void tcp_fast_path_check(struct sock *sk)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-
-	if (RB_EMPTY_ROOT(&tp->out_of_order_queue) &&
-	    tp->rcv_wnd &&
-	    atomic_read(&sk->sk_rmem_alloc) < sk->sk_rcvbuf &&
-	    !tp->urg_data)
-		tcp_fast_path_on(tp);
 }
 
 /* Compute the actual rto_min value */
@@ -798,8 +828,15 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 #define TCPHDR_URG 0x20
 #define TCPHDR_ECE 0x40
 #define TCPHDR_CWR 0x80
+#define TCPHDR_AE 0x100
+#define TCPHDR_FLAGS_MASK 0x1ff
 
+#define TCPHDR_ACE (TCPHDR_ECE | TCPHDR_CWR | TCPHDR_AE)
 #define TCPHDR_SYN_ECN	(TCPHDR_SYN | TCPHDR_ECE | TCPHDR_CWR)
+#define TCPHDR_SYNACK_ACCECN (TCPHDR_SYN | TCPHDR_ACK | TCPHDR_CWR)
+
+#define TCP_ACCECN_CEP_ACE_MASK 0x7
+#define TCP_ACCECN_ACE_MAX_DELTA 6
 
 /* This is what the send packet queuing engine uses to pass
  * TCP per-packet control information to the transmission code.
@@ -823,7 +860,11 @@ struct tcp_skb_cb {
 			u16	tcp_gso_size;
 		};
 	};
-	__u8		tcp_flags;	/* TCP header flags. (tcp[13])	*/
+	__u16		tcp_flags:9,	/* TCP header flags. (tcp[12-13])	*/
+			unused:4,
+			txstamp_ack:1,	/* Record TX timestamp for ack? */
+			eor:1,		/* Is skb MSG_EOR marked? */
+			has_rxtstamp:1;	/* SKB has a RX timestamp	*/
 
 	__u8		sacked;		/* State flags for SACK.	*/
 #define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	*/
@@ -836,10 +877,6 @@ struct tcp_skb_cb {
 				TCPCB_REPAIRED)
 
 	__u8		ip_dsfield;	/* IPv4 tos or IPv6 dsfield	*/
-	__u8		txstamp_ack:1,	/* Record TX timestamp for ack? */
-			eor:1,		/* Is skb MSG_EOR marked? */
-			has_rxtstamp:1,	/* SKB has a RX timestamp	*/
-			unused:5;
 	__u32		ack_seq;	/* Sequence number ACK'd	*/
 	union {
 		struct {
@@ -996,6 +1033,8 @@ enum tcp_ca_ack_event_flags {
 #define TCP_CONG_NON_RESTRICTED 0x1
 /* Requires ECN/ECT set on all packets */
 #define TCP_CONG_NEEDS_ECN	0x2
+/* Require successfully negotiated AccECN capability */
+#define TCP_CONG_NEEDS_ACCECN	0x4
 
 union tcp_cc_info;
 
@@ -1106,6 +1145,13 @@ static inline bool tcp_ca_needs_ecn(const struct sock *sk)
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
 	return icsk->icsk_ca_ops->flags & TCP_CONG_NEEDS_ECN;
+}
+
+static inline bool tcp_ca_needs_accecn(const struct sock *sk)
+{
+	const struct inet_connection_sock *icsk = inet_csk(sk);
+
+	return icsk->icsk_ca_ops->flags & TCP_CONG_NEEDS_ACCECN;
 }
 
 static inline void tcp_set_ca_state(struct sock *sk, const u8 ca_state)
@@ -1483,6 +1529,33 @@ static inline bool tcp_paws_reject(const struct tcp_options_received *rx_opt,
 				  rx_opt->ts_recent_stamp + TCP_PAWS_MSL))
 		return false;
 	return true;
+}
+
+static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
+{
+	u32 ace = tcp_ecn_mode_accecn(tp) ?
+		  (tp->delivered_ce & TCP_ACCECN_CEP_ACE_MASK) : 0;
+
+	tp->pred_flags = htonl((tp->tcp_header_len << 26) |
+			       (ace << 22) |
+			       ntohl(TCP_FLAG_ACK) |
+			       snd_wnd);
+}
+
+static inline void tcp_fast_path_on(struct tcp_sock *tp)
+{
+	__tcp_fast_path_on(tp, tp->snd_wnd >> tp->rx_opt.snd_wscale);
+}
+
+static inline void tcp_fast_path_check(struct sock *sk)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (RB_EMPTY_ROOT(&tp->out_of_order_queue) &&
+	    tp->rcv_wnd &&
+	    atomic_read(&sk->sk_rmem_alloc) < sk->sk_rcvbuf &&
+	    !tp->urg_data)
+		tcp_fast_path_on(tp);
 }
 
 bool tcp_oow_rate_limited(struct net *net, const struct sk_buff *skb,
@@ -2289,5 +2362,36 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	}
 	return 0;
 }
+
+/* See draft-ietf-tcpm-accurate-ecn for the latest values */
+#define TCP_ACCECN_CEP_INIT 5
+#define TCP_ACCECN_E1B_INIT 0
+#define TCP_ACCECN_E0B_INIT 1
+#define TCP_ACCECN_CEB_INIT 0
+
+static inline void __tcp_accecn_init_bytes_counters(int *counter_array)
+{
+	BUILD_BUG_ON(INET_ECN_ECT_1 != 0x1);
+	BUILD_BUG_ON(INET_ECN_ECT_0 != 0x2);
+	BUILD_BUG_ON(INET_ECN_CE != 0x3);
+
+	counter_array[INET_ECN_ECT_1 - 1] = TCP_ACCECN_E1B_INIT;
+	counter_array[INET_ECN_ECT_0 - 1] = TCP_ACCECN_E0B_INIT;
+	counter_array[INET_ECN_CE - 1] = TCP_ACCECN_CEB_INIT;
+}
+
+/* To avoid/detect middlebox interference, not all counters start at 0 */
+static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
+{
+	tp->delivered_ce = TCP_ACCECN_CEP_INIT;
+	tp->received_ce = TCP_ACCECN_CEP_INIT;
+	tp->received_ce_tx = TCP_ACCECN_CEP_INIT;
+	__tcp_accecn_init_bytes_counters(tp->received_ecn_bytes);
+	__tcp_accecn_init_bytes_counters(tp->delivered_ecn_bytes);
+}
+
+bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
+void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
+			  u8 syn_ect_snt);
 
 #endif	/* _TCP_H */
