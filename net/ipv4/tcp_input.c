@@ -5549,13 +5549,14 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 				      u32 payload_len)
 {
 	u8 dsfield = TCP_SKB_CB(skb)->ip_dsfield;
+	u8 ecnfield = dsfield & INET_ECN_MASK;
 	u8 is_ce = (dsfield & (dsfield >> 1)) & 0x1;
 	u8 is_ecn = (dsfield | (dsfield >> 1)) & 0x1;
 
+	if (ecnfield != INET_ECN_NOT_ECT)
+		tp->received_ecn_bytes[ecnfield] += payload_len;
 	/* ACE counter tracks *all* segments including pure acks */
 	tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
-	/* Warning: this will access index -1 (and add 0) for non-ECT packets */
-	tp->received_ecn_bytes[(dsfield & INET_ECN_MASK) - 1] += is_ecn * payload_len;
 	tp->ecn_flags |= is_ce << TCP_ECN_SEEN_SHIFT;
 }
 
