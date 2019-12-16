@@ -1882,6 +1882,16 @@ static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
 	return !after(end_seq, tcp_wnd_end(tp));
 }
 
+/* Runaway ACE deficit possible? */
+static bool tcp_accecn_deficit_runaway_test(const struct tcp_sock *tp,
+					    int cwnd_quota)
+{
+	if (!tcp_ecn_mode_accecn(tp))
+		return false;
+	return (tcp_accecn_ace_deficit(tp) >= 2 * TCP_ACCECN_ACE_MAX_DELTA) &&
+	       (cwnd_quota > TCP_ACCECN_ACE_MAX_DELTA - 1);
+}
+
 /* Trim TSO SKB to LEN bytes, put the remaining data into a new packet
  * which is put after SKB on the list.  It is very much like
  * tcp_fragment() except that it may make several kinds of assumptions
@@ -2434,7 +2444,16 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
-			if (!push_one &&
+			bool ace_deficit_limit;
+
+			if (unlikely(tcp_accecn_deficit_runaway_test(tp,
+								     cwnd_quota))) {
+				cwnd_quota = TCP_ACCECN_ACE_MAX_DELTA - 1;
+				ace_deficit_limit = true;
+			} else
+				ace_deficit_limit = false;
+
+			if (!push_one && !ace_deficit_limit &&
 			    tcp_tso_should_defer(sk, skb, &is_cwnd_limited,
 						 &is_rwnd_limited, max_segs))
 				break;
