@@ -84,6 +84,7 @@
 #include "cxgb4_tc_u32.h"
 #include "cxgb4_tc_flower.h"
 #include "cxgb4_tc_mqprio.h"
+#include "cxgb4_tc_matchall.h"
 #include "cxgb4_ptp.h"
 #include "cxgb4_cudbg.h"
 
@@ -803,6 +804,26 @@ static int setup_ppod_edram(struct adapter *adap)
 	return 0;
 }
 
+static void adap_config_hpfilter(struct adapter *adapter)
+{
+	u32 param, val = 0;
+	int ret;
+
+	/* Enable HP filter region. Older fw will fail this request and
+	 * it is fine.
+	 */
+	param = FW_PARAM_DEV(HPFILTER_REGION_SUPPORT);
+	ret = t4_set_params(adapter, adapter->mbox, adapter->pf, 0,
+			    1, &param, &val);
+
+	/* An error means FW doesn't know about HP filter support,
+	 * it's not a problem, don't return an error.
+	 */
+	if (ret < 0)
+		dev_err(adapter->pdev_dev,
+			"HP filter region isn't supported by FW\n");
+}
+
 /**
  *	cxgb4_write_rss - write the RSS table for a given port
  *	@pi: the port
@@ -1135,11 +1156,17 @@ static u16 cxgb_select_queue(struct net_device *dev, struct sk_buff *skb,
 
 	if (dev->num_tc) {
 		struct port_info *pi = netdev2pinfo(dev);
+		u8 ver, proto;
+
+		ver = ip_hdr(skb)->version;
+		proto = (ver == 6) ? ipv6_hdr(skb)->nexthdr :
+				     ip_hdr(skb)->protocol;
 
 		/* Send unsupported traffic pattern to normal NIC queues. */
 		txq = netdev_pick_tx(dev, skb, sb_dev);
 		if (xfrm_offload(skb) || is_ptp_enabled(skb, dev) ||
-		    ip_hdr(skb)->protocol != IPPROTO_TCP)
+		    skb->encapsulation ||
+		    (proto != IPPROTO_TCP && proto != IPPROTO_UDP))
 			txq = txq % pi->nqsets;
 
 		return txq;
@@ -1511,6 +1538,7 @@ static int tid_init(struct tid_info *t)
 	struct adapter *adap = container_of(t, struct adapter, tids);
 	unsigned int max_ftids = t->nftids + t->nsftids;
 	unsigned int natids = t->natids;
+	unsigned int hpftid_bmap_size;
 	unsigned int eotid_bmap_size;
 	unsigned int stid_bmap_size;
 	unsigned int ftid_bmap_size;
@@ -1518,12 +1546,15 @@ static int tid_init(struct tid_info *t)
 
 	stid_bmap_size = BITS_TO_LONGS(t->nstids + t->nsftids);
 	ftid_bmap_size = BITS_TO_LONGS(t->nftids);
+	hpftid_bmap_size = BITS_TO_LONGS(t->nhpftids);
 	eotid_bmap_size = BITS_TO_LONGS(t->neotids);
 	size = t->ntids * sizeof(*t->tid_tab) +
 	       natids * sizeof(*t->atid_tab) +
 	       t->nstids * sizeof(*t->stid_tab) +
 	       t->nsftids * sizeof(*t->stid_tab) +
 	       stid_bmap_size * sizeof(long) +
+	       t->nhpftids * sizeof(*t->hpftid_tab) +
+	       hpftid_bmap_size * sizeof(long) +
 	       max_ftids * sizeof(*t->ftid_tab) +
 	       ftid_bmap_size * sizeof(long) +
 	       t->neotids * sizeof(*t->eotid_tab) +
@@ -1536,7 +1567,9 @@ static int tid_init(struct tid_info *t)
 	t->atid_tab = (union aopen_entry *)&t->tid_tab[t->ntids];
 	t->stid_tab = (struct serv_entry *)&t->atid_tab[natids];
 	t->stid_bmap = (unsigned long *)&t->stid_tab[t->nstids + t->nsftids];
-	t->ftid_tab = (struct filter_entry *)&t->stid_bmap[stid_bmap_size];
+	t->hpftid_tab = (struct filter_entry *)&t->stid_bmap[stid_bmap_size];
+	t->hpftid_bmap = (unsigned long *)&t->hpftid_tab[t->nhpftids];
+	t->ftid_tab = (struct filter_entry *)&t->hpftid_bmap[hpftid_bmap_size];
 	t->ftid_bmap = (unsigned long *)&t->ftid_tab[max_ftids];
 	t->eotid_tab = (struct eotid_entry *)&t->ftid_bmap[ftid_bmap_size];
 	t->eotid_bmap = (unsigned long *)&t->eotid_tab[t->neotids];
@@ -1571,6 +1604,8 @@ static int tid_init(struct tid_info *t)
 			bitmap_zero(t->eotid_bmap, t->neotids);
 	}
 
+	if (t->nhpftids)
+		bitmap_zero(t->hpftid_bmap, t->nhpftids);
 	bitmap_zero(t->ftid_bmap, t->nftids);
 	return 0;
 }
@@ -3234,8 +3269,33 @@ static int cxgb_setup_tc_cls_u32(struct net_device *dev,
 	}
 }
 
-static int cxgb_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
-				  void *cb_priv)
+static int cxgb_setup_tc_matchall(struct net_device *dev,
+				  struct tc_cls_matchall_offload *cls_matchall,
+				  bool ingress)
+{
+	struct adapter *adap = netdev2adap(dev);
+
+	if (!adap->tc_matchall)
+		return -ENOMEM;
+
+	switch (cls_matchall->command) {
+	case TC_CLSMATCHALL_REPLACE:
+		return cxgb4_tc_matchall_replace(dev, cls_matchall, ingress);
+	case TC_CLSMATCHALL_DESTROY:
+		return cxgb4_tc_matchall_destroy(dev, cls_matchall, ingress);
+	case TC_CLSMATCHALL_STATS:
+		if (ingress)
+			return cxgb4_tc_matchall_stats(dev, cls_matchall);
+		break;
+	default:
+		break;
+	}
+
+	return -EOPNOTSUPP;
+}
+
+static int cxgb_setup_tc_block_ingress_cb(enum tc_setup_type type,
+					  void *type_data, void *cb_priv)
 {
 	struct net_device *dev = cb_priv;
 	struct port_info *pi = netdev2pinfo(dev);
@@ -3256,9 +3316,38 @@ static int cxgb_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
 		return cxgb_setup_tc_cls_u32(dev, type_data);
 	case TC_SETUP_CLSFLOWER:
 		return cxgb_setup_tc_flower(dev, type_data);
+	case TC_SETUP_CLSMATCHALL:
+		return cxgb_setup_tc_matchall(dev, type_data, true);
 	default:
 		return -EOPNOTSUPP;
 	}
+}
+
+static int cxgb_setup_tc_block_egress_cb(enum tc_setup_type type,
+					 void *type_data, void *cb_priv)
+{
+	struct net_device *dev = cb_priv;
+	struct port_info *pi = netdev2pinfo(dev);
+	struct adapter *adap = netdev2adap(dev);
+
+	if (!(adap->flags & CXGB4_FULL_INIT_DONE)) {
+		dev_err(adap->pdev_dev,
+			"Failed to setup tc on port %d. Link Down?\n",
+			pi->port_id);
+		return -EINVAL;
+	}
+
+	if (!tc_cls_can_offload_and_chain0(dev, type_data))
+		return -EOPNOTSUPP;
+
+	switch (type) {
+	case TC_SETUP_CLSMATCHALL:
+		return cxgb_setup_tc_matchall(dev, type_data, false);
+	default:
+		break;
+	}
+
+	return -EOPNOTSUPP;
 }
 
 static int cxgb_setup_tc_mqprio(struct net_device *dev,
@@ -3274,19 +3363,34 @@ static int cxgb_setup_tc_mqprio(struct net_device *dev,
 
 static LIST_HEAD(cxgb_block_cb_list);
 
+static int cxgb_setup_tc_block(struct net_device *dev,
+			       struct flow_block_offload *f)
+{
+	struct port_info *pi = netdev_priv(dev);
+	flow_setup_cb_t *cb;
+	bool ingress_only;
+
+	pi->tc_block_shared = f->block_shared;
+	if (f->binder_type == FLOW_BLOCK_BINDER_TYPE_CLSACT_EGRESS) {
+		cb = cxgb_setup_tc_block_egress_cb;
+		ingress_only = false;
+	} else {
+		cb = cxgb_setup_tc_block_ingress_cb;
+		ingress_only = true;
+	}
+
+	return flow_block_cb_setup_simple(f, &cxgb_block_cb_list,
+					  cb, pi, dev, ingress_only);
+}
+
 static int cxgb_setup_tc(struct net_device *dev, enum tc_setup_type type,
 			 void *type_data)
 {
-	struct port_info *pi = netdev2pinfo(dev);
-
 	switch (type) {
 	case TC_SETUP_QDISC_MQPRIO:
 		return cxgb_setup_tc_mqprio(dev, type_data);
 	case TC_SETUP_BLOCK:
-		return flow_block_cb_setup_simple(type_data,
-						  &cxgb_block_cb_list,
-						  cxgb_setup_tc_block_cb,
-						  pi, dev, true);
+		return cxgb_setup_tc_block(dev, type_data);
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -4275,6 +4379,7 @@ static int adap_init0_config(struct adapter *adapter, int reset)
 			"HMA configuration failed with error %d\n", ret);
 
 	if (is_t6(adapter->params.chip)) {
+		adap_config_hpfilter(adapter);
 		ret = setup_ppod_edram(adapter);
 		if (!ret)
 			dev_info(adapter->pdev_dev, "Successfully enabled "
@@ -4584,16 +4689,6 @@ static int adap_init0(struct adapter *adap, int vpd_skip)
 	/*
 	 * Grab some of our basic fundamental operating parameters.
 	 */
-#define FW_PARAM_DEV(param) \
-	(FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_DEV) | \
-	FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_DEV_##param))
-
-#define FW_PARAM_PFVF(param) \
-	FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_PFVF) | \
-	FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_PFVF_##param)|  \
-	FW_PARAMS_PARAM_Y_V(0) | \
-	FW_PARAMS_PARAM_Z_V(0)
-
 	params[0] = FW_PARAM_PFVF(EQ_START);
 	params[1] = FW_PARAM_PFVF(L2T_START);
 	params[2] = FW_PARAM_PFVF(L2T_END);
@@ -4611,6 +4706,16 @@ static int adap_init0(struct adapter *adap, int vpd_skip)
 	adap->sge.ingr_start = val[5];
 
 	if (CHELSIO_CHIP_VERSION(adap->params.chip) > CHELSIO_T5) {
+		params[0] = FW_PARAM_PFVF(HPFILTER_START);
+		params[1] = FW_PARAM_PFVF(HPFILTER_END);
+		ret = t4_query_params(adap, adap->mbox, adap->pf, 0, 2,
+				      params, val);
+		if (ret < 0)
+			goto bye;
+
+		adap->tids.hpftid_base = val[0];
+		adap->tids.nhpftids = val[1] - val[0] + 1;
+
 		/* Read the raw mps entries. In T6, the last 2 tcam entries
 		 * are reserved for raw mac addresses (rawf = 2, one per port).
 		 */
@@ -4974,8 +5079,6 @@ static int adap_init0(struct adapter *adap, int vpd_skip)
 		}
 		adap->params.crypto = ntohs(caps_cmd.cryptocaps);
 	}
-#undef FW_PARAM_PFVF
-#undef FW_PARAM_DEV
 
 	/* The MTU/MSS Table is initialized by now, so load their values.  If
 	 * we're initializing the adapter, then we'll make any modifications
@@ -5741,6 +5844,7 @@ static void free_some_resources(struct adapter *adapter)
 	kvfree(adapter->srq);
 	t4_cleanup_sched(adapter);
 	kvfree(adapter->tids.tid_tab);
+	cxgb4_cleanup_tc_matchall(adapter);
 	cxgb4_cleanup_tc_mqprio(adapter);
 	cxgb4_cleanup_tc_flower(adapter);
 	cxgb4_cleanup_tc_u32(adapter);
@@ -5767,7 +5871,8 @@ static void free_some_resources(struct adapter *adapter)
 		t4_fw_bye(adapter, adapter->pf);
 }
 
-#define TSO_FLAGS (NETIF_F_TSO | NETIF_F_TSO6 | NETIF_F_TSO_ECN)
+#define TSO_FLAGS (NETIF_F_TSO | NETIF_F_TSO6 | NETIF_F_TSO_ECN | \
+		   NETIF_F_GSO_UDP_L4)
 #define VLAN_FEAT (NETIF_F_SG | NETIF_F_IP_CSUM | TSO_FLAGS | \
 		   NETIF_F_GRO | NETIF_F_IPV6_CSUM | NETIF_F_HIGHDMA)
 #define SEGMENT_SIZE 128
@@ -6315,6 +6420,10 @@ static int init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 		if (cxgb4_init_tc_mqprio(adapter))
 			dev_warn(&pdev->dev,
 				 "could not offload tc mqprio, continuing\n");
+
+		if (cxgb4_init_tc_matchall(adapter))
+			dev_warn(&pdev->dev,
+				 "could not offload tc matchall, continuing\n");
 	}
 
 	if (is_offload(adapter) || is_hashfilter(adapter)) {
