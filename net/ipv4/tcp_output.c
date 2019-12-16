@@ -899,8 +899,9 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 			min_t(unsigned int, eff_sacks,
 			      (remaining - TCPOLEN_SACK_BASE_ALIGNED) /
 			      TCPOLEN_SACK_PERBLOCK);
-		size += TCPOLEN_SACK_BASE_ALIGNED +
-			opts->num_sack_blocks * TCPOLEN_SACK_PERBLOCK;
+		if (likely(opts->num_sack_blocks))
+			size += TCPOLEN_SACK_BASE_ALIGNED +
+				opts->num_sack_blocks * TCPOLEN_SACK_PERBLOCK;
 	}
 
 	if (tcp_ecn_mode_accecn(tp)) {
@@ -2588,14 +2589,13 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
-			bool ace_deficit_limit;
+			bool ace_deficit_limit = false;;
 
 			if (unlikely(tcp_accecn_deficit_runaway_test(tp,
 								     cwnd_quota))) {
 				cwnd_quota = TCP_ACCECN_ACE_MAX_DELTA - 1;
 				ace_deficit_limit = true;
-			} else
-				ace_deficit_limit = false;
+			}
 
 			if (!push_one && !ace_deficit_limit &&
 			    tcp_tso_should_defer(sk, skb, &is_cwnd_limited,
