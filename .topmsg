@@ -1,4 +1,4 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] TCP: Add accecn rx byte-counters
+Subject: [PATCH] tcp: add accecn rx byte-counters
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
