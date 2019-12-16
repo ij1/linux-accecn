@@ -364,6 +364,8 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_SEEN		0x8
 #define TCP_ECN_MODE_ACCECN	0x10
 
+#define TCP_ECN_SEEN_SHIFT	3
+
 #define TCP_ECN_DISABLED	0
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
 #define TCP_ECN_MODE_ANY	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
