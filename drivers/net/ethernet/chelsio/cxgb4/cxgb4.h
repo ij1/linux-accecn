@@ -56,6 +56,7 @@
 #include <asm/io.h>
 #include "t4_chip_type.h"
 #include "cxgb4_uld.h"
+#include "t4fw_api.h"
 
 #define CH_WARN(adap, fmt, ...) dev_warn(adap->pdev_dev, fmt, ## __VA_ARGS__)
 extern struct list_head adapter_list;
@@ -67,6 +68,16 @@ extern struct mutex uld_mutex;
  */
 #define ETHTXQ_STOP_THRES \
 	(1 + DIV_ROUND_UP((3 * MAX_SKB_FRAGS) / 2 + (MAX_SKB_FRAGS & 1), 8))
+
+#define FW_PARAM_DEV(param) \
+	(FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_DEV) | \
+	 FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_DEV_##param))
+
+#define FW_PARAM_PFVF(param) \
+	(FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_PFVF) | \
+	 FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_PFVF_##param) |  \
+	 FW_PARAMS_PARAM_Y_V(0) | \
+	 FW_PARAMS_PARAM_Z_V(0))
 
 enum {
 	MAX_NPORTS	= 4,     /* max # of ports */
@@ -603,6 +614,8 @@ struct port_info {
 	u8 vivld;
 	u8 smt_idx;
 	u8 rx_cchan;
+
+	bool tc_block_shared;
 };
 
 struct dentry;
@@ -733,7 +746,12 @@ struct tx_desc {
 	__be64 flit[8];
 };
 
-struct tx_sw_desc;
+struct ulptx_sgl;
+
+struct tx_sw_desc {
+	struct sk_buff *skb; /* SKB to free after getting completion */
+	dma_addr_t addr[MAX_SKB_FRAGS + 1]; /* DMA mapped addresses */
+};
 
 struct sge_txq {
 	unsigned int  in_use;       /* # of in-use Tx descriptors */
@@ -765,6 +783,7 @@ struct sge_eth_txq {                /* state for an SGE Ethernet Tx queue */
 	u8 dbqt;                    /* SGE Doorbell Queue Timer in use */
 	unsigned int dbqtimerix;    /* SGE Doorbell Queue Timer Index */
 	unsigned long tso;          /* # of TSO requests */
+	unsigned long uso;          /* # of USO requests */
 	unsigned long tx_cso;       /* # of Tx checksum offloads */
 	unsigned long vlan_ins;     /* # of Tx VLAN insertions */
 	unsigned long mapping_err;  /* # of I/O MMU packet mapping errors */
@@ -812,15 +831,10 @@ enum sge_eosw_state {
 	CXGB4_EO_STATE_FLOWC_CLOSE_REPLY, /* Waiting for FLOWC close reply */
 };
 
-struct sge_eosw_desc {
-	struct sk_buff *skb; /* SKB to free after getting completion */
-	dma_addr_t addr[MAX_SKB_FRAGS + 1]; /* DMA mapped addresses */
-};
-
 struct sge_eosw_txq {
 	spinlock_t lock; /* Per queue lock to synchronize completions */
 	enum sge_eosw_state state; /* Current ETHOFLD State */
-	struct sge_eosw_desc *desc; /* Descriptor ring to hold packets */
+	struct tx_sw_desc *desc; /* Descriptor ring to hold packets */
 	u32 ndesc; /* Number of descriptors */
 	u32 pidx; /* Current Producer Index */
 	u32 last_pidx; /* Last successfully transmitted Producer Index */
@@ -847,6 +861,7 @@ struct sge_eohw_txq {
 	struct sge_txq q; /* HW Txq */
 	struct adapter *adap; /* Backpointer to adapter */
 	unsigned long tso; /* # of TSO requests */
+	unsigned long uso; /* # of USO requests */
 	unsigned long tx_cso; /* # of Tx checksum offloads */
 	unsigned long vlan_ins; /* # of Tx VLAN insertions */
 	unsigned long mapping_err; /* # of I/O MMU packet mapping errors */
@@ -1101,6 +1116,9 @@ struct adapter {
 
 	/* TC MQPRIO offload */
 	struct cxgb4_tc_mqprio *tc_mqprio;
+
+	/* TC MATCHALL classifier offload */
+	struct cxgb4_tc_matchall *tc_matchall;
 };
 
 /* Support for "sched-class" command to allow a TX Scheduling Class to be
@@ -1130,6 +1148,7 @@ enum {
 
 enum {
 	SCHED_CLASS_LEVEL_CL_RL = 0,    /* class rate limiter */
+	SCHED_CLASS_LEVEL_CH_RL = 2,    /* channel rate limiter */
 };
 
 enum {
@@ -1143,11 +1162,6 @@ enum {
 
 enum {
 	SCHED_CLASS_RATEMODE_ABS = 1,   /* Kb/s */
-};
-
-struct tx_sw_desc {                /* SW state per Tx descriptor */
-	struct sk_buff *skb;
-	struct ulptx_sgl *sgl;
 };
 
 /* Support for "sched_queue" command to allow one or more NIC TX Queues
@@ -1280,8 +1294,11 @@ struct ch_filter_specification {
 	u16 nat_lport;		/* local port to use after NAT'ing */
 	u16 nat_fport;		/* foreign port to use after NAT'ing */
 
+	u32 tc_prio;		/* TC's filter priority index */
+	u64 tc_cookie;		/* Unique cookie identifying TC rules */
+
 	/* reservation for future additions */
-	u8 rsvd[24];
+	u8 rsvd[12];
 
 	/* Filter rule value/mask pairs.
 	 */
