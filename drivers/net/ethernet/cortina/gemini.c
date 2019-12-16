@@ -1296,7 +1296,7 @@ out_drop:
 	return NETDEV_TX_OK;
 }
 
-static void gmac_tx_timeout(struct net_device *netdev)
+static void gmac_tx_timeout(struct net_device *netdev, unsigned int txqueue)
 {
 	netdev_err(netdev, "Tx timeout\n");
 	gmac_dump_dma_state(netdev);
@@ -2524,6 +2524,7 @@ static int gemini_ethernet_port_remove(struct platform_device *pdev)
 	struct gemini_ethernet_port *port = platform_get_drvdata(pdev);
 
 	gemini_port_remove(port);
+	free_netdev(port->netdev);
 	return 0;
 }
 

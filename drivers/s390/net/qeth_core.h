@@ -480,6 +480,7 @@ struct qeth_card_stats {
 
 	u64 rx_dropped_nomem;
 	u64 rx_dropped_notsupp;
+	u64 rx_dropped_runt;
 
 	/* rtnl_link_stats64 */
 	u64 rx_packets;
@@ -627,6 +628,7 @@ struct qeth_ipato {
 
 struct qeth_channel {
 	struct ccw_device *ccwdev;
+	struct qeth_cmd_buffer *active_cmd;
 	enum qeth_channel_states state;
 	atomic_t irq_pending;
 };
@@ -845,6 +847,7 @@ struct qeth_card {
 	struct service_level qeth_service_level;
 	struct qdio_ssqd_desc ssqd;
 	debug_info_t *debug;
+	struct mutex sbp_lock;
 	struct mutex conf_mutex;
 	struct mutex discipline_mutex;
 	struct napi_struct napi;
@@ -1036,6 +1039,8 @@ int qeth_do_run_thread(struct qeth_card *, unsigned long);
 void qeth_clear_thread_start_bit(struct qeth_card *, unsigned long);
 void qeth_clear_thread_running_bit(struct qeth_card *, unsigned long);
 int qeth_core_hardsetup_card(struct qeth_card *card, bool *carrier_ok);
+int qeth_stop_channel(struct qeth_channel *channel);
+
 void qeth_print_status_message(struct qeth_card *);
 int qeth_init_qdio_queues(struct qeth_card *);
 int qeth_send_ipa_cmd(struct qeth_card *, struct qeth_cmd_buffer *,
@@ -1071,7 +1076,7 @@ void qeth_clear_working_pool_list(struct qeth_card *);
 void qeth_drain_output_queues(struct qeth_card *card);
 void qeth_setadp_promisc_mode(struct qeth_card *card, bool enable);
 int qeth_setadpparms_change_macaddr(struct qeth_card *);
-void qeth_tx_timeout(struct net_device *);
+void qeth_tx_timeout(struct net_device *, unsigned int txqueue);
 void qeth_prepare_ipa_cmd(struct qeth_card *card, struct qeth_cmd_buffer *iob,
 			  u16 cmd_length);
 int qeth_query_switch_attributes(struct qeth_card *card,
