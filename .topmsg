@@ -1,0 +1,11 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: to prevent runaway AccECN cep deficit, limit GSO size
+
+It could occur that GSO sends segments in so large blocks
+that cep deficit keeps growing because ACE field can only
+update in each super skb.
+
+Put some limit into sending large super skbs in case the cep
+deficit is there and could go indefinitely.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
