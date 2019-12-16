@@ -2589,14 +2589,13 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
-			bool ace_deficit_limit;
+			bool ace_deficit_limit = false;;
 
 			if (unlikely(tcp_accecn_deficit_runaway_test(tp,
 								     cwnd_quota))) {
 				cwnd_quota = TCP_ACCECN_ACE_MAX_DELTA - 1;
 				ace_deficit_limit = true;
-			} else
-				ace_deficit_limit = false;
+			}
 
 			if (!push_one && !ace_deficit_limit &&
 			    tcp_tso_should_defer(sk, skb, &is_cwnd_limited,
