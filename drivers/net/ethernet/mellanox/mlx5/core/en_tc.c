@@ -1626,8 +1626,11 @@ static void __mlx5e_tc_del_fdb_peer_flow(struct mlx5e_tc_flow *flow)
 
 	flow_flag_clear(flow, DUP);
 
-	mlx5e_tc_del_fdb_flow(flow->peer_flow->priv, flow->peer_flow);
-	kvfree(flow->peer_flow);
+	if (refcount_dec_and_test(&flow->peer_flow->refcnt)) {
+		mlx5e_tc_del_fdb_flow(flow->peer_flow->priv, flow->peer_flow);
+		kfree(flow->peer_flow);
+	}
+
 	flow->peer_flow = NULL;
 }
 
@@ -3291,7 +3294,20 @@ static int parse_tc_fdb_actions(struct mlx5e_priv *priv,
 
 			action |= MLX5_FLOW_CONTEXT_ACTION_FWD_DEST |
 				  MLX5_FLOW_CONTEXT_ACTION_COUNT;
-			if (netdev_port_same_parent_id(priv->netdev, out_dev)) {
+			if (encap) {
+				parse_attr->mirred_ifindex[attr->out_count] =
+					out_dev->ifindex;
+				parse_attr->tun_info[attr->out_count] = dup_tun_info(info);
+				if (!parse_attr->tun_info[attr->out_count])
+					return -ENOMEM;
+				encap = false;
+				attr->dests[attr->out_count].flags |=
+					MLX5_ESW_DEST_ENCAP;
+				attr->out_count++;
+				/* attr->dests[].rep is resolved when we
+				 * handle encap
+				 */
+			} else if (netdev_port_same_parent_id(priv->netdev, out_dev)) {
 				struct mlx5_eswitch *esw = priv->mdev->priv.eswitch;
 				struct net_device *uplink_dev = mlx5_eswitch_uplink_get_proto_dev(esw, REP_ETH);
 				struct net_device *uplink_upper;
@@ -3333,19 +3349,6 @@ static int parse_tc_fdb_actions(struct mlx5e_priv *priv,
 				attr->dests[attr->out_count].rep = rpriv->rep;
 				attr->dests[attr->out_count].mdev = out_priv->mdev;
 				attr->out_count++;
-			} else if (encap) {
-				parse_attr->mirred_ifindex[attr->out_count] =
-					out_dev->ifindex;
-				parse_attr->tun_info[attr->out_count] = dup_tun_info(info);
-				if (!parse_attr->tun_info[attr->out_count])
-					return -ENOMEM;
-				encap = false;
-				attr->dests[attr->out_count].flags |=
-					MLX5_ESW_DEST_ENCAP;
-				attr->out_count++;
-				/* attr->dests[].rep is resolved when we
-				 * handle encap
-				 */
 			} else if (parse_attr->filter_dev != priv->netdev) {
 				/* All mlx5 devices are called to configure
 				 * high level device filters. Therefore, the
@@ -3876,7 +3879,7 @@ int mlx5e_delete_flower(struct net_device *dev, struct mlx5e_priv *priv,
 	int err;
 
 	rcu_read_lock();
-	flow = rhashtable_lookup_fast(tc_ht, &f->cookie, tc_ht_params);
+	flow = rhashtable_lookup(tc_ht, &f->cookie, tc_ht_params);
 	if (!flow || !same_flow_direction(flow, flags)) {
 		err = -EINVAL;
 		goto errout;
@@ -4035,9 +4038,8 @@ int mlx5e_tc_configure_matchall(struct mlx5e_priv *priv,
 				struct tc_cls_matchall_offload *ma)
 {
 	struct netlink_ext_ack *extack = ma->common.extack;
-	int prio = TC_H_MAJ(ma->common.prio) >> 16;
 
-	if (prio != 1) {
+	if (ma->common.prio != 1) {
 		NL_SET_ERR_MSG_MOD(extack, "only priority 1 is supported");
 		return -EINVAL;
 	}
