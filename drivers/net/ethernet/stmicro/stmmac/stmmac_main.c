@@ -868,10 +868,10 @@ static void stmmac_validate(struct phylink_config *config,
 		      __ETHTOOL_LINK_MODE_MASK_NBITS);
 }
 
-static int stmmac_mac_link_state(struct phylink_config *config,
-				 struct phylink_link_state *state)
+static void stmmac_mac_pcs_get_state(struct phylink_config *config,
+				     struct phylink_link_state *state)
 {
-	return -EOPNOTSUPP;
+	state->link = 0;
 }
 
 static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
@@ -965,7 +965,7 @@ static void stmmac_mac_link_up(struct phylink_config *config,
 
 static const struct phylink_mac_ops stmmac_phylink_mac_ops = {
 	.validate = stmmac_validate,
-	.mac_link_state = stmmac_mac_link_state,
+	.mac_pcs_get_state = stmmac_mac_pcs_get_state,
 	.mac_config = stmmac_mac_config,
 	.mac_an_restart = stmmac_mac_an_restart,
 	.mac_link_down = stmmac_mac_link_down,
@@ -1503,10 +1503,8 @@ static void free_dma_rx_desc_resources(struct stmmac_priv *priv)
 					  rx_q->dma_erx, rx_q->dma_rx_phy);
 
 		kfree(rx_q->buf_pool);
-		if (rx_q->page_pool) {
-			page_pool_request_shutdown(rx_q->page_pool);
+		if (rx_q->page_pool)
 			page_pool_destroy(rx_q->page_pool);
-		}
 	}
 }
 
@@ -2011,6 +2009,8 @@ static void stmmac_tx_err(struct stmmac_priv *priv, u32 chan)
 	tx_q->cur_tx = 0;
 	tx_q->mss = 0;
 	netdev_tx_reset_queue(netdev_get_tx_queue(priv->dev, chan));
+	stmmac_init_tx_chan(priv, priv->ioaddr, priv->plat->dma_cfg,
+			    tx_q->dma_tx_phy, chan);
 	stmmac_start_tx_dma(priv, chan);
 
 	priv->dev->stats.tx_errors++;
@@ -3792,7 +3792,7 @@ static int stmmac_napi_poll_tx(struct napi_struct *napi, int budget)
  *   netdev structure and arrange for the device to be reset to a sane state
  *   in order to transmit a new packet.
  */
-static void stmmac_tx_timeout(struct net_device *dev)
+static void stmmac_tx_timeout(struct net_device *dev, unsigned int txqueue)
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 
