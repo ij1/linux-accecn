@@ -304,12 +304,10 @@ static void tcp_data_ip_ecn_field(struct sock *sk, const struct sk_buff *skb)
 			tcp_enter_quickack_mode(sk, 2);
 			tp->ecn_flags |= TCP_ECN_DEMAND_CWR;
 		}
-		tp->ecn_flags |= TCP_ECN_SEEN;
 		break;
 	default:
 		if (tcp_ca_needs_ecn(sk))
 			tcp_ca_event(sk, CA_EVENT_ECN_NO_CE);
-		tp->ecn_flags |= TCP_ECN_SEEN;
 		break;
 	}
 }
@@ -5458,6 +5456,7 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb)
 
 	/* ACE counter tracks *all* segments including pure acks */
 	tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+	tp->ecn_flags |= is_ce << TCP_ECN_SEEN_SHIFT;
 }
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
