@@ -304,12 +304,10 @@ static void tcp_data_ip_ecn_field(struct sock *sk, const struct sk_buff *skb)
 			tcp_enter_quickack_mode(sk, 2);
 			tp->ecn_flags |= TCP_ECN_DEMAND_CWR;
 		}
-		tp->ecn_flags |= TCP_ECN_SEEN;
 		break;
 	default:
 		if (tcp_ca_needs_ecn(sk))
 			tcp_ca_event(sk, CA_EVENT_ECN_NO_CE);
-		tp->ecn_flags |= TCP_ECN_SEEN;
 		break;
 	}
 }
@@ -5550,17 +5548,15 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 				      u32 payload_len)
 {
-	u8 ecn_field = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+	u8 dsfield = TCP_SKB_CB(skb)->ip_dsfield;
+	u8 is_ce = (dsfield & (dsfield >> 1)) & 0x1;
+	u8 is_ecn = (dsfield | (dsfield >> 1)) & 0x1;
 
-	switch (ecn_field) {
-	case INET_ECN_CE:
-		/* ACE counter tracks *all* segments including pure acks */
-		tp->received_ce += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
-		/* Fall-through */
-	case INET_ECN_ECT_1:
-	case INET_ECN_ECT_0:
-		tp->received_ecn_bytes[ecn_field - 1] += payload_len;
-	}
+	/* ACE counter tracks *all* segments including pure acks */
+	tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+	/* Warning: this will access index -1 (and add 0) for non-ECT packets */
+	tp->received_ecn_bytes[(dsfield & INET_ECN_MASK) - 1] += is_ecn * payload_len;
+	tp->ecn_flags |= is_ce << TCP_ECN_SEEN_SHIFT;
 }
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
