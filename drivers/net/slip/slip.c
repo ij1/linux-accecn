@@ -457,7 +457,7 @@ static void slip_write_wakeup(struct tty_struct *tty)
 	schedule_work(&sl->tx_work);
 }
 
-static void sl_tx_timeout(struct net_device *dev)
+static void sl_tx_timeout(struct net_device *dev, unsigned int txqueue)
 {
 	struct slip *sl = netdev_priv(dev);
 
@@ -855,6 +855,8 @@ err_free_chan:
 	sl->tty = NULL;
 	tty->disc_data = NULL;
 	clear_bit(SLF_INUSE, &sl->flags);
+	sl_free_netdev(sl->dev);
+	free_netdev(sl->dev);
 
 err_exit:
 	rtnl_unlock();
