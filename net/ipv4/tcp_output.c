@@ -774,8 +774,10 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 		else if (leftover_size > 0)
 			leftover_size = -(4 - leftover_size);
 
-		if (remaining >= size - leftover_size)
+		if (remaining >= size - leftover_size) {
+			size -= leftover_size;
 			break;
+		}
 
 		opts->num_ecn_bytes--;
 		size -= TCPOLEN_ACCECN_PERCOUNTER;
