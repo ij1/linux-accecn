@@ -765,6 +765,7 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 				  int remaining, int max_combine_saving)
 {
 	int size = TCP_ACCECN_MAXSIZE;
+	opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
 
 	while (opts->num_ecn_bytes >= required) {
 		int leftover_size = size & 0x3;
@@ -851,7 +852,6 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 			int need;
 			opts->options |= OPTION_ACCECN;
 			opts->ecn_bytes = synack_ecn_bytes;
-			opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
 			need = tcp_options_fit_accecn(opts, 0, remaining,
 						      tcp_synack_options_combine_saving(opts));
 			remaining -= need;
@@ -906,11 +906,9 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	}
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		int remaining = MAX_TCP_OPTION_SPACE - size;
 		int need;
-		opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
 		need = tcp_options_fit_accecn(opts, tp->accecn_minlen,
-					      remaining,
+					      MAX_TCP_OPTION_SPACE - size,
 					      opts->num_sack_blocks > 0 ? 2 : 0);
 		if (need > 0) {
 			opts->options |= OPTION_ACCECN;
