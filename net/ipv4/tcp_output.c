@@ -771,7 +771,7 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 		int leftover_size = size & 0x3;
 		/* Pad to dword if cannot combine */
 		if (leftover_size > max_combine_saving)
-			leftover_size = -(4 - leftover_size);
+			leftover_size = -((4 - leftover_size) & 0x3);
 
 		if (remaining >= size - leftover_size) {
 			size -= leftover_size;
