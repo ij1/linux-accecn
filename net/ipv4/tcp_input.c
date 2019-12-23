@@ -6589,7 +6589,8 @@ static void tcp_ecn_create_request(struct request_sock *req,
 	if (tcp_accecn_syn_requested(th) &&
 	    (net->ipv4.sysctl_tcp_ecn || tcp_ca_needs_accecn(listen_sk))) {
 		inet_rsk(req)->ecn_ok = 1;
-		tcp_rsk(req)->accecn_ok = 1;
+		if (net->ipv4.sysctl_tcp_ecn >= 2)
+			tcp_rsk(req)->accecn_ok = 1;
 		tcp_rsk(req)->syn_ect_rcv =
 			TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 		return;
