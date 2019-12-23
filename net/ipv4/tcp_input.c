@@ -5605,7 +5605,7 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
 
 		tp->ecn_flags |= TCP_ECN_SEEN;
-		tp->received_ecn_bytes[ecnfield] += payload_len;
+		tp->received_ecn_bytes[ecnfield - 1] += payload_len;
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
