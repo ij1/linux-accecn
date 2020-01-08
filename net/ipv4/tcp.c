@@ -2624,7 +2624,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tp->snd_cwnd = TCP_INIT_CWND;
 	tp->snd_cwnd_cnt = 0;
 	tp->window_clamp = 0;
-	tp->delivered_ce = 0;
+	tcp_accecn_init_counters(tp);
 	tcp_set_ca_state(sk, TCP_CA_Open);
 	tp->is_sack_reneg = 0;
 	tcp_clear_retrans(tp);
@@ -3302,7 +3302,7 @@ void tcp_get_info(struct sock *sk, struct tcp_info *info)
 	if (rate64)
 		info->tcpi_delivery_rate = rate64;
 	info->tcpi_delivered = tp->delivered;
-	info->tcpi_delivered_ce = tp->delivered_ce;
+	info->tcpi_delivered_ce = tp->delivered_ce - TCP_ACCECN_CEP_INIT;
 	info->tcpi_bytes_sent = tp->bytes_sent;
 	info->tcpi_bytes_retrans = tp->bytes_retrans;
 	info->tcpi_dsack_dups = tp->dsack_dups;
@@ -3381,7 +3381,7 @@ struct sk_buff *tcp_get_timestamping_opt_stats(const struct sock *sk)
 	nla_put_u8(stats, TCP_NLA_DELIVERY_RATE_APP_LMT, !!tp->rate_app_limited);
 	nla_put_u32(stats, TCP_NLA_SND_SSTHRESH, tp->snd_ssthresh);
 	nla_put_u32(stats, TCP_NLA_DELIVERED, tp->delivered);
-	nla_put_u32(stats, TCP_NLA_DELIVERED_CE, tp->delivered_ce);
+	nla_put_u32(stats, TCP_NLA_DELIVERED_CE, tp->delivered_ce - TCP_ACCECN_CEP_INIT);
 
 	nla_put_u32(stats, TCP_NLA_SNDQ_SIZE, tp->write_seq - tp->snd_una);
 	nla_put_u8(stats, TCP_NLA_CA_STATE, inet_csk(sk)->icsk_ca_state);
