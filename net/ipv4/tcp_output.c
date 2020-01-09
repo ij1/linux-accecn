@@ -910,7 +910,6 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 					       opts->num_sack_blocks > 0 ? 2 : 0);
 	}
 
-
 	return size;
 }
 
