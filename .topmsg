@@ -1,0 +1,12 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] gro: flushing when CWR is set negatively affects AccECN
+
+As AccECN may keep CWR bit asserted due to different
+interpretation of the bit, flushing with GRO because of
+CWR may effectively disable GRO until AccECN counter
+field changes such that CWR-bit becomes 0.
+
+There is no harm done from not immediately forwarding the
+CWR'ed segment with RFC3168 ECN.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
