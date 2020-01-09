@@ -257,7 +257,7 @@ static void tcp_ecn_accept_cwr(struct sock *sk, const struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (!tcp_ecn_mode_accecn(tp) && tcp_hdr(skb)->cwr) {
+	if (tcp_ecn_mode_rfc3168(tp) && tcp_hdr(skb)->cwr) {
 		tp->ecn_flags &= ~TCP_ECN_DEMAND_CWR;
 
 		/* If the sender is telling us it has entered CWR, then its
