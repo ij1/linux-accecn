@@ -386,7 +386,7 @@ static inline bool tcp_ecn_mode_any(const struct tcp_sock *tp)
 
 static inline bool tcp_ecn_mode_rfc3168(const struct tcp_sock *tp)
 {
-	return tp->ecn_flags & TCP_ECN_MODE_RFC3168;
+	return (tp->ecn_flags & TCP_ECN_MODE_ANY) == TCP_ECN_MODE_RFC3168;
 }
 
 static inline bool tcp_ecn_mode_accecn(const struct tcp_sock *tp)
