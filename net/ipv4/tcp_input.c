@@ -286,7 +286,7 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 		 * and we already seen ECT on a previous segment,
 		 * it is probably a retransmit with RFC3168 ECN.
 		 */
-		if ((tp->ecn_flags & TCP_ECN_SEEN) && !tcp_ecn_mode_accecn(tp))
+		if ((tp->ecn_flags & TCP_ECN_SEEN) && tcp_ecn_mode_rfc3168(tp))
 			tcp_enter_quickack_mode(sk, 2);
 		break;
 	case INET_ECN_CE:
@@ -294,7 +294,7 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 			tcp_ca_event(sk, CA_EVENT_ECN_IS_CE);
 
 		if (!(tp->ecn_flags & TCP_ECN_DEMAND_CWR) &&
-		    !tcp_ecn_mode_accecn(tp)) {
+		    tcp_ecn_mode_rfc3168(tp)) {
 			/* Better not delay acks, sender can have a very low cwnd */
 			tcp_enter_quickack_mode(sk, 2);
 			tp->ecn_flags |= TCP_ECN_DEMAND_CWR;
@@ -3618,7 +3618,7 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
 
 	if (ecn_count) {
-		if (!tcp_ecn_mode_accecn(tp))
+		if (tcp_ecn_mode_rfc3168(tp))
 			ecn_count = delivered;
 
 		tp->delivered_ce += ecn_count;
