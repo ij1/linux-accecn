@@ -330,6 +330,21 @@ static inline int tcp_accecn_extract_syn_ect(u8 ace)
 	return INET_ECN_NOT_ECT;
 }
 
+/* Check ECN field transition to detect invalid transitions */
+static bool tcp_ect_transition_valid(u8 snt, u8 rcv)
+{
+	if (rcv == snt)
+		return true;
+
+	/* Non-ECT altered to something or something became non-ECT */
+	if ((snt == INET_ECN_NOT_ECT) || (rcv == INET_ECN_NOT_ECT))
+		return false;
+	/* CE -> ECT(0/1)? */
+	if (snt == INET_ECN_CE)
+		return false;
+	return true;
+}
+
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -339,16 +354,16 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 		goto accept;
 
 	ect = tcp_accecn_extract_syn_ect(ace);
-	if (ect != sent_ect && ect != INET_ECN_CE) {
+	if (!tcp_ect_transition_valid(sent_ect, ect)) {
 		struct inet_sock *inet = inet_sk(sk);
 		if (sk->sk_family == AF_INET) {
-			net_dbg_ratelimited("ECT mismatch on path to %pI4:%u/%u got=%d expected=%d\n",
+			net_dbg_ratelimited("ECN mismatch on path to %pI4:%u/%u got=%d expected=%d\n",
 					    &inet->inet_daddr,
 					    ntohs(inet->inet_dport),
 					    inet->inet_num,
 					    ect, sent_ect);
 		} else if (sk->sk_family == AF_INET6) {
-			net_dbg_ratelimited("ECT mismatch on path to %pI6:%u/%u got=%d expected=%d\n",
+			net_dbg_ratelimited("ECN mismatch on path to %pI6:%u/%u got=%d expected=%d\n",
 					    &sk->sk_v6_daddr,
 					    ntohs(inet->inet_dport),
 					    inet->inet_num,
