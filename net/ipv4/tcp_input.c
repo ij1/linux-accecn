@@ -437,8 +437,8 @@ static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct sk_buff *skb,
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
 
-	/* ECT reflector in 3rd ACK (or another ACK like it), no CEP in ACE */
-	if ((tp->bytes_received == 0) && !(flag & FLAG_DATA))
+	/* ECT reflector in ACK like the 3rd ACK, no CEP in ACE */
+	if (tp->ect_reflector_rcv && !(flag & FLAG_DATA))
 		return 0;
 
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) + TCP_ACCECN_CEP_INIT_OFFSET;
@@ -3492,6 +3492,7 @@ static void tcp_rcv_nxt_update(struct tcp_sock *tp, u32 seq)
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_received += delta;
+	tp->ect_reflector_rcv = 0;
 	WRITE_ONCE(tp->rcv_nxt, seq);
 }
 
