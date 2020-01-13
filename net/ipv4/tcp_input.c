@@ -394,6 +394,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
 			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
+			tp->ect_reflector = 1;
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		}
 		break;
@@ -3481,6 +3482,7 @@ static void tcp_snd_una_update(struct tcp_sock *tp, u32 ack)
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_acked += delta;
+	tp->ect_reflector &= (tp->bytes_acked <= 1);
 	tp->snd_una = ack;
 }
 
