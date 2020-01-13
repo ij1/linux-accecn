@@ -326,7 +326,7 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 	return 0;
 }
 
-static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct tcphdr *th,
+static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct sk_buff *skb,
 				u32 delivered_pkts, int flag)
 {
 	u32 delta, safe_delta;
@@ -341,7 +341,12 @@ static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct tcphdr *th,
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
 
-	delta = (tcp_accecn_ace(th) - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
+	/* ECT reflector in 3rd ACK (or another ACK like it), no CEP in ACE */
+	if ((tp->bytes_received == 0) && !(flag & FLAG_DATA))
+		return 0;
+
+	delta = (tcp_accecn_ace(tcp_hdr(skb)) - tp->delivered_ce) &
+		TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
 
@@ -3737,7 +3742,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_cep_delta(tp, tcp_hdr(skb),
+		ecn_count = tcp_accecn_cep_delta(tp, skb,
 						 tp->delivered - delivered,
 						 flag);
 		if (ecn_count > 0)
