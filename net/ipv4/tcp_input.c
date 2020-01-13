@@ -394,8 +394,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
 			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
-			/* Sending the final packet of 3WHS sets AccECN mode */
-			tcp_ecn_mode_set(tp, TCP_ECN_MODE_PENDING);
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		}
 		break;
 	}

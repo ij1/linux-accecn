@@ -386,18 +386,20 @@ tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 		th->ece = 1;
 }
 
-static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
+static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
+			       struct tcphdr *th)
 {
-	if (likely(!tp->use_ect_reflector)) {
+	if (likely(tp->bytes_acked > 0 || !skb_is_tcp_pure_ack(skb))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
 		th->ece = !!(tp->received_ce_tx & 0x1);
 		th->cwr = !!(tp->received_ce_tx & 0x2);
 		th->ae = !!(tp->received_ce_tx & 0x4);
 	} else {
-		/* The final packet of the 3WHS must reflect the SYN/ACK ECT */
+		/* The final packet of the 3WHS or anything like it must
+		 * reflect the SYN/ACK ECT
+		 */
 		tcp_accecn_echo_syn_ect(th, tp->syn_ect_rcv);
-		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	}
 }
 
@@ -414,7 +416,7 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 
 	INET_ECN_xmit(sk);
 	if (tcp_ecn_mode_accecn(tp)) {
-		tcp_accecn_set_ace(th, tp);
+		tcp_accecn_set_ace(tp, skb, th);
 		skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
 	} else {
 		/* Not-retransmitted data segment: set ECT and inject CWR. */
