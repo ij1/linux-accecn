@@ -425,6 +425,7 @@ static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct sk_buff *skb,
 				u32 delivered_pkts, int flag)
 {
 	u32 delta, safe_delta;
+	u32 corrected_ace;
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
@@ -440,8 +441,8 @@ static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct sk_buff *skb,
 	if ((tp->bytes_received == 0) && !(flag & FLAG_DATA))
 		return 0;
 
-	delta = (tcp_accecn_ace(tcp_hdr(skb)) - tp->delivered_ce) &
-		TCP_ACCECN_CEP_ACE_MASK;
+	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) + TCP_ACCECN_CEP_INIT_OFFSET;
+	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
 

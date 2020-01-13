@@ -389,15 +389,18 @@ tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 			       struct tcphdr *th)
 {
+	u32 wire_ace;
+
 	/* The final packet of the 3WHS or anything like it must reflect
 	 * the SYN/ACK ECT instead of putting CEP into ACE field
 	 */
 	if (likely(tp->bytes_acked > 0 || !skb_is_tcp_pure_ack(skb))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
-		th->ece = !!(tp->received_ce_tx & 0x1);
-		th->cwr = !!(tp->received_ce_tx & 0x2);
-		th->ae = !!(tp->received_ce_tx & 0x4);
+		wire_ace = tp->received_ce_tx + TCP_ACCECN_CEP_INIT_OFFSET;
+		th->ece = !!(wire_ace & 0x1);
+		th->cwr = !!(wire_ace & 0x2);
+		th->ae = !!(wire_ace & 0x4);
 	} else {
 		tcp_accecn_echo_syn_ect(th, tp->syn_ect_rcv);
 	}
@@ -548,20 +551,24 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 	}
 
 	if (unlikely(OPTION_ACCECN & options)) {
+		u32 e0b = opts->ecn_bytes[INET_ECN_ECT_0 - 1] + TCP_ACCECN_E0B_INIT_OFFSET;
+		u32 ceb = opts->ecn_bytes[INET_ECN_CE - 1] + TCP_ACCECN_CEB_INIT_OFFSET;
+		u32 e1b = opts->ecn_bytes[INET_ECN_ECT_1 - 1] + TCP_ACCECN_E1B_INIT_OFFSET;
 		u8 len = TCPOLEN_EXP_ACCECN_BASE + opts->num_ecn_bytes * 3;
+
 		*ptr++ = htonl((TCPOPT_EXP << 24) | (len << 16) |
 			       TCPOPT_ACCECN_MAGIC);
 		if (opts->num_ecn_bytes > 0) {
-			*ptr++ = htonl((opts->ecn_bytes[INET_ECN_ECT_0 - 1] << 8) |
+			*ptr++ = htonl((e0b << 8) |
 				       (opts->num_ecn_bytes > 1 ?
-				        (opts->ecn_bytes[INET_ECN_CE - 1] >> 16) & 0xff :
+				        (ceb >> 16) & 0xff :
 				        TCPOPT_NOP));
 			if (opts->num_ecn_bytes == 2) {
-				leftover_bytes = (opts->ecn_bytes[INET_ECN_ECT_1 - 1] >> 8) & 0xffff;
+				leftover_bytes = (ceb >> 8) & 0xffff;
 			} else {
-				*ptr++ = htonl((opts->ecn_bytes[INET_ECN_CE - 1] << 16) |
-					       ((opts->ecn_bytes[INET_ECN_ECT_1 - 1] >> 8) & 0xffff));
-				leftover_bytes = ((opts->ecn_bytes[INET_ECN_ECT_1 - 1] & 0xff) << 8) |
+				*ptr++ = htonl((ceb << 16) |
+					       ((e1b >> 8) & 0xffff));
+				leftover_bytes = ((e1b & 0xff) << 8) |
 						TCPOPT_NOP;
 				leftover_size = 1;
 			}
