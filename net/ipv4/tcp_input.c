@@ -358,7 +358,6 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 	}
 
 accept:
-	tcp_accecn_init_counters(tp);
 	if (ect == INET_ECN_CE)
 		tp->delivered_ce++;
 	return true;
