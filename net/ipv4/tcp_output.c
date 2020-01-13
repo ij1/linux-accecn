@@ -394,7 +394,7 @@ static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 	/* The final packet of the 3WHS or anything like it must reflect
 	 * the SYN/ACK ECT instead of putting CEP into ACE field
 	 */
-	if (likely(tp->ect_reflector || !skb_is_tcp_pure_ack(skb))) {
+	if (likely(!tp->ect_reflector_snd || !skb_is_tcp_pure_ack(skb))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
 		wire_ace = tp->received_ce_tx + TCP_ACCECN_CEP_INIT_OFFSET;

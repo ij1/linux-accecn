@@ -418,6 +418,9 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	}
+	/* Handle 3rd ACK dups */
+	if (tcp_ecn_mode_accecn(tp))
+		tp->ect_reflector_rcv = 1;
 }
 
 static void tcp_ecn_openreq_child(struct sock *sk,
