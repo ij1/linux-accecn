@@ -412,7 +412,6 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 	case 1:
 		/* Unused but legal values */
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
-		tcp_accecn_init_counters(tp);
 		break;
 	default:
 		if (tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt))
