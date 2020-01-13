@@ -752,9 +752,7 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 /* Initial values for AccECN option, ordered is based on ECN field bits
  * similar to received_ecn_bytes. Used for SYN/ACK AccECN option.
  */
-u32 synack_ecn_bytes[3] = {
-	TCP_ACCECN_E1B_INIT, TCP_ACCECN_E0B_INIT, TCP_ACCECN_CEB_INIT
-};
+u32 synack_ecn_bytes[3] = { 0, 0, 0 };
 
 static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
 {
