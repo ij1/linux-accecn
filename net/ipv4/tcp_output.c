@@ -379,8 +379,7 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 		return;
 
 	INET_ECN_xmit(sk);
-	/* Cannot use tcp_ecn_mode_accecn here due to 3rd ACK transient */
-	if (!tcp_ecn_mode_rfc3168(tp)) {
+	if (tcp_ecn_mode_accecn(tp)) {
 		tcp_accecn_set_ace(th, tp);
 		skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
 	} else {
