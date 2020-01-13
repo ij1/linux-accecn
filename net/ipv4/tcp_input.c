@@ -3914,9 +3914,9 @@ old_ack:
  * the u32 value in tcp_sock. As we're processing TCP options, it is
  * safe to access from - 1.
  */
-static void tcp_accecn_update_bytes(u32 *cnt, const char *from)
+static void tcp_accecn_update_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
-	u32 truncated = get_unaligned_be32(from - 1) & 0xFFFFFFU;
+	u32 truncated = (get_unaligned_be32(from - 1) + init_offset) & 0xFFFFFFU;
 	*cnt += (truncated - *cnt) & 0xFFFFFFU;
 }
 
@@ -3926,19 +3926,19 @@ static void tcp_parse_accecn_option(int len, const char *ptr,
 	opt_rx->accecn_len = 0;
 	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
 		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
-					ptr - 1);
+					ptr - 1, TCP_ACCECN_E0B_INIT_OFFSET);
 		opt_rx->accecn_len++;
 	}
 	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
 		ptr += TCPOLEN_ACCECN_PERCOUNTER;
 		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
-					ptr - 1);
+					ptr - 1, TCP_ACCECN_CEB_INIT_OFFSET);
 		opt_rx->accecn_len++;
 	}
 	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
 		ptr += TCPOLEN_ACCECN_PERCOUNTER;
 		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
-					ptr - 1);
+					ptr - 1, TCP_ACCECN_E1B_INIT_OFFSET);
 		opt_rx->accecn_len++;
 	}
 }
