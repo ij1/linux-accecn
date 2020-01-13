@@ -3918,7 +3918,7 @@ old_ack:
  */
 static void tcp_accecn_update_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
-	u32 truncated = (get_unaligned_be32(from - 1) + init_offset) & 0xFFFFFFU;
+	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	*cnt += (truncated - *cnt) & 0xFFFFFFU;
 }
 
