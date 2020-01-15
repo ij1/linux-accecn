@@ -2367,7 +2367,6 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	return 0;
 }
 
-/* To avoid/detect middlebox interference, not all counters start at 0 */
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 {
 	tp->delivered_ce = 0;
