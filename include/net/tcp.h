@@ -406,6 +406,10 @@ static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
 	return tp->received_ce - tp->received_ce_tx;
 }
 
+bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
+void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
+			  u8 syn_ect_snt);
+
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
 	TCP_TW_RST = 1,
@@ -838,8 +842,19 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 #define TCPHDR_SYNACK_ACCECN (TCPHDR_SYN | TCPHDR_ACK | TCPHDR_CWR)
 
 #define TCP_ACCECN_CEP_ACE_MASK 0x7
-#define TCP_ACCECN_CEP_INIT_OFFSET 5
 #define TCP_ACCECN_ACE_MAX_DELTA 6
+
+/* To avoid/detect middlebox interference, not all counters start at 0.
+ * See draft-ietf-tcpm-accurate-ecn for the latest values.
+ */
+#define TCP_ACCECN_CEP_INIT_OFFSET 5
+
+static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
+{
+	tp->delivered_ce = 0;
+	tp->received_ce = 0;
+	tp->received_ce_tx = 0;
+}
 
 /* This is what the send packet queuing engine uses to pass
  * TCP per-packet control information to the transmission code.
@@ -2366,16 +2381,5 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	}
 	return 0;
 }
-
-static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
-{
-	tp->delivered_ce = 0;
-	tp->received_ce = 0;
-	tp->received_ce_tx = 0;
-}
-
-bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
-void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
-			  u8 syn_ect_snt);
 
 #endif	/* _TCP_H */
