@@ -2367,7 +2367,10 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	return 0;
 }
 
-/* See draft-ietf-tcpm-accurate-ecn for the latest values */
+/* To avoid/detect middlebox interference, not all counters start at 0.
+ *
+ * See draft-ietf-tcpm-accurate-ecn for the latest values
+ */
 #define TCP_ACCECN_E1B_INIT_OFFSET 0
 #define TCP_ACCECN_E0B_INIT_OFFSET 1
 #define TCP_ACCECN_CEB_INIT_OFFSET 0
@@ -2383,7 +2386,6 @@ static inline void __tcp_accecn_init_bytes_counters(int *counter_array)
 	counter_array[INET_ECN_CE - 1] = 0;
 }
 
-/* To avoid/detect middlebox interference, not all counters start at 0 */
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 {
 	tp->delivered_ce = 0;
