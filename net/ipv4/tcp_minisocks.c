@@ -430,10 +430,9 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (tcp_rsk(req)->accecn_ok) {
+		const struct tcphdr *th = (const struct tcphdr *)skb->data;
 		tcp_accecn_third_ack(sk, skb, tcp_rsk(req)->syn_ect_snt);
-		/* CE will not get accounted by tcp_ack */
-		if (INET_ECN_is_ce(TCP_SKB_CB(skb)->ip_dsfield))
-			tp->received_ce++;
+		tcp_ecn_received_counters(tp, skb, skb->len - th->doff * 4);
 	} else if (inet_rsk(req)->ecn_ok)
 		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
 				     TCP_ECN_MODE_RFC3168 :
