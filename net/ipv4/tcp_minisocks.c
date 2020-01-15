@@ -432,10 +432,11 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 	if (tcp_rsk(req)->accecn_ok) {
 		tcp_accecn_third_ack(sk, skb, tcp_rsk(req)->syn_ect_snt);
 		tcp_ecn_received_counters(tp, skb);
-	} else if (inet_rsk(req)->ecn_ok)
+	} else {
 		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
 				     TCP_ECN_MODE_RFC3168 :
 				     TCP_ECN_DISABLED);
+	}
 }
 
 void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)
