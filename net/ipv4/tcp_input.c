@@ -374,6 +374,7 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 accept:
 	if (ect == INET_ECN_CE)
 		tp->delivered_ce++;
+	tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	return true;
 
 reject:
@@ -407,7 +408,6 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
 			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
 			tp->ect_reflector_snd = 1;
-			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		}
 		break;
 	}
