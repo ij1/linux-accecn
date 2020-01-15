@@ -414,8 +414,12 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	default:
-		if (tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt))
-			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
+		/* Validation only applies to non-data "first" packet */
+		if ((TCP_SKB_CB(skb)->end_seq == tp->rcv_nxt) &&
+		    !tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt))
+			break;
+
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	}
 	/* Handle 3rd ACK dups */
@@ -432,10 +436,11 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 	if (tcp_rsk(req)->accecn_ok) {
 		tcp_accecn_third_ack(sk, skb, tcp_rsk(req)->syn_ect_snt);
 		tcp_ecn_received_counters(tp, skb);
-	} else if (inet_rsk(req)->ecn_ok)
+	} else {
 		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
 				     TCP_ECN_MODE_RFC3168 :
 				     TCP_ECN_DISABLED);
+	}
 }
 
 void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)
