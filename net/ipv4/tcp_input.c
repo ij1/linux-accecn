@@ -5617,8 +5617,8 @@ static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 
 
 /* Updates Accurate ECN received counters from the received IP ECN field */
-static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
-				      u32 payload_len)
+void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
+			       u32 payload_len)
 {
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 
@@ -5634,6 +5634,7 @@ static void tcp_ecn_received_counters(struct tcp_sock *tp, struct sk_buff *skb,
 					  tcp_ecn_field_to_accecn_len(ecnfield));
 	}
 }
+EXPORT_SYMBOL_GPL(tcp_ecn_received_counters);
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
  * When tcp connections are abruptly terminated from Mac OSX (via ^C), a
