@@ -400,8 +400,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		break;
 	default:
-		if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
-			      tp->ecn_flags & TCP_ECN_MODE_ANY)) {
+		if (!tcp_ecn_mode_pending(tp)) {
 			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 			break;
 		}
