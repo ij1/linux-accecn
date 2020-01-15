@@ -400,8 +400,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		break;
 	default:
-		if (WARN_ONCE(!tcp_ecn_mode_pending(tp), "bad mode %d\n",
-			      tp->ecn_flags & TCP_ECN_MODE_ANY)) {
+		if (!tcp_ecn_mode_pending(tp)) {
 			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 			break;
 		}
@@ -6183,7 +6182,8 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    state to ESTABLISHED..."
 		 */
 
-		tcp_ecn_rcv_synack(sk, th, TCP_SKB_CB(skb)->ip_dsfield);
+		if (tcp_ecn_mode_any(tp))
+			tcp_ecn_rcv_synack(sk, th, TCP_SKB_CB(skb)->ip_dsfield);
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_try_undo_spurious_syn(sk);
@@ -6503,6 +6503,8 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		tp->lsndtime = tcp_jiffies32;
 
 		tcp_initialize_rcv_mss(sk);
+		if (tcp_ecn_mode_accecn(tp))
+			tcp_accecn_third_ack(sk, skb, tp->syn_ect_snt);
 		tcp_fast_path_on(tp);
 		break;
 
