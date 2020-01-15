@@ -409,6 +409,8 @@ static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
 void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 			  u8 syn_ect_snt);
+void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
+			       u32 payload_len);
 
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
