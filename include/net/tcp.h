@@ -836,8 +836,19 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 #define TCPHDR_SYN_ECN	(TCPHDR_SYN | TCPHDR_ECE | TCPHDR_CWR)
 
 #define TCP_ACCECN_CEP_ACE_MASK 0x7
-#define TCP_ACCECN_CEP_INIT_OFFSET 5
 #define TCP_ACCECN_ACE_MAX_DELTA 6
+
+/* To avoid/detect middlebox interference, not all counters start at 0.
+ * See draft-ietf-tcpm-accurate-ecn for the latest values.
+ */
+#define TCP_ACCECN_CEP_INIT_OFFSET 5
+
+static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
+{
+	tp->delivered_ce = 0;
+	tp->received_ce = 0;
+	tp->received_ce_tx = 0;
+}
 
 /* This is what the send packet queuing engine uses to pass
  * TCP per-packet control information to the transmission code.
@@ -2354,13 +2365,6 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 		return tcp_clock_ns() + (u64)delay * NSEC_PER_USEC;
 	}
 	return 0;
-}
-
-static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
-{
-	tp->delivered_ce = 0;
-	tp->received_ce = 0;
-	tp->received_ce_tx = 0;
 }
 
 #endif	/* _TCP_H */
