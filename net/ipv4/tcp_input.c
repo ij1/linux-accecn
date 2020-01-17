@@ -434,6 +434,39 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 	return 0;
 }
 
+/* Handles AccECN option ECT and CE 24-bit byte counters update into
+ * the u32 value in tcp_sock. As we're processing TCP options, it is
+ * safe to access from - 1.
+ */
+static void tcp_accecn_update_bytes(u32 *cnt, const char *from, u32 init_offset)
+{
+	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
+	*cnt += (truncated - *cnt) & 0xFFFFFFU;
+}
+
+static void tcp_parse_accecn_option(int len, const char *ptr,
+				    struct tcp_options_received *opt_rx)
+{
+	opt_rx->accecn_len = 0;
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
+					ptr - 1, TCP_ACCECN_E0B_INIT_OFFSET);
+		opt_rx->accecn_len++;
+	}
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
+					ptr - 1, TCP_ACCECN_CEB_INIT_OFFSET);
+		opt_rx->accecn_len++;
+	}
+	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
+					ptr - 1, TCP_ACCECN_E1B_INIT_OFFSET);
+		opt_rx->accecn_len++;
+	}
+}
+
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			      u32 delivered_pkts, int flag)
@@ -3923,39 +3956,6 @@ old_ack:
 	}
 
 	return 0;
-}
-
-/* Handles AccECN option ECT and CE 24-bit byte counters update into
- * the u32 value in tcp_sock. As we're processing TCP options, it is
- * safe to access from - 1.
- */
-static void tcp_accecn_update_bytes(u32 *cnt, const char *from, u32 init_offset)
-{
-	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
-	*cnt += (truncated - *cnt) & 0xFFFFFFU;
-}
-
-static void tcp_parse_accecn_option(int len, const char *ptr,
-				    struct tcp_options_received *opt_rx)
-{
-	opt_rx->accecn_len = 0;
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
-					ptr - 1, TCP_ACCECN_E0B_INIT_OFFSET);
-		opt_rx->accecn_len++;
-	}
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
-					ptr - 1, TCP_ACCECN_CEB_INIT_OFFSET);
-		opt_rx->accecn_len++;
-	}
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
-					ptr - 1, TCP_ACCECN_E1B_INIT_OFFSET);
-		opt_rx->accecn_len++;
-	}
 }
 
 static void tcp_parse_fastopen_option(int len, const unsigned char *cookie,
