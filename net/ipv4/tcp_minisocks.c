@@ -414,9 +414,11 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	default:
-		/* Validation only applies to non-data "first" packet */
-		if (TCP_SKB_CB(skb)->end_seq == tp->rcv_nxt)
+		/* Validation only applies to first non-data packet */
+		if (TCP_SKB_CB(skb)->end_seq == tp->rcv_nxt) {
 			tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt);
+		else
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	}
 	/* Handle 3rd ACK dups */
