@@ -438,32 +438,45 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
  * the u32 value in tcp_sock. As we're processing TCP options, it is
  * safe to access from - 1.
  */
-static void tcp_accecn_update_bytes(u32 *cnt, const char *from, u32 init_offset)
+static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	*cnt += (truncated - *cnt) & 0xFFFFFFU;
 }
 
-static void tcp_parse_accecn_option(int len, const char *ptr,
-				    struct tcp_options_received *opt_rx)
+static void tcp_accecn_process_option(struct tcp_sock *tp,
+				      const struct sk_buff *skb)
 {
-	opt_rx->accecn_len = 0;
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
-					ptr - 1, TCP_ACCECN_E0B_INIT_OFFSET);
-		opt_rx->accecn_len++;
+	unsigned char *ptr;
+	unsigned int optlen;
+
+	if (tp->rx_opt.accecn < 0)
+		return;
+
+	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
+	optlen = ptr[1];
+	if (ptr[0] == TCPOPT_EXP) {
+		optlen -= 2;
+		ptr += 2;
 	}
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
-					ptr - 1, TCP_ACCECN_CEB_INIT_OFFSET);
-		opt_rx->accecn_len++;
+	ptr += 2;
+
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_0 - 1]),
+				     ptr, TCP_ACCECN_E0B_INIT_OFFSET);
+		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
 	}
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
 		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
-					ptr - 1, TCP_ACCECN_E1B_INIT_OFFSET);
-		opt_rx->accecn_len++;
+		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_CE - 1]),
+				     ptr, TCP_ACCECN_CEB_INIT_OFFSET);
+		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+	}
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_1 - 1]),
+				     ptr, TCP_ACCECN_E1B_INIT_OFFSET);
+		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
 	}
 }
 
@@ -477,6 +490,8 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
+
+	tcp_accecn_process_option(tp, skb);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
