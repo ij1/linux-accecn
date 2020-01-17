@@ -92,11 +92,10 @@ struct tcp_options_received {
 		smc_ok : 1,	/* SMC seen on SYN packet		*/
 		snd_wscale : 4,	/* Window scaling received from sender	*/
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
-	u8	num_sacks:3,	/* Number of SACK blocks		*/
-		accecn_len:2;	/* AccECN option number of counter	*/
+	u8	num_sacks;	/* Number of SACK blocks		*/
+	s8	accecn;		/* AccECN index in header, -1=no option	*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
 	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
-	u32	ecn_bytes[3];	/* AccECN ECT(1), ECT(0), CE bytes cnts */
 };
 
 static inline void tcp_clear_options(struct tcp_options_received *rx_opt)

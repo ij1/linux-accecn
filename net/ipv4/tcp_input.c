@@ -434,21 +434,70 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 	return 0;
 }
 
-static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct sk_buff *skb,
-				u32 delivered_pkts, int flag)
+/* Handles AccECN option ECT and CE 24-bit byte counters update into
+ * the u32 value in tcp_sock. As we're processing TCP options, it is
+ * safe to access from - 1.
+ */
+static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
+{
+	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
+	*cnt += (truncated - *cnt) & 0xFFFFFFU;
+}
+
+static void tcp_accecn_process_option(struct tcp_sock *tp,
+				      const struct sk_buff *skb)
+{
+	unsigned char *ptr;
+	unsigned int optlen;
+
+	if (tp->rx_opt.accecn < 0)
+		return;
+
+	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
+	optlen = ptr[1];
+	if (ptr[0] == TCPOPT_EXP) {
+		optlen -= 2;
+		ptr += 2;
+	}
+	ptr += 2;
+
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_0 - 1]),
+				     ptr, TCP_ACCECN_E0B_INIT_OFFSET);
+		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+	}
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_CE - 1]),
+				     ptr, TCP_ACCECN_CEB_INIT_OFFSET);
+		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+	}
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		ptr += TCPOLEN_ACCECN_PERCOUNTER;
+		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_1 - 1]),
+				     ptr, TCP_ACCECN_E1B_INIT_OFFSET);
+		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+	}
+}
+
+/* Returns the ECN CE delta */
+static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
+			      u32 delivered_pkts, int flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
+
+	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
+	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+		return 0;
+
+	tcp_accecn_process_option(tp, skb);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
 		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 			return 0;
 	}
-
-	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
-	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
-		return 0;
 
 	/* ECT reflector in ACK like the 3rd ACK, no CEP in ACE */
 	if (tp->ect_reflector_rcv && !(flag & FLAG_DATA))
@@ -3853,9 +3902,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_cep_delta(tp, skb,
-						 tp->delivered - delivered,
-						 flag);
+		ecn_count = tcp_accecn_process(tp, skb,
+					       tp->delivered - delivered, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
@@ -3923,39 +3971,6 @@ old_ack:
 	}
 
 	return 0;
-}
-
-/* Handles AccECN option ECT and CE 24-bit byte counters update into
- * the u32 value in tcp_sock. As we're processing TCP options, it is
- * safe to access from - 1.
- */
-static void tcp_accecn_update_bytes(u32 *cnt, const char *from, u32 init_offset)
-{
-	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
-	*cnt += (truncated - *cnt) & 0xFFFFFFU;
-}
-
-static void tcp_parse_accecn_option(int len, const char *ptr,
-				    struct tcp_options_received *opt_rx)
-{
-	opt_rx->accecn_len = 0;
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER) {
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_0 - 1],
-					ptr - 1, TCP_ACCECN_E0B_INIT_OFFSET);
-		opt_rx->accecn_len++;
-	}
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 2) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_CE - 1],
-					ptr - 1, TCP_ACCECN_CEB_INIT_OFFSET);
-		opt_rx->accecn_len++;
-	}
-	if (len >= TCPOLEN_ACCECN_PERCOUNTER * 3) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_accecn_update_bytes(&opt_rx->ecn_bytes[INET_ECN_ECT_1 - 1],
-					ptr - 1, TCP_ACCECN_E1B_INIT_OFFSET);
-		opt_rx->accecn_len++;
-	}
 }
 
 static void tcp_parse_fastopen_option(int len, const unsigned char *cookie,
@@ -4048,6 +4063,7 @@ void tcp_parse_options(const struct net *net,
 
 	ptr = (const unsigned char *)(th + 1);
 	opt_rx->saw_tstamp = 0;
+	opt_rx->accecn = -1;
 
 	while (length > 0) {
 		int opcode = *ptr++;
@@ -4136,9 +4152,7 @@ void tcp_parse_options(const struct net *net,
 				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
 				    get_unaligned_be16(ptr) ==
 				    TCPOPT_ACCECN_MAGIC)
-					tcp_parse_accecn_option(opsize -
-						TCPOLEN_EXP_ACCECN_BASE,
-						ptr + 2, opt_rx);
+					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */
