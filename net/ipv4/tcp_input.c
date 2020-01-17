@@ -5578,7 +5578,6 @@ void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 	}
 }
-EXPORT_SYMBOL_GPL(tcp_ecn_received_counters);
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
  * When tcp connections are abruptly terminated from Mac OSX (via ^C), a
