@@ -431,10 +431,13 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 				  const struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
+	const struct tcp_request_sock *treq = tcp_rsk(req);
 
-	if (tcp_rsk(req)->accecn_ok) {
+	if (treq->accecn_ok) {
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
-		tcp_accecn_third_ack(sk, skb, tcp_rsk(req)->syn_ect_snt);
+		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
+		if (tcp_ecn_mode_accecn(tp) && INET_ECN_is_ce(treq->syn_ect_rcv))
+			tp->received_ce++;
 		tcp_ecn_received_counters(tp, skb, skb->len - th->doff * 4);
 	} else {
 		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
