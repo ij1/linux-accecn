@@ -326,21 +326,22 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 	return 0;
 }
 
-static u32 tcp_accecn_cep_delta(struct tcp_sock *tp, const struct sk_buff *skb,
-				u32 delivered_pkts, int flag)
+/* Returns the ECN CE delta */
+static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
+			      u32 delivered_pkts, int flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
+
+	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
+	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+		return 0;
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
 		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 			return 0;
 	}
-
-	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
-	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
-		return 0;
 
 	/* ECT reflector in 3rd ACK (or another ACK like it), no CEP in ACE */
 	if ((tp->bytes_received == 0) && !(flag & FLAG_DATA))
@@ -3743,9 +3744,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_cep_delta(tp, skb,
-						 tp->delivered - delivered,
-						 flag);
+		ecn_count = tcp_accecn_process(tp, skb,
+					       tp->delivered - delivered, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
