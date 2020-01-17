@@ -474,15 +474,15 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	u32 delta, safe_delta;
 	u32 corrected_ace;
 
+	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
+	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+		return 0;
+
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
 		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 			return 0;
 	}
-
-	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
-	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
-		return 0;
 
 	/* ECT reflector in ACK like the 3rd ACK, no CEP in ACE */
 	if (tp->ect_reflector_rcv && !(flag & FLAG_DATA))
