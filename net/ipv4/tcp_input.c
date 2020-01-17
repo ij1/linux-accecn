@@ -343,6 +343,10 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			return 0;
 	}
 
+	/* ACE field is not available during handshake */
+	if (flag & FLAG_SYN_ACKED)
+		return 0;
+
 	/* ECT reflector in 3rd ACK (or another ACK like it), no CEP in ACE */
 	if ((tp->bytes_received == 0) && !(flag & FLAG_DATA))
 		return 0;
