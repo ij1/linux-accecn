@@ -3497,7 +3497,8 @@ static void tcp_snd_una_update(struct tcp_sock *tp, u32 ack)
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_acked += delta;
-	tp->ect_reflector_snd &= (tp->bytes_acked <= 1);
+	tp->ect_reflector_snd = 0;
+	tp->ect_reflector_rcv = 0;
 	tp->snd_una = ack;
 }
 
@@ -3509,6 +3510,7 @@ static void tcp_rcv_nxt_update(struct tcp_sock *tp, u32 seq)
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_received += delta;
 	tp->ect_reflector_rcv = 0;
+	tp->ect_reflector_snd = 0;
 	WRITE_ONCE(tp->rcv_nxt, seq);
 }
 
@@ -3855,6 +3857,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
+	if (unlikely(tcp_ecn_mode_pending(tp) && (flag & FLAG_SYN_ACKED)))
+		tcp_ecn_rcv_synack(sk, tcp_hdr(skb), TCP_SKB_CB(skb)->ip_dsfield);
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
 					       tp->delivered - delivered, flag);
