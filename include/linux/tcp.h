@@ -268,7 +268,8 @@ struct tcp_sock {
 	u32	max_packets_seq;  /* right edge of max_packets_out flight */
 
 	u16	urg_data;	/* Saved octet of OOB data and control flags */
-	u8	ecn_flags;	/* ECN status bits.			*/
+	u8	ecn_flags:6,	/* ECN status bits.			*/
+		accecn_opt_demand:2;/* Demand AccECN option for n next ACKs */
 	u8	keepalive_probes; /* num of allowed keep alive probes	*/
 	u32	reordering;	/* Packet reordering metric.		*/
 	u32	reord_seen;	/* number of data packet reordering events */
