@@ -372,8 +372,10 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_DEMAND_CWR	0x4
 #define	TCP_ECN_SEEN		0x8
 #define TCP_ECN_MODE_ACCECN	0x10
+#define TCP_ACCECN_DEMAND_OPT	(0x20 | 0x40)
 
 #define TCP_ECN_SEEN_SHIFT	3
+#define TCP_ACCECN_DEMAND_OPT_SHIFT	5
 
 #define TCP_ECN_DISABLED	0
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
@@ -413,6 +415,11 @@ static inline void tcp_ecn_mode_set(struct tcp_sock *tp, u8 mode)
 static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
 {
 	return tp->received_ce - tp->received_ce_tx;
+}
+
+static inline void tcp_accecn_option_sent(const struc tcp_sock *tp)
+{
+	tp->ecn_flags = tp->ecn_flags - (1 << TCP_ACCECN_DEMAND_OPT_SHIFT);
 }
 
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
