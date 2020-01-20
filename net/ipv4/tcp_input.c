@@ -458,6 +458,7 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	/* ECT reflector in ACK like the 3rd ACK, no CEP in ACE */
 	if (tp->ect_reflector_rcv &&
 	    (tp->bytes_received == 0) &&
+	    (tp->bytes_acked == 0) &&
 	    !(flag & FLAG_DATA))
 		return 0;
 
