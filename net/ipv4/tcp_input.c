@@ -415,13 +415,15 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 			    const struct sk_buff *skb)
 {
 	if (tcp_ecn_mode_pending(tp)) {
-		if (!tcp_accecn_syn_requested(th))
+		if (!tcp_accecn_syn_requested(th)) {
 			/* Downgrade to classic ECN feedback */
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
-		else
+		} else {
 			tp->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
+		}
 	}
-	if (tcp_ecn_mode_pending(tp) && (!th->ece || !th->cwr))
+	if (tcp_ecn_mode_rfc3168(tp) && (!th->ece || !th->cwr))
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
@@ -3855,8 +3857,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
-	if (unlikely(tcp_ecn_mode_pending(tp) && (flag & FLAG_SYN_ACKED)))
-		tcp_ecn_rcv_synack(sk, tcp_hdr(skb), TCP_SKB_CB(skb)->ip_dsfield);
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
 					       tp->delivered - delivered, flag);
@@ -6451,7 +6451,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		tp->lsndtime = tcp_jiffies32;
 
 		tcp_initialize_rcv_mss(sk);
-		if (tcp_ecn_mode_pending(tp))
+		if (tcp_ecn_mode_accecn(tp))
 			tcp_accecn_third_ack(sk, skb, tp->syn_ect_snt);
 		tcp_fast_path_on(tp);
 		break;
