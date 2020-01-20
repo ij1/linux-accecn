@@ -406,6 +406,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
 			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
 			tp->ect_reflector_snd = 1;
+			tp->accecn_opt_demand = 1;
 		}
 		break;
 	}
@@ -5641,14 +5642,18 @@ void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
 
 	if (ecnfield != INET_ECN_NOT_ECT) {
 		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
+		u8 minlen;
 
 		tp->ecn_flags |= TCP_ECN_SEEN;
 		tp->received_ecn_bytes[ecnfield - 1] += payload_len;
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
-		tp->accecn_minlen = max_t(u8, tp->accecn_minlen,
-					  tcp_ecn_field_to_accecn_len(ecnfield));
+		minlen = tcp_ecn_field_to_accecn_len(ecnfield);
+		if (tp->accecn_minlen != minlen) {
+			tp->accecn_opt_demand = 2;
+			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
+		}
 	}
 }
 
