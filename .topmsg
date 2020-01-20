@@ -1,0 +1,9 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: accecn option send control
+
+Instead of sending the option in every ACK, limit sending to
+- Change triggered ACK + the ACK following that
+- Every 2^20 bytes
+- At least 4 per RTT
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
