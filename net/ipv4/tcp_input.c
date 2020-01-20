@@ -454,7 +454,9 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 		return 0;
 
 	/* ECT reflector in ACK like the 3rd ACK, no CEP in ACE */
-	if (tp->ect_reflector_rcv && !(flag & FLAG_DATA))
+	if (tp->ect_reflector_rcv &&
+	    (tp->bytes_received == 0) &&
+	    !(flag & FLAG_DATA))
 		return 0;
 
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
@@ -3497,7 +3499,6 @@ static void tcp_snd_una_update(struct tcp_sock *tp, u32 ack)
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_acked += delta;
-	tp->ect_reflector_rcv = 0;
 	tp->snd_una = ack;
 }
 
@@ -3508,7 +3509,6 @@ static void tcp_rcv_nxt_update(struct tcp_sock *tp, u32 seq)
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_received += delta;
-	tp->ect_reflector_rcv = 0;
 	WRITE_ONCE(tp->rcv_nxt, seq);
 }
 
