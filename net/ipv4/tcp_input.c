@@ -3857,6 +3857,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
+	if (unlikely(tcp_ecn_mode_pending(tp) && (flag & FLAG_SYN_ACKED)))
+		tcp_ecn_rcv_synack(sk, tcp_hdr(skb), TCP_SKB_CB(skb)->ip_dsfield);
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
 					       tp->delivered - delivered, flag);
