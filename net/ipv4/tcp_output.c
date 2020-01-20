@@ -396,6 +396,7 @@ static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 	 */
 	if (likely(!tp->ect_reflector_snd ||
 	           (tp->bytes_acked > 1) ||
+	           (tp->bytes_received > 1) ||
 	           !skb_is_tcp_pure_ack(skb))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
