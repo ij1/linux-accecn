@@ -313,7 +313,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		 tcp_bpf_ca_needs_ecn(sk))
 		INET_ECN_xmit(sk);
 	/* Check if we want to negotiate AccECN */
-	if (tcp_ecn_mode_pending(tp)) {
+	if (tp->ecn_flags & TCP_ECN_MODE_ACCECN) {
 		u8 ect = tp->syn_ect_rcv;
 
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
