@@ -440,7 +440,7 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
  * the u32 value in tcp_sock. As we're processing TCP options, it is
  * safe to access from - 1.
  */
-static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
+static bool tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
@@ -449,7 +449,14 @@ static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	 */
 	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
 	*cnt += delta;
+	return delta != 0;
 }
+
+static u8 accecn_opt_ecnfield[3] = {
+	INET_ECN_ECT_0,
+	INET_ECN_CE,
+	INET_ECN_ECT_1
+};
 
 static void tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
@@ -457,6 +464,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 {
 	unsigned char *ptr;
 	unsigned int optlen;
+	int i;
+	int ambiguous_ecn_bytes_incr;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield)
@@ -464,6 +473,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 				delivered_bytes;
 		return;
 	}
+
+	tp->estimate_ecnfield = 0;
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
 	optlen = ptr[1];
@@ -473,23 +484,23 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 	ptr += 2;
 
-	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_0 - 1]),
-				     ptr, TCP_ACCECN_E0B_INIT_OFFSET);
-		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+	ambiguous_ecn_bytes_incr = 0;
+	for (i = 0; i < 3; i++) {
+		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+			u8 ecnfield = accecn_opt_ecnfield[i];
+
+			if (tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
+						 ptr, TCP_ACCECN_E0B_INIT_OFFSET)) {
+				if (tp->estimate_ecnfield)
+					ambiguous_ecn_bytes_incr = 1;
+				tp->estimate_ecnfield = ecnfield;
+			}
+
+			optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+		}
 	}
-	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_CE - 1]),
-				     ptr, TCP_ACCECN_CEB_INIT_OFFSET);
-		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
-	}
-	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_1 - 1]),
-				     ptr, TCP_ACCECN_E1B_INIT_OFFSET);
-		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
-	}
+	if (ambiguous_ecn_bytes_incr)
+		tp->estimate_ecnfield = 0;
 }
 
 static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
