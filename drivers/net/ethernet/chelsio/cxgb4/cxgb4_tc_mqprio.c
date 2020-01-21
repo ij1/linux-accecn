@@ -11,8 +11,7 @@ static int cxgb4_mqprio_validate(struct net_device *dev,
 	u64 min_rate = 0, max_rate = 0, max_link_rate;
 	struct port_info *pi = netdev2pinfo(dev);
 	struct adapter *adap = netdev2adap(dev);
-	u32 qcount = 0, qoffset = 0;
-	u32 link_ok, speed, mtu;
+	u32 speed, qcount = 0, qoffset = 0;
 	int ret;
 	u8 i;
 
@@ -35,7 +34,7 @@ static int cxgb4_mqprio_validate(struct net_device *dev,
 		return -ERANGE;
 	}
 
-	ret = t4_get_link_params(pi, &link_ok, &speed, &mtu);
+	ret = t4_get_link_params(pi, NULL, &speed, NULL);
 	if (ret) {
 		netdev_err(dev, "Failed to get link speed, ret: %d\n", ret);
 		return -EINVAL;
@@ -71,7 +70,7 @@ static int cxgb4_init_eosw_txq(struct net_device *dev,
 			       u32 eotid, u32 hwqid)
 {
 	struct adapter *adap = netdev2adap(dev);
-	struct sge_eosw_desc *ring;
+	struct tx_sw_desc *ring;
 
 	memset(eosw_txq, 0, sizeof(*eosw_txq));
 

@@ -536,7 +536,8 @@ struct fw_eth_tx_pkt_wr {
 };
 
 enum fw_eth_tx_eo_type {
-	FW_ETH_TX_EO_TYPE_TCPSEG = 1,
+	FW_ETH_TX_EO_TYPE_UDPSEG = 0,
+	FW_ETH_TX_EO_TYPE_TCPSEG,
 };
 
 struct fw_eth_tx_eo_wr {
@@ -544,6 +545,17 @@ struct fw_eth_tx_eo_wr {
 	__be32 equiq_to_len16;
 	__be64 r3;
 	union fw_eth_tx_eo {
+		struct fw_eth_tx_eo_udpseg {
+			__u8   type;
+			__u8   ethlen;
+			__be16 iplen;
+			__u8   udplen;
+			__u8   rtplen;
+			__be16 r4;
+			__be16 mss;
+			__be16 schedpktsize;
+			__be32 plen;
+		} udpseg;
 		struct fw_eth_tx_eo_tcpseg {
 			__u8   type;
 			__u8   ethlen;
@@ -1309,6 +1321,7 @@ enum fw_params_param_dev {
 	FW_PARAMS_PARAM_DEV_RDMA_WRITE_WITH_IMM = 0x21,
 	FW_PARAMS_PARAM_DEV_PPOD_EDRAM  = 0x23,
 	FW_PARAMS_PARAM_DEV_RI_WRITE_CMPL_WR    = 0x24,
+	FW_PARAMS_PARAM_DEV_HPFILTER_REGION_SUPPORT = 0x26,
 	FW_PARAMS_PARAM_DEV_OPAQUE_VIID_SMT_EXTN = 0x27,
 	FW_PARAMS_PARAM_DEV_HASHFILTER_WITH_OFLD = 0x28,
 	FW_PARAMS_PARAM_DEV_DBQ_TIMER	= 0x29,

@@ -575,6 +575,24 @@ static int ocelot_gen_ifh(u32 *ifh, struct frame_info *info)
 	return 0;
 }
 
+int ocelot_port_add_txtstamp_skb(struct ocelot_port *ocelot_port,
+				 struct sk_buff *skb)
+{
+	struct skb_shared_info *shinfo = skb_shinfo(skb);
+	struct ocelot *ocelot = ocelot_port->ocelot;
+
+	if (ocelot->ptp && shinfo->tx_flags & SKBTX_HW_TSTAMP &&
+	    ocelot_port->ptp_cmd == IFH_REW_OP_TWO_STEP_PTP) {
+		shinfo->tx_flags |= SKBTX_IN_PROGRESS;
+		/* Store timestamp ID in cb[0] of sk_buff */
+		skb->cb[0] = ocelot_port->ts_id % 4;
+		skb_queue_tail(&ocelot_port->tx_skbs, skb);
+		return 0;
+	}
+	return -ENODATA;
+}
+EXPORT_SYMBOL(ocelot_port_add_txtstamp_skb);
+
 static int ocelot_port_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ocelot_port_private *priv = netdev_priv(dev);
@@ -637,31 +655,17 @@ static int ocelot_port_xmit(struct sk_buff *skb, struct net_device *dev)
 	dev->stats.tx_packets++;
 	dev->stats.tx_bytes += skb->len;
 
-	if (ocelot->ptp && shinfo->tx_flags & SKBTX_HW_TSTAMP &&
-	    ocelot_port->ptp_cmd == IFH_REW_OP_TWO_STEP_PTP) {
-		struct ocelot_skb *oskb =
-			kzalloc(sizeof(struct ocelot_skb), GFP_ATOMIC);
-
-		if (unlikely(!oskb))
-			goto out;
-
-		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
-
-		oskb->skb = skb;
-		oskb->id = ocelot_port->ts_id % 4;
+	if (!ocelot_port_add_txtstamp_skb(ocelot_port, skb)) {
 		ocelot_port->ts_id++;
-
-		list_add_tail(&oskb->head, &ocelot_port->skbs);
-
 		return NETDEV_TX_OK;
 	}
 
-out:
 	dev_kfree_skb_any(skb);
 	return NETDEV_TX_OK;
 }
 
-void ocelot_get_hwtimestamp(struct ocelot *ocelot, struct timespec64 *ts)
+static void ocelot_get_hwtimestamp(struct ocelot *ocelot,
+				   struct timespec64 *ts)
 {
 	unsigned long flags;
 	u32 val;
@@ -686,7 +690,64 @@ void ocelot_get_hwtimestamp(struct ocelot *ocelot, struct timespec64 *ts)
 
 	spin_unlock_irqrestore(&ocelot->ptp_clock_lock, flags);
 }
-EXPORT_SYMBOL(ocelot_get_hwtimestamp);
+
+void ocelot_get_txtstamp(struct ocelot *ocelot)
+{
+	int budget = OCELOT_PTP_QUEUE_SZ;
+
+	while (budget--) {
+		struct sk_buff *skb, *skb_tmp, *skb_match = NULL;
+		struct skb_shared_hwtstamps shhwtstamps;
+		struct ocelot_port *port;
+		struct timespec64 ts;
+		unsigned long flags;
+		u32 val, id, txport;
+
+		val = ocelot_read(ocelot, SYS_PTP_STATUS);
+
+		/* Check if a timestamp can be retrieved */
+		if (!(val & SYS_PTP_STATUS_PTP_MESS_VLD))
+			break;
+
+		WARN_ON(val & SYS_PTP_STATUS_PTP_OVFL);
+
+		/* Retrieve the ts ID and Tx port */
+		id = SYS_PTP_STATUS_PTP_MESS_ID_X(val);
+		txport = SYS_PTP_STATUS_PTP_MESS_TXPORT_X(val);
+
+		/* Retrieve its associated skb */
+		port = ocelot->ports[txport];
+
+		spin_lock_irqsave(&port->tx_skbs.lock, flags);
+
+		skb_queue_walk_safe(&port->tx_skbs, skb, skb_tmp) {
+			if (skb->cb[0] != id)
+				continue;
+			__skb_unlink(skb, &port->tx_skbs);
+			skb_match = skb;
+			break;
+		}
+
+		spin_unlock_irqrestore(&port->tx_skbs.lock, flags);
+
+		/* Next ts */
+		ocelot_write(ocelot, SYS_PTP_NXT_PTP_NXT, SYS_PTP_NXT);
+
+		if (unlikely(!skb_match))
+			continue;
+
+		/* Get the h/w timestamp */
+		ocelot_get_hwtimestamp(ocelot, &ts);
+
+		/* Set the timestamp into the skb */
+		memset(&shhwtstamps, 0, sizeof(shhwtstamps));
+		shhwtstamps.hwtstamp = ktime_set(ts.tv_sec, ts.tv_nsec);
+		skb_tstamp_tx(skb_match, &shhwtstamps);
+
+		dev_kfree_skb_any(skb_match);
+	}
+}
+EXPORT_SYMBOL(ocelot_get_txtstamp);
 
 static int ocelot_mc_unsync(struct net_device *dev, const unsigned char *addr)
 {
@@ -1049,15 +1110,14 @@ static int ocelot_get_port_parent_id(struct net_device *dev,
 	return 0;
 }
 
-static int ocelot_hwstamp_get(struct ocelot *ocelot, int port,
-			      struct ifreq *ifr)
+int ocelot_hwstamp_get(struct ocelot *ocelot, int port, struct ifreq *ifr)
 {
 	return copy_to_user(ifr->ifr_data, &ocelot->hwtstamp_config,
 			    sizeof(ocelot->hwtstamp_config)) ? -EFAULT : 0;
 }
+EXPORT_SYMBOL(ocelot_hwstamp_get);
 
-static int ocelot_hwstamp_set(struct ocelot *ocelot, int port,
-			      struct ifreq *ifr)
+int ocelot_hwstamp_set(struct ocelot *ocelot, int port, struct ifreq *ifr)
 {
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 	struct hwtstamp_config cfg;
@@ -1120,6 +1180,7 @@ static int ocelot_hwstamp_set(struct ocelot *ocelot, int port,
 
 	return copy_to_user(ifr->ifr_data, &cfg, sizeof(cfg)) ? -EFAULT : 0;
 }
+EXPORT_SYMBOL(ocelot_hwstamp_set);
 
 static int ocelot_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
@@ -2088,13 +2149,17 @@ static struct ptp_clock_info ocelot_ptp_clock_info = {
 
 static int ocelot_init_timestamp(struct ocelot *ocelot)
 {
+	struct ptp_clock *ptp_clock;
+
 	ocelot->ptp_info = ocelot_ptp_clock_info;
-	ocelot->ptp_clock = ptp_clock_register(&ocelot->ptp_info, ocelot->dev);
-	if (IS_ERR(ocelot->ptp_clock))
-		return PTR_ERR(ocelot->ptp_clock);
+	ptp_clock = ptp_clock_register(&ocelot->ptp_info, ocelot->dev);
+	if (IS_ERR(ptp_clock))
+		return PTR_ERR(ptp_clock);
 	/* Check if PHC support is missing at the configuration level */
-	if (!ocelot->ptp_clock)
+	if (!ptp_clock)
 		return 0;
+
+	ocelot->ptp_clock = ptp_clock;
 
 	ocelot_write(ocelot, SYS_PTP_CFG_PTP_STAMP_WID(30), SYS_PTP_CFG);
 	ocelot_write(ocelot, 0xffffffff, ANA_TABLES_PTP_ID_LOW);
@@ -2136,7 +2201,7 @@ void ocelot_init_port(struct ocelot *ocelot, int port)
 {
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 
-	INIT_LIST_HEAD(&ocelot_port->skbs);
+	skb_queue_head_init(&ocelot_port->tx_skbs);
 
 	/* Basic L2 initialization */
 
@@ -2421,26 +2486,19 @@ EXPORT_SYMBOL(ocelot_init);
 
 void ocelot_deinit(struct ocelot *ocelot)
 {
-	struct list_head *pos, *tmp;
 	struct ocelot_port *port;
-	struct ocelot_skb *entry;
 	int i;
 
 	cancel_delayed_work(&ocelot->stats_work);
 	destroy_workqueue(ocelot->stats_queue);
 	mutex_destroy(&ocelot->stats_lock);
 	ocelot_ace_deinit();
+	if (ocelot->ptp_clock)
+		ptp_clock_unregister(ocelot->ptp_clock);
 
 	for (i = 0; i < ocelot->num_phys_ports; i++) {
 		port = ocelot->ports[i];
-
-		list_for_each_safe(pos, tmp, &port->skbs) {
-			entry = list_entry(pos, struct ocelot_skb, head);
-
-			list_del(pos);
-			dev_kfree_skb_any(entry->skb);
-			kfree(entry);
-		}
+		skb_queue_purge(&port->tx_skbs);
 	}
 }
 EXPORT_SYMBOL(ocelot_deinit);
