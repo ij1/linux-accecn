@@ -443,7 +443,11 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
-	*cnt += (truncated - *cnt) & 0xFFFFFFU;
+	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
+	/* If delta has highest bit set (24th bit) indicating negative,
+	 * sign extend to correct an estimation error in the ecn_bytes
+	 */
+	*cnt += delta & 0x800000 ? delta | 0xFF000000 : delta;
 }
 
 static void tcp_accecn_process_option(struct tcp_sock *tp,
