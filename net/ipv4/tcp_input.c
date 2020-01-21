@@ -5659,8 +5659,10 @@ void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
-		tp->received_ecn_bytes[ecnfield - 1] += payload_len;
-		tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
+		if (payload_len > 0) {
+			tp->received_ecn_bytes[ecnfield - 1] += payload_len;
+			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
+		}
 	}
 }
 
