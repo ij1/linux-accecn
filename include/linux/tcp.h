@@ -489,9 +489,4 @@ static inline u16 tcp_mss_clamp(const struct tcp_sock *tp, u16 mss)
 int tcp_skb_shift(struct sk_buff *to, struct sk_buff *from, int pcount,
 		  int shiftlen);
 
-static inline u8 tcp_accecn_ace(const struct tcphdr *th)
-{
-	return (th->ae << 2) | (th->cwr << 1) | th->ece;
-}
-
 #endif	/* _LINUX_TCP_H */
