@@ -444,20 +444,26 @@ static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
-	/* If delta has highest bit set (24th bit) indicating negative,
+	/* If delta has the highest bit set (24th bit) indicating negative,
 	 * sign extend to correct an estimation error in the ecn_bytes
 	 */
-	*cnt += delta & 0x800000 ? delta | 0xFF000000 : delta;
+	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
+	*cnt += delta;
 }
 
 static void tcp_accecn_process_option(struct tcp_sock *tp,
-				      const struct sk_buff *skb)
+				      const struct sk_buff *skb,
+				      u32 delivered_bytes)
 {
 	unsigned char *ptr;
 	unsigned int optlen;
 
-	if (tp->rx_opt.accecn < 0)
+	if (tp->rx_opt.accecn < 0) {
+		if (tp->estimate_ecnfield)
+			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
+				delivered_bytes;
 		return;
+	}
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
 	optlen = ptr[1];
@@ -500,7 +506,7 @@ static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
 
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
-			      u32 delivered_pkts, int flag)
+			      u32 delivered_pkts, delivered_bytes, int flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
@@ -509,7 +515,7 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
 
-	tcp_accecn_process_option(tp, skb);
+	tcp_accecn_process_option(tp, skb, delivered_bytes);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
@@ -3923,7 +3929,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
+					       tp->delivered - delivered,
+					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
