@@ -5825,6 +5825,8 @@ syn_challenge:
 		if (syn_inerr)
 			TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPSYNCHALLENGE);
+		if (tcp_ecn_mode_accecn(tp))
+			tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
 		tcp_send_challenge_ack(sk, skb);
 		goto discard;
 	}
