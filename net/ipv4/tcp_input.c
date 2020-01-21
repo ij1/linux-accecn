@@ -506,7 +506,7 @@ static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
 
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
-			      u32 delivered_pkts, delivered_bytes, int flag)
+			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
