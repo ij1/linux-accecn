@@ -401,6 +401,11 @@ static inline void tcp_ecn_mode_set(struct tcp_sock *tp, u8 mode)
 	tp->ecn_flags |= mode;
 }
 
+static inline u8 tcp_accecn_ace(const struct tcphdr *th)
+{
+	return (th->ae << 2) | (th->cwr << 1) | th->ece;
+}
+
 static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
 {
 	return tp->received_ce - tp->received_ce_tx;
