@@ -405,7 +405,9 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
 			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
+			tp->prev_ecnfield = tp->syn_ect_rcv;
 			tp->ect_reflector_snd = 1;
+			tp->accecn_opt_demand = 1;
 		}
 		break;
 	}
@@ -420,6 +422,7 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		} else {
 			tp->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+			tp->prev_ecnfield = tp->syn_ect_rcv;
 			tp->ect_reflector_snd = 1;
 			tp->ect_reflector_rcv = 1;
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
@@ -440,20 +443,41 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
  * the u32 value in tcp_sock. As we're processing TCP options, it is
  * safe to access from - 1.
  */
-static void tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
+static bool tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
-	*cnt += (truncated - *cnt) & 0xFFFFFFU;
+	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
+	/* If delta has the highest bit set (24th bit) indicating negative,
+	 * sign extend to correct an estimation error in the ecn_bytes
+	 */
+	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
+	*cnt += delta;
+	return delta != 0;
 }
 
+static u8 accecn_opt_ecnfield[3] = {
+	INET_ECN_ECT_0,
+	INET_ECN_CE,
+	INET_ECN_ECT_1
+};
+
 static void tcp_accecn_process_option(struct tcp_sock *tp,
-				      const struct sk_buff *skb)
+				      const struct sk_buff *skb,
+				      u32 delivered_bytes)
 {
 	unsigned char *ptr;
 	unsigned int optlen;
+	int i;
+	int ambiguous_ecn_bytes_incr;
 
-	if (tp->rx_opt.accecn < 0)
+	if (tp->rx_opt.accecn < 0) {
+		if (tp->estimate_ecnfield)
+			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
+				delivered_bytes;
 		return;
+	}
+
+	tp->estimate_ecnfield = 0;
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
 	optlen = ptr[1];
@@ -463,23 +487,23 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 	ptr += 2;
 
-	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_0 - 1]),
-				     ptr, TCP_ACCECN_E0B_INIT_OFFSET);
-		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+	ambiguous_ecn_bytes_incr = 0;
+	for (i = 0; i < 3; i++) {
+		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+			u8 ecnfield = accecn_opt_ecnfield[i];
+
+			if (tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
+						 ptr, TCP_ACCECN_E0B_INIT_OFFSET)) {
+				if (tp->estimate_ecnfield)
+					ambiguous_ecn_bytes_incr = 1;
+				tp->estimate_ecnfield = ecnfield;
+			}
+
+			optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+		}
 	}
-	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_CE - 1]),
-				     ptr, TCP_ACCECN_CEB_INIT_OFFSET);
-		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
-	}
-	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		ptr += TCPOLEN_ACCECN_PERCOUNTER;
-		tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[INET_ECN_ECT_1 - 1]),
-				     ptr, TCP_ACCECN_E1B_INIT_OFFSET);
-		optlen -= TCPOLEN_ACCECN_PERCOUNTER;
-	}
+	if (ambiguous_ecn_bytes_incr)
+		tp->estimate_ecnfield = 0;
 }
 
 static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
@@ -496,7 +520,7 @@ static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
 
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
-			      u32 delivered_pkts, int flag)
+			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
@@ -505,7 +529,7 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
 
-	tcp_accecn_process_option(tp, skb);
+	tcp_accecn_process_option(tp, skb, delivered_bytes);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
@@ -1333,6 +1357,7 @@ static bool tcp_check_dsack(struct sock *sk, const struct sk_buff *ack_skb,
 
 struct tcp_sacktag_state {
 	u32	reord;
+	u32	delivered_bytes;
 	/* Timestamps for earliest and latest never-retransmitted segment
 	 * that was SACKed. RTO needs the earliest RTT to stay conservative,
 	 * but congestion control should still get an accurate delay signal.
@@ -1404,7 +1429,7 @@ static int tcp_match_skb_to_sack(struct sock *sk, struct sk_buff *skb,
 static u8 tcp_sacktag_one(struct sock *sk,
 			  struct tcp_sacktag_state *state, u8 sacked,
 			  u32 start_seq, u32 end_seq,
-			  int dup_sack, int pcount,
+			  int dup_sack, int pcount, u32 plen,
 			  u64 xmit_time)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1463,6 +1488,7 @@ static u8 tcp_sacktag_one(struct sock *sk,
 		state->flag |= FLAG_DATA_SACKED;
 		tp->sacked_out += pcount;
 		tp->delivered += pcount;  /* Out-of-order packets delivered */
+		state->delivered_bytes += plen;
 
 		/* Lost marker hint past SACKed? Tweak RFC3517 cnt */
 		if (tp->lost_skb_hint &&
@@ -1504,7 +1530,7 @@ static bool tcp_shifted_skb(struct sock *sk, struct sk_buff *prev,
 	 * tcp_highest_sack_seq() when skb is highest_sack.
 	 */
 	tcp_sacktag_one(sk, state, TCP_SKB_CB(skb)->sacked,
-			start_seq, end_seq, dup_sack, pcount,
+			start_seq, end_seq, dup_sack, pcount, skb->len,
 			tcp_skb_timestamp_us(skb));
 	tcp_rate_skb_delivered(sk, skb, state->rate);
 
@@ -1794,6 +1820,7 @@ static struct sk_buff *tcp_sacktag_walk(struct sk_buff *skb, struct sock *sk,
 						TCP_SKB_CB(skb)->end_seq,
 						dup_sack,
 						tcp_skb_pcount(skb),
+						skb->len,
 						tcp_skb_timestamp_us(skb));
 			tcp_rate_skb_delivered(sk, skb, state->rate);
 			if (TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_ACKED)
@@ -3334,6 +3361,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 			tp->sacked_out -= acked_pcount;
 		} else if (tcp_is_sack(tp)) {
 			tp->delivered += acked_pcount;
+			sack->delivered_bytes += skb->len;
 			if (!tcp_skb_spurious_retrans(tp, skb))
 				tcp_rack_advance(tp, sacked, scb->end_seq,
 						 tcp_skb_timestamp_us(skb));
@@ -3831,6 +3859,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 ecn_count = 0; /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
+	sack_state.delivered_bytes = 0;
 	sack_state.first_sackt = 0;
 	sack_state.rate = &rs;
 
@@ -3919,7 +3948,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
+					       tp->delivered - delivered,
+					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
@@ -5646,21 +5676,35 @@ static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 
 
 /* Updates Accurate ECN received counters from the received IP ECN field */
-void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
+void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 
 	if (ecnfield != INET_ECN_NOT_ECT) {
 		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
 
 		tp->ecn_flags |= TCP_ECN_SEEN;
-		tp->received_ecn_bytes[ecnfield - 1] += payload_len;
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
-		tp->accecn_minlen = max_t(u8, tp->accecn_minlen,
-					  tcp_ecn_field_to_accecn_len(ecnfield));
+		if (payload_len > 0) {
+			u8 minlen = tcp_ecn_field_to_accecn_len(ecnfield);
+			tp->received_ecn_bytes[ecnfield - 1] += payload_len;
+			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
+		}
+	}
+	if (tp->prev_ecnfield != ecnfield) {
+		tp->prev_ecnfield = ecnfield;
+		/* Demand Accurate ECN change-triggered ACKs. Two ACK are
+		 * demanded to indicate unambiguously the ecnfield value
+		 * in the latter ACK.
+		 */
+		if (tcp_ecn_mode_accecn(tp)) {
+			inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
+			tp->accecn_opt_demand = 2;
+		}
 	}
 }
 
@@ -5895,7 +5939,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 				    tp->rcv_nxt == tp->rcv_wup)
 					flag |= __tcp_replace_ts_recent(tp, tstamp_delta);
 
-				tcp_ecn_received_counters(tp, skb, 0);
+				tcp_ecn_received_counters(sk, skb, 0);
 
 				/* We know that such packets are checksummed
 				 * on entry.
@@ -5938,7 +5982,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 
 			/* Bulk data transfer: receiver */
 			__skb_pull(skb, tcp_header_len);
-			tcp_ecn_received_counters(tp, skb, len - tcp_header_len);
+			tcp_ecn_received_counters(sk, skb, len - tcp_header_len);
 			eaten = tcp_queue_rcv(sk, skb, &fragstolen);
 
 			tcp_event_data_recv(sk, skb);
@@ -5975,7 +6019,7 @@ slow_path:
 		return;
 
 step5:
-	tcp_ecn_received_counters(tp, skb, len - th->doff * 4);
+	tcp_ecn_received_counters(sk, skb, len - th->doff * 4);
 
 	if (tcp_ack(sk, skb, FLAG_SLOWPATH | FLAG_UPDATE_TS_RECENT) < 0)
 		goto discard;

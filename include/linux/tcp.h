@@ -223,8 +223,7 @@ struct tcp_sock {
 	u8	syn_ect_snt:2,	/* AccECN ECT memory, only */
 		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
 		ect_reflector_snd:1, /* Use ECT reflector for pure ACKs... */
-		ect_reflector_rcv:1, /* ...filter ECT reflects after first */
-		accecn_minlen:2;/* Minimum length of AccECN option sent */
+		ect_reflector_rcv:1; /* ...filter ECT reflects after first */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
 	u8	chrono_type:2,	/* current chronograph type */
@@ -298,6 +297,10 @@ struct tcp_sock {
 	u32	received_ce;	/* Like the above but for received CE marked packets */
 	u32	received_ce_tx; /* Like the above but max transmitted value */
 	u32	received_ecn_bytes[3];
+	u8	accecn_minlen:2,/* Minimum length of AccECN option sent */
+		prev_ecnfield:2,/* ECN bits from previous segment */
+		accecn_opt_demand:2,/* Demand AccECN option for n next ACKs */
+		estimate_ecnfield:2;/* ECN field for AccECN delivered estimates */
 	u32	lost;		/* Total data packets lost incl. rexmits */
 	u32	app_limited;	/* limited until "delivered" reaches this val */
 	u64	first_tx_mstamp;  /* start of window send phase */
@@ -499,10 +502,5 @@ static inline u16 tcp_mss_clamp(const struct tcp_sock *tp, u16 mss)
 
 int tcp_skb_shift(struct sk_buff *to, struct sk_buff *from, int pcount,
 		  int shiftlen);
-
-static inline u8 tcp_accecn_ace(const struct tcphdr *th)
-{
-	return (th->ae << 2) | (th->cwr << 1) | th->ece;
-}
 
 #endif	/* _LINUX_TCP_H */
