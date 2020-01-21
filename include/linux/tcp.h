@@ -268,8 +268,7 @@ struct tcp_sock {
 	u32	max_packets_seq;  /* right edge of max_packets_out flight */
 
 	u16	urg_data;	/* Saved octet of OOB data and control flags */
-	u8	ecn_flags:6,	/* ECN status bits.			*/
-		accecn_opt_demand:2;/* Demand AccECN option for n next ACKs */
+	u8	ecn_flags,	/* ECN status bits.			*/
 	u8	keepalive_probes; /* num of allowed keep alive probes	*/
 	u32	reordering;	/* Packet reordering metric.		*/
 	u32	reord_seen;	/* number of data packet reordering events */
@@ -299,6 +298,8 @@ struct tcp_sock {
 	u32	received_ce;	/* Like the above but for received CE marked packets */
 	u32	received_ce_tx; /* Like the above but max transmitted value */
 	u32	received_ecn_bytes[3];
+	u8	last_ect:2,
+		accecn_opt_demand:2;/* Demand AccECN option for n next ACKs */
 	u32	lost;		/* Total data packets lost incl. rexmits */
 	u32	app_limited;	/* limited until "delivered" reaches this val */
 	u64	first_tx_mstamp;  /* start of window send phase */
