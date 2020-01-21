@@ -391,6 +391,8 @@ static bool tcp_accecn_use_reflector(struct tcp_sock *tp, struct sk_buff *skb)
 	if ((tp->bytes_acked > 1) || (tp->bytes_received > 0)) {
 		tp->ect_reflector_snd = 0;
 		return false;
+	} else if (tp->bytes_acked == 0) {
+		return true;
 	}
 	if (TCP_SKB_CB(skb)->seq != tp->snd_una)
 		return false;
