@@ -405,6 +405,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
 			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
+			tp->prev_ecvfield = tp->syn_ect_rcv;
 			tp->ect_reflector_snd = 1;
 			tp->accecn_opt_demand = 1;
 		}
@@ -421,6 +422,7 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		} else {
 			tp->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+			tp->prev_ecvfield = tp->syn_ect_rcv;
 			tp->ect_reflector_snd = 1;
 			tp->ect_reflector_rcv = 1;
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
