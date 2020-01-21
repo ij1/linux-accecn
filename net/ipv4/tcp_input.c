@@ -5654,18 +5654,19 @@ void tcp_ecn_received_counters(struct tcp_sock *tp, const struct sk_buff *skb,
 
 	if (ecnfield != INET_ECN_NOT_ECT) {
 		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
-		u8 minlen;
+		u8 minlen = tcp_ecn_field_to_accecn_len(ecnfield);
 
 		tp->ecn_flags |= TCP_ECN_SEEN;
 		tp->received_ecn_bytes[ecnfield - 1] += payload_len;
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
-		minlen = tcp_ecn_field_to_accecn_len(ecnfield);
-		if (tp->accecn_minlen != minlen) {
-			tp->accecn_opt_demand = 2;
-			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
-		}
+		tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
+	}
+	/* Demand Accurate ECN change-triggered ACK */
+	if (tp->prev_ecnfield != ecnfield) {
+		tp->accecn_opt_demand = 2;
+		tp->prev_ecnfield = ecnfield;
 	}
 }
 
