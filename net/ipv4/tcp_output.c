@@ -392,7 +392,7 @@ static bool tcp_accecn_use_reflector(struct tcp_sock *tp, struct sk_buff *skb)
 		tp->ect_reflector_snd = 0;
 		return false;
 	}
-	if (!skb_is_tcp_pure_ack(skb))
+	if (TCP_SKB_CB(skb)->seq != tp->snd_una)
 		return false;
 	return true;
 }
