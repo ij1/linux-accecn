@@ -313,7 +313,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		 tcp_bpf_ca_needs_ecn(sk))
 		INET_ECN_xmit(sk);
 	/* Check if we want to negotiate AccECN */
-	if (tcp_ecn_mode_pending(tp)) {
+	if (tp->ecn_flags & TCP_ECN_MODE_ACCECN) {
 		u8 ect = tp->syn_ect_rcv;
 
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
@@ -386,6 +386,17 @@ tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 		th->ece = 1;
 }
 
+static bool tcp_accecn_use_reflector(struct tcp_sock *tp, struct sk_buff *skb)
+{
+	if ((tp->bytes_acked > 1) || (tp->bytes_received > 0)) {
+		tp->ect_reflector_snd = 0;
+		return false;
+	}
+	if (TCP_SKB_CB(skb)->seq != tp->snd_una)
+		return false;
+	return true;
+}
+
 static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 			       struct tcphdr *th)
 {
@@ -394,9 +405,7 @@ static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 	/* The final packet of the 3WHS or anything like it must reflect
 	 * the SYN/ACK ECT instead of putting CEP into ACE field
 	 */
-	if (likely(!tp->ect_reflector_snd ||
-	           (tp->bytes_acked > 1) ||
-	           !skb_is_tcp_pure_ack(skb))) {
+	if (likely(!tp->ect_reflector_snd || !tcp_accecn_use_reflector(tp, skb))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
 		wire_ace = tp->received_ce_tx + TCP_ACCECN_CEP_INIT_OFFSET;
