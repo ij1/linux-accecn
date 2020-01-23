@@ -5682,6 +5682,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 	u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
+	u8 ecn_edge = tp->prev_ecnfield != ecnfield;
 
 	if (ecnfield != INET_ECN_NOT_ECT) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
@@ -5694,14 +5695,16 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
 		}
 	}
-	if ((tp->prev_ecnfield != ecnfield) || is_ce) {
+
+	if (ecn_edge || is_ce) {
 		tp->prev_ecnfield = ecnfield;
 		/* Demand Accurate ECN change-triggered ACKs. Two ACK are
 		 * demanded to indicate unambiguously the ecnfield value
 		 * in the latter ACK.
 		 */
 		if (tcp_ecn_mode_accecn(tp)) {
-			inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
+			if (ecn_edge)
+				inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 			tp->accecn_opt_demand = 2;
 		}
 	}
