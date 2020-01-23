@@ -2,9 +2,10 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: accecn option send control
 
 Instead of sending the option in every ACK, limit sending to
-those ACKs where the option is necessary.
-
-Besides option in handshake, this change implements the option
-for "change-triggered ACK" + the ACK following it.
+those ACKs where the option is necessary:
+- Handshake
+- "Change-triggered ACK" + the ACK following it.
+- ACKs with CE to allow CEP delta calculations to take
+  advantage of the option
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
