@@ -3985,7 +3985,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 no_queue:
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
+					       tp->delivered - delivered,
+					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
