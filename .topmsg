@@ -1,0 +1,9 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: try to fit AccECN option with SACK
+
+As SACK blocks tend to eat all option space when there are
+many holes, it is useful to compromise on sending many SACK
+blocks in every ACK and try to fit AccECN option there
+by reduction the number of SACK blocks.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
