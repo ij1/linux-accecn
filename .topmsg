@@ -6,6 +6,8 @@ that ACE deficit keeps growing because ACE field can only
 update in each super skb.
 
 Put some limit into sending large super skbs in case the ACE
-deficit is there and could go on indefinitely.
+deficit is there and could go on indefinitely. Once the bool
+becomes false, it's no longer necessary to recheck it during
+further sending.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
