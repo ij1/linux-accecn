@@ -5,7 +5,7 @@ There are important differences in how the CWR field behaves
 in RFC3168 and AccECN.
 
 Thus, it is better to never let anything to receive
-a mixed-CWR skb. Set the Accurate ECN GSO/TSO flag to
-avoid send side corrupting CWR bits.
+a mixed-CWR skb. Set the Accurate ECN GSO flag to
+avoid corrupting CWR bits somewhere.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
