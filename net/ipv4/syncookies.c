@@ -283,7 +283,7 @@ EXPORT_SYMBOL(cookie_ecn_ok);
 /* We don't need to check for > 7 as ACE is on 3 bits */
 bool cookie_accecn_ok(const struct tcphdr *th)
 {
-	return tcp_accecn_ace(th) > 1;
+	return tcp_accecn_ace(th) > 0x1;
 }
 EXPORT_SYMBOL(cookie_accecn_ok);
 
