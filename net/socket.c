@@ -128,7 +128,18 @@ static ssize_t sock_sendpage(struct file *file, struct page *page,
 static ssize_t sock_splice_read(struct file *file, loff_t *ppos,
 				struct pipe_inode_info *pipe, size_t len,
 				unsigned int flags);
-static void sock_show_fdinfo(struct seq_file *m, struct file *f);
+
+#ifdef CONFIG_PROC_FS
+static void sock_show_fdinfo(struct seq_file *m, struct file *f)
+{
+	struct socket *sock = f->private_data;
+
+	if (sock->ops->show_fdinfo)
+		sock->ops->show_fdinfo(m, sock);
+}
+#else
+#define sock_show_fdinfo NULL
+#endif
 
 /*
  *	Socket files have a set of 'special' operations as well as the generic file ones. These don't appear
@@ -151,9 +162,7 @@ static const struct file_operations socket_file_ops = {
 	.sendpage =	sock_sendpage,
 	.splice_write = generic_splice_sendpage,
 	.splice_read =	sock_splice_read,
-#ifdef CONFIG_PROC_FS
 	.show_fdinfo =	sock_show_fdinfo,
-#endif
 };
 
 /*
@@ -961,7 +970,7 @@ static ssize_t sock_read_iter(struct kiocb *iocb, struct iov_iter *to)
 			     .msg_iocb = iocb};
 	ssize_t res;
 
-	if (file->f_flags & O_NONBLOCK)
+	if (file->f_flags & O_NONBLOCK || (iocb->ki_flags & IOCB_NOWAIT))
 		msg.msg_flags = MSG_DONTWAIT;
 
 	if (iocb->ki_pos != 0)
@@ -986,7 +995,7 @@ static ssize_t sock_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	if (iocb->ki_pos != 0)
 		return -ESPIPE;
 
-	if (file->f_flags & O_NONBLOCK)
+	if (file->f_flags & O_NONBLOCK || (iocb->ki_flags & IOCB_NOWAIT))
 		msg.msg_flags = MSG_DONTWAIT;
 
 	if (sock->type == SOCK_SEQPACKET)
@@ -995,14 +1004,6 @@ static ssize_t sock_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	res = sock_sendmsg(sock, &msg);
 	*from = msg.msg_iter;
 	return res;
-}
-
-static void sock_show_fdinfo(struct seq_file *m, struct file *f)
-{
-	struct socket *sock = f->private_data;
-
-	if (sock->ops->show_fdinfo)
-		sock->ops->show_fdinfo(m, sock);
 }
 
 /*
