@@ -2446,7 +2446,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
-			bool ace_deficit_limit = false;;
+			bool ace_deficit_limit = false;
 
 			if (unlikely(tcp_accecn_deficit_runaway_test(tp,
 								     cwnd_quota))) {
