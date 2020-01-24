@@ -1447,8 +1447,8 @@ static void mk_tid_release(struct sk_buff *skb, unsigned int chan,
 static void cxgb4_queue_tid_release(struct tid_info *t, unsigned int chan,
 				    unsigned int tid)
 {
-	void **p = &t->tid_tab[tid];
 	struct adapter *adap = container_of(t, struct adapter, tids);
+	void **p = &t->tid_tab[tid - t->tid_base];
 
 	spin_lock_bh(&adap->tid_release_lock);
 	*p = adap->tid_release_head;
@@ -1500,13 +1500,13 @@ static void process_tid_release_list(struct work_struct *work)
 void cxgb4_remove_tid(struct tid_info *t, unsigned int chan, unsigned int tid,
 		      unsigned short family)
 {
-	struct sk_buff *skb;
 	struct adapter *adap = container_of(t, struct adapter, tids);
+	struct sk_buff *skb;
 
-	WARN_ON(tid >= t->ntids);
+	WARN_ON(tid_out_of_range(&adap->tids, tid));
 
-	if (t->tid_tab[tid]) {
-		t->tid_tab[tid] = NULL;
+	if (t->tid_tab[tid - adap->tids.tid_base]) {
+		t->tid_tab[tid - adap->tids.tid_base] = NULL;
 		atomic_dec(&t->conns_in_use);
 		if (t->hash_base && (tid >= t->hash_base)) {
 			if (family == AF_INET6)
@@ -3163,9 +3163,9 @@ static int cxgb_set_tx_maxrate(struct net_device *dev, int index, u32 rate)
 {
 	struct port_info *pi = netdev_priv(dev);
 	struct adapter *adap = pi->adapter;
+	struct ch_sched_queue qe = { 0 };
+	struct ch_sched_params p = { 0 };
 	struct sched_class *e;
-	struct ch_sched_params p;
-	struct ch_sched_queue qe;
 	u32 req_rate;
 	int err = 0;
 
@@ -3180,6 +3180,15 @@ static int cxgb_set_tx_maxrate(struct net_device *dev, int index, u32 rate)
 			"Failed to rate limit on queue %d. Link Down?\n",
 			index);
 		return -EINVAL;
+	}
+
+	qe.queue = index;
+	e = cxgb4_sched_queue_lookup(dev, &qe);
+	if (e && e->info.u.params.level != SCHED_CLASS_LEVEL_CL_RL) {
+		dev_err(adap->pdev_dev,
+			"Queue %u already bound to class %u of type: %u\n",
+			index, e->idx, e->info.u.params.level);
+		return -EBUSY;
 	}
 
 	/* Convert from Mbps to Kbps */
@@ -3211,7 +3220,6 @@ static int cxgb_set_tx_maxrate(struct net_device *dev, int index, u32 rate)
 		return 0;
 
 	/* Fetch any available unused or matching scheduling class */
-	memset(&p, 0, sizeof(p));
 	p.type = SCHED_CLASS_TYPE_PACKET;
 	p.u.params.level    = SCHED_CLASS_LEVEL_CL_RL;
 	p.u.params.mode     = SCHED_CLASS_MODE_CLASS;
@@ -4727,6 +4735,9 @@ static int adap_init0(struct adapter *adap, int vpd_skip)
 			adap->rawf_start = val[0];
 			adap->rawf_cnt = val[1] - val[0] + 1;
 		}
+
+		adap->tids.tid_base =
+			t4_read_reg(adap, LE_DB_ACTIVE_TABLE_START_INDEX_A);
 	}
 
 	/* qids (ingress/egress) returned from firmware can be anywhere
