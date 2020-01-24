@@ -315,17 +315,17 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
     u8 ace = tcp_accecn_ace(th);
-    return ace && ace != 3;
+    return ace && ace != 0x3;
 }
 
 /* Infer the ECT value our SYN arrived with from the echoed ACE field */
 static inline int tcp_accecn_extract_syn_ect(u8 ace)
 {
-	if (ace & 1)
+	if (ace & 0x1)
 		return INET_ECN_ECT_1;
-	if (!(ace & 2))
+	if (!(ace & 0x2))
 		return INET_ECN_ECT_0;
-	if (ace & 4)
+	if (ace & 0x4)
 		return INET_ECN_CE;
 	return INET_ECN_NOT_ECT;
 }
@@ -5590,10 +5590,9 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+	u8 is_ce = INET_ECN_is_ce(ecnfield);
 
-	if (ecnfield != INET_ECN_NOT_ECT) {
-		u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
-
+	if (!INET_ECN_is_not_ect(ecnfield)) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
 
 		/* ACE counter tracks *all* segments including pure acks */
