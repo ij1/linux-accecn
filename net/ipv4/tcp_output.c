@@ -2513,7 +2513,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		} else {
 			if (unlikely(ace_deficit_limit &&
 				     tcp_accecn_deficit_runaway_test(tp,
-								     cwnd_quota))) {
+								     cwnd_quota)))
 				cwnd_quota = TCP_ACCECN_ACE_MAX_DELTA - 1;
 			else
 				ace_deficit_limit = false;
