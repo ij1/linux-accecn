@@ -3603,7 +3603,7 @@ static void tcp_rcv_nxt_update(struct tcp_sock *tp, u32 seq)
 	WRITE_ONCE(tp->rcv_nxt, seq);
 
 	/* Demand AccECN option at least every 2^22 bytes to avoid
-	 * overflowing the counters.
+	 * overflowing the ECN byte counters.
 	 */
 	if ((tp->bytes_received ^ old_bytes_received) & ~((1 << 22) - 1))
 		tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
