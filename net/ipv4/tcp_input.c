@@ -5464,9 +5464,9 @@ static void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
-	u8 is_ce = (ecnfield & (ecnfield >> 1)) & 0x1;
+	u8 is_ce = INET_ECN_is_ce(ecnfield);
 
-	if (ecnfield != INET_ECN_NOT_ECT) {
+	if (!INET_ECN_is_not_ect(ecnfield)) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
 
 		/* ACE counter tracks *all* segments including pure acks */
