@@ -404,12 +404,12 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 	u8 ace = tcp_accecn_ace(tcp_hdr(skb));
 
 	switch (ace) {
-	case 0:
+	case 0x0:
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
-	case 7:
-	case 5:
-	case 1:
+	case 0x7:
+	case 0x5:
+	case 0x1:
 		/* Unused but legal values */
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;

@@ -315,17 +315,17 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
     u8 ace = tcp_accecn_ace(th);
-    return ace && ace != 3;
+    return ace && ace != 0x3;
 }
 
 /* Infer the ECT value our SYN arrived with from the echoed ACE field */
 static inline int tcp_accecn_extract_syn_ect(u8 ace)
 {
-	if (ace & 1)
+	if (ace & 0x1)
 		return INET_ECN_ECT_1;
-	if (!(ace & 2))
+	if (!(ace & 0x2))
 		return INET_ECN_ECT_0;
-	if (ace & 4)
+	if (ace & 0x4)
 		return INET_ECN_CE;
 	return INET_ECN_NOT_ECT;
 }
