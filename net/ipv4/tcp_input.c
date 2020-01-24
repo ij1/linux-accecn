@@ -3908,6 +3908,12 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	return 1;
 
 no_queue:
+	if (tcp_ecn_mode_accecn(tp)) {
+		ecn_count = tcp_accecn_process(tp, skb,
+					       tp->delivered - delivered, flag);
+		if (ecn_count > 0)
+			flag |= FLAG_ECE;
+	}
 	tcp_in_ack_event(sk, flag);
 	/* If data was DSACKed, see if we can undo a cwnd reduction. */
 	if (flag & FLAG_DSACKING_ACK) {
