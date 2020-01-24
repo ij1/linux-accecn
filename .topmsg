@@ -4,7 +4,11 @@ Subject: [PATCH] tcp: accecn option send control
 Instead of sending the option in every ACK, limit sending to
 those ACKs where the option is necessary:
 - Handshake
-- "Change-triggered ACK" + the ACK following it.
+- "Change-triggered ACK" + the ACK following it. The
+  2nd ACK is necessary to unambiguously indicate which
+  of the ECN byte counters in increasing. The first
+  ACK has two counters increasing due to the ecnfield
+  edge.
 - ACKs with CE to allow CEP delta calculations to take
   advantage of the option
 - Force option to be sent every at least once per 2^22
