@@ -2122,8 +2122,6 @@ static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
 static bool tcp_accecn_deficit_runaway_test(const struct tcp_sock *tp,
 					    int cwnd_quota)
 {
-	if (!tcp_ecn_mode_accecn(tp))
-		return false;
 	return (tcp_accecn_ace_deficit(tp) >= 2 * TCP_ACCECN_ACE_MAX_DELTA) &&
 	       (cwnd_quota > TCP_ACCECN_ACE_MAX_DELTA - 1);
 }
@@ -2137,8 +2135,10 @@ static u32 tcp_accecn_gso_limit(struct tcp_sock *tp,
 	if (unlikely(tp->ect_reflector_snd &&
 		     tcp_accecn_use_reflector(tp, skb)))
 		return 1;
+
 	if (unlikely(tcp_accecn_deficit_runaway_test(tp, cwnd_quota)))
 		return TCP_ACCECN_ACE_MAX_DELTA - 1;
+
 	return 0;
 }
 
