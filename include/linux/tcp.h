@@ -155,6 +155,7 @@ struct tcp_request_sock {
 	bool				is_mptcp;
 #endif
 	u8				accecn_ok  : 1,
+					saw_accecn_opt : 1,
 					syn_ect_snt: 2,
 					syn_ect_rcv: 2;
 	u32				txhash;

@@ -435,6 +435,7 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 	if (treq->accecn_ok) {
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
+		tp->rx_opt.saw_accecn = treq->saw_accecn_opt;
 		tp->prev_ecnfield = treq->syn_ect_rcv;
 		tcp_ecn_received_counters(sk, skb, skb->len - th->doff * 4);
 	} else {
@@ -801,6 +802,9 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPDEFERACCEPTDROP);
 		return NULL;
 	}
+
+	if (tmp_opt.accecn >= 0)
+		tcp_rsk(req)->saw_accecn_opt = 1;
 
 	/* OK, ACK is valid, create big socket and
 	 * feed this segment to it. It will repeat all
