@@ -450,10 +450,13 @@ static bool tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	return delta != 0;
 }
 
-static u8 accecn_opt_ecnfield[3] = {
-	INET_ECN_ECT_0,
-	INET_ECN_CE,
-	INET_ECN_ECT_1
+static struct {
+	u8	ecnfield;
+	u32	initval;
+} accecn_opt_ecnfield[3] = {
+	{ INET_ECN_ECT_0, TCP_ACCECN_E0B_INIT_OFFSET },
+	{ INET_ECN_CE, TCP_ACCECN_CEB_INIT_OFFSET },
+	{ INET_ECN_ECT_1, TCP_ACCECN_E1B_INIT_OFFSET }
 };
 
 static void tcp_accecn_process_option(struct tcp_sock *tp,
@@ -468,18 +471,22 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	if (tp->rx_opt.accecn_fail)
 		return;
 
-	if (!tp->rx_opt.saw_accecn) {
-		/* Cannot enable the option too late to prevent counter wraps */
-		if (tp->bytes_sent >= (1 << 23) - 1)
-			tp->rx_opt.accecn_fail = 1;
-		return;
-	}
-
 	if (tp->rx_opt.accecn < 0) {
+		if (!tp->saw_accecn_opt) {
+			/* Too late to enable after this point due to
+			 * potential counter wraps
+			 */
+			if (tp->bytes_sent >= (1 << 23) - 1)
+				tp->rx_opt.accecn_fail = 1;
+			return;
+		}
+
 		if (tp->estimate_ecnfield)
 			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
 				delivered_bytes;
 		return;
+	} else {
+		tp->saw_accecn_opt = 1;
 	}
 
 	tp->estimate_ecnfield = 0;
@@ -495,10 +502,10 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			u8 ecnfield = accecn_opt_ecnfield[i];
+			u8 ecnfield = accecn_opt_ecnfield[i].ecnfield;
 
 			if (tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
-						 ptr, TCP_ACCECN_E0B_INIT_OFFSET)) {
+						 ptr, accecn_opt_ecnfield[i].initval)) {
 				if (tp->estimate_ecnfield)
 					ambiguous_ecn_bytes_incr = 1;
 				tp->estimate_ecnfield = ecnfield;
@@ -4223,7 +4230,7 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
-				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
+				if (opsize >= TCPOLEN_EXP_ACCECN_BASE &&
 				    get_unaligned_be16(ptr) ==
 				    TCPOPT_ACCECN_MAGIC) {
 					opt_rx->saw_accecn = 1;
