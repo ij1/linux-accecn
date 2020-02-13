@@ -60,6 +60,7 @@ const char netdev_features_strings[NETDEV_FEATURE_COUNT][ETH_GSTRING_LEN] = {
 	[NETIF_F_HW_TLS_RECORD_BIT] =	"tls-hw-record",
 	[NETIF_F_HW_TLS_TX_BIT] =	 "tls-hw-tx-offload",
 	[NETIF_F_HW_TLS_RX_BIT] =	 "tls-hw-rx-offload",
+	[NETIF_F_GRO_FRAGLIST_BIT] =	 "rx-gro-list",
 };
 
 const char
@@ -170,3 +171,90 @@ const char link_mode_names[][ETH_GSTRING_LEN] = {
 	__DEFINE_LINK_MODE_NAME(400000, CR8, Full),
 };
 static_assert(ARRAY_SIZE(link_mode_names) == __ETHTOOL_LINK_MODE_MASK_NBITS);
+
+const char netif_msg_class_names[][ETH_GSTRING_LEN] = {
+	[NETIF_MSG_DRV_BIT]		= "drv",
+	[NETIF_MSG_PROBE_BIT]		= "probe",
+	[NETIF_MSG_LINK_BIT]		= "link",
+	[NETIF_MSG_TIMER_BIT]		= "timer",
+	[NETIF_MSG_IFDOWN_BIT]		= "ifdown",
+	[NETIF_MSG_IFUP_BIT]		= "ifup",
+	[NETIF_MSG_RX_ERR_BIT]		= "rx_err",
+	[NETIF_MSG_TX_ERR_BIT]		= "tx_err",
+	[NETIF_MSG_TX_QUEUED_BIT]	= "tx_queued",
+	[NETIF_MSG_INTR_BIT]		= "intr",
+	[NETIF_MSG_TX_DONE_BIT]		= "tx_done",
+	[NETIF_MSG_RX_STATUS_BIT]	= "rx_status",
+	[NETIF_MSG_PKTDATA_BIT]		= "pktdata",
+	[NETIF_MSG_HW_BIT]		= "hw",
+	[NETIF_MSG_WOL_BIT]		= "wol",
+};
+static_assert(ARRAY_SIZE(netif_msg_class_names) == NETIF_MSG_CLASS_COUNT);
+
+const char wol_mode_names[][ETH_GSTRING_LEN] = {
+	[const_ilog2(WAKE_PHY)]		= "phy",
+	[const_ilog2(WAKE_UCAST)]	= "ucast",
+	[const_ilog2(WAKE_MCAST)]	= "mcast",
+	[const_ilog2(WAKE_BCAST)]	= "bcast",
+	[const_ilog2(WAKE_ARP)]		= "arp",
+	[const_ilog2(WAKE_MAGIC)]	= "magic",
+	[const_ilog2(WAKE_MAGICSECURE)]	= "magicsecure",
+	[const_ilog2(WAKE_FILTER)]	= "filter",
+};
+static_assert(ARRAY_SIZE(wol_mode_names) == WOL_MODE_COUNT);
+
+/* return false if legacy contained non-0 deprecated fields
+ * maxtxpkt/maxrxpkt. rest of ksettings always updated
+ */
+bool
+convert_legacy_settings_to_link_ksettings(
+	struct ethtool_link_ksettings *link_ksettings,
+	const struct ethtool_cmd *legacy_settings)
+{
+	bool retval = true;
+
+	memset(link_ksettings, 0, sizeof(*link_ksettings));
+
+	/* This is used to tell users that driver is still using these
+	 * deprecated legacy fields, and they should not use
+	 * %ETHTOOL_GLINKSETTINGS/%ETHTOOL_SLINKSETTINGS
+	 */
+	if (legacy_settings->maxtxpkt ||
+	    legacy_settings->maxrxpkt)
+		retval = false;
+
+	ethtool_convert_legacy_u32_to_link_mode(
+		link_ksettings->link_modes.supported,
+		legacy_settings->supported);
+	ethtool_convert_legacy_u32_to_link_mode(
+		link_ksettings->link_modes.advertising,
+		legacy_settings->advertising);
+	ethtool_convert_legacy_u32_to_link_mode(
+		link_ksettings->link_modes.lp_advertising,
+		legacy_settings->lp_advertising);
+	link_ksettings->base.speed
+		= ethtool_cmd_speed(legacy_settings);
+	link_ksettings->base.duplex
+		= legacy_settings->duplex;
+	link_ksettings->base.port
+		= legacy_settings->port;
+	link_ksettings->base.phy_address
+		= legacy_settings->phy_address;
+	link_ksettings->base.autoneg
+		= legacy_settings->autoneg;
+	link_ksettings->base.mdio_support
+		= legacy_settings->mdio_support;
+	link_ksettings->base.eth_tp_mdix
+		= legacy_settings->eth_tp_mdix;
+	link_ksettings->base.eth_tp_mdix_ctrl
+		= legacy_settings->eth_tp_mdix_ctrl;
+	return retval;
+}
+
+int __ethtool_get_link(struct net_device *dev)
+{
+	if (!dev->ethtool_ops->get_link)
+		return -EOPNOTSUPP;
+
+	return netif_running(dev) && dev->ethtool_ops->get_link(dev);
+}
