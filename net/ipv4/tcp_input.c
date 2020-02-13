@@ -470,7 +470,7 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 
 	if (!tp->rx_opt.saw_accecn) {
 		/* Cannot enable the option too late to prevent counter wraps */
-		if (tp->bytes_sent >= 2^22 - 1)
+		if (tp->bytes_sent >= (1 << 23) - 1)
 			tp->rx_opt.accecn_fail = 1;
 		return;
 	}
