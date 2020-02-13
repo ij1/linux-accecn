@@ -352,7 +352,7 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 	u8 ect = tcp_accecn_extract_syn_ect(ace);
 
 	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback)
-		goto accept;
+		return true;
 
 	if (!tcp_ect_transition_valid(sent_ect, ect)) {
 		struct inet_sock *inet = inet_sk(sk);
@@ -369,16 +369,11 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 					    inet->inet_num,
 					    ect, sent_ect);
 		}
-		goto reject;
+		tp->ecn_fail = 1;
+		return false;
 	}
 
-accept:
-	tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 	return true;
-
-reject:
-	tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
-	return false;
 }
 
 /* See Table 2 of the AccECN draft */
@@ -404,10 +399,10 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 			break;
 		}
-		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt)) {
-			tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
-			tp->ect_reflector_snd = 1;
-		}
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
+		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
+		tp->ect_reflector_snd = 1;
+		tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt);
 		break;
 	}
 }
