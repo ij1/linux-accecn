@@ -471,6 +471,16 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	int i;
 	int ambiguous_ecn_bytes_incr;
 
+	if (tp->rx_opt.accecn_fail)
+		return;
+
+	if (!tp->rx_opt.saw_accecn) {
+		/* Cannot enable the option too late to prevent counter wraps */
+		if (tp->bytes_sent >= 2^22 - 1)
+			tp->rx_opt.accecn_fail = 1;
+		return;
+	}
+
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield)
 			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
@@ -4221,8 +4231,10 @@ void tcp_parse_options(const struct net *net,
 			case TCPOPT_EXP:
 				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
 				    get_unaligned_be16(ptr) ==
-				    TCPOPT_ACCECN_MAGIC)
+				    TCPOPT_ACCECN_MAGIC) {
+					opt_rx->saw_accecn = 1;
 					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
+				}
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */

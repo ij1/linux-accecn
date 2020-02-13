@@ -993,11 +993,14 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 		}
 	}
 
-	if (tcp_ecn_mode_accecn(tp) && tp->accecn_opt_demand) {
-		opts->ecn_bytes = tp->received_ecn_bytes;
-		size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
-					       MAX_TCP_OPTION_SPACE - size,
-					       opts->num_sack_blocks > 0 ? 2 : 0);
+	if (tcp_ecn_mode_accecn(tp)) {
+		if (tp->rx_opt.saw_accecn && tp->accecn_opt_demand) {
+			opts->ecn_bytes = tp->received_ecn_bytes;
+			size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
+						       MAX_TCP_OPTION_SPACE - size,
+						       opts->num_sack_blocks > 0 ?
+						       2 : 0);
+		}
 	}
 
 	return size;
