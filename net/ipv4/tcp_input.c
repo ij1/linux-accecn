@@ -468,18 +468,22 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	if (tp->rx_opt.accecn_fail)
 		return;
 
-	if (!tp->rx_opt.saw_accecn) {
-		/* Cannot enable the option too late to prevent counter wraps */
-		if (tp->bytes_sent >= (1 << 23) - 1)
-			tp->rx_opt.accecn_fail = 1;
-		return;
-	}
-
 	if (tp->rx_opt.accecn < 0) {
+		if (!tp->saw_accecn_opt) {
+			/* Too late to enable after this point due to
+			 * potential counter wraps
+			 */
+			if (tp->bytes_sent >= (1 << 23) - 1)
+				tp->rx_opt.accecn_fail = 1;
+			return;
+		}
+
 		if (tp->estimate_ecnfield)
 			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
 				delivered_bytes;
 		return;
+	} else {
+		tp->saw_accecn_opt = 1;
 	}
 
 	tp->estimate_ecnfield = 0;
@@ -4223,7 +4227,7 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
-				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
+				if (opsize >= TCPOLEN_EXP_ACCECN_BASE &&
 				    get_unaligned_be16(ptr) ==
 				    TCPOPT_ACCECN_MAGIC) {
 					opt_rx->saw_accecn = 1;
