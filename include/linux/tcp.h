@@ -113,7 +113,9 @@ struct tcp_options_received {
 		smc_ok : 1,	/* SMC seen on SYN packet		*/
 		snd_wscale : 4,	/* Window scaling received from sender	*/
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
-	u8	num_sacks;	/* Number of SACK blocks		*/
+	u8	num_sacks:3,	/* Number of SACK blocks		*/
+		saw_accecn:1,	/* AccECN option has been seen		*/
+		accecn_fail:1;	/* AccECN option on SYN/ACK was invalid */
 	s8	accecn;		/* AccECN index in header, -1=no option	*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
 	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
@@ -153,6 +155,7 @@ struct tcp_request_sock {
 	bool				is_mptcp;
 #endif
 	u8				accecn_ok  : 1,
+					saw_accecn_opt : 1,
 					syn_ect_snt: 2,
 					syn_ect_rcv: 2;
 	u32				txhash;
