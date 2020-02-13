@@ -586,7 +586,8 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 		u32 e0b = opts->ecn_bytes[INET_ECN_ECT_0 - 1] + TCP_ACCECN_E0B_INIT_OFFSET;
 		u32 ceb = opts->ecn_bytes[INET_ECN_CE - 1] + TCP_ACCECN_CEB_INIT_OFFSET;
 		u32 e1b = opts->ecn_bytes[INET_ECN_ECT_1 - 1] + TCP_ACCECN_E1B_INIT_OFFSET;
-		u8 len = TCPOLEN_EXP_ACCECN_BASE + opts->num_ecn_bytes * 3;
+		u8 len = TCPOLEN_EXP_ACCECN_BASE +
+			 opts->num_ecn_bytes * TCPOLEN_ACCECN_PERCOUNTER;
 
 		*ptr++ = htonl((TCPOPT_EXP << 24) | (len << 16) |
 			       TCPOPT_ACCECN_MAGIC);
