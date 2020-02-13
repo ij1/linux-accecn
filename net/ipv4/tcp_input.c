@@ -4226,8 +4226,7 @@ void tcp_parse_options(const struct net *net,
 				if (opsize > TCPOLEN_EXP_ACCECN_BASE &&
 				    get_unaligned_be16(ptr) ==
 				    TCPOPT_ACCECN_MAGIC) {
-					if (!opt_rx->accecn_fail)
-						opt_rx->saw_accecn = 1;
+					opt_rx->saw_accecn = 1;
 					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
 				}
 				/* Fast Open option shares code 254 using a
