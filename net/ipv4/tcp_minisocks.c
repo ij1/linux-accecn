@@ -405,7 +405,7 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 
 	switch (ace) {
 	case 0x0:
-		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
+		tp->ecn_fail = 1;
 		break;
 	case 0x7:
 	case 0x5:
