@@ -483,6 +483,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 				delivered_bytes;
 		return;
 	} else {
+		if (!tp->->saw_accecn_opt)
+			tp->accecn_orderbit = tp->rx_opt.accecn_orderbit;
 		tp->saw_accecn_opt = 1;
 	}
 
