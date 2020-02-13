@@ -114,7 +114,6 @@ struct tcp_options_received {
 		snd_wscale : 4,	/* Window scaling received from sender	*/
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
 	u8	num_sacks:3,	/* Number of SACK blocks		*/
-		saw_accecn:1,	/* AccECN option has been seen		*/
 		accecn_orderbit:1,/* e0b & e1b order indicator		*/
 		accecn_fail:1;	/* AccECN option on SYN/ACK was invalid */
 	s8	accecn;		/* AccECN index in header, -1=no option	*/
