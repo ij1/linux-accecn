@@ -1,0 +1,10 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: AccECN option may fail in various way
+
+Handle these:
+- Remove option from SYN/ACK rexmits to handle blackholes
+- If option is zeroed, disable AccECN option processing
+- If no option arrives in SYN/ACK, assume Option is not usable
+	- If an option arrives later, re-enabled
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
