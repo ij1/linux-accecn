@@ -997,7 +997,7 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	}
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		if (tp->rx_opt.saw_accecn && !tp->rx_opt.accecn_fail &&
+		if (tp->saw_accecn_opt &&
 		    (tp->accecn_opt_demand ||
 		     (tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
 		      (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT))))) {
