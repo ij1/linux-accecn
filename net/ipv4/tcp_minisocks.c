@@ -789,6 +789,9 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (!(flg & TCP_FLAG_ACK))
 		return NULL;
 
+	if (tmp_opt.accecn >= 0)
+		tcp_rsk(req)->saw_accecn_opt = 1;
+
 	/* For Fast Open no more processing is needed (sk is the
 	 * child socket).
 	 */
@@ -802,9 +805,6 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPDEFERACCEPTDROP);
 		return NULL;
 	}
-
-	if (tmp_opt.accecn >= 0)
-		tcp_rsk(req)->saw_accecn_opt = 1;
 
 	/* OK, ACK is valid, create big socket and
 	 * feed this segment to it. It will repeat all
