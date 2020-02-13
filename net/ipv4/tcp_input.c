@@ -4228,6 +4228,8 @@ void tcp_parse_options(const struct net *net,
 				    TCPOPT_ACCECN_MAGIC) {
 					opt_rx->saw_accecn = 1;
 					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
+					if (opsize >= TCPOLEN_EXP_ACCECN_BASE + TCPOLEN_ACCECN_PERCOUNTER)
+						opt_rx->accecn_orderbit = !!(*(ptr + 2) & 0x80);
 				}
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.

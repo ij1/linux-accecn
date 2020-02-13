@@ -115,6 +115,7 @@ struct tcp_options_received {
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
 	u8	num_sacks:3,	/* Number of SACK blocks		*/
 		saw_accecn:1,	/* AccECN option has been seen		*/
+		accecn_orderbit:1,/* e0b & e1b order indicator		*/
 		accecn_fail:1;	/* AccECN option on SYN/ACK was invalid */
 	s8	accecn;		/* AccECN index in header, -1=no option	*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
@@ -156,6 +157,7 @@ struct tcp_request_sock {
 #endif
 	u8				accecn_ok  : 1,
 					saw_accecn_opt : 1,
+					accecn_orderbit: 1, /* e0b & e1b order */
 					syn_ect_snt: 2,
 					syn_ect_rcv: 2;
 	u32				txhash;
@@ -259,7 +261,8 @@ struct tcp_sock {
 		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
 		ect_reflector_snd:1, /* Use ECT reflector for pure ACKs... */
 		ect_reflector_rcv:1, /* ...filter ECT reflects after first */
-		ecn_fail:1;	/* ECN reflector detected path mangling */
+		ecn_fail:1,	/* ECN reflector detected path mangling */
+		accecn_orderbit:1; /* e0b and e1b order in AccECN option */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
 	u8	chrono_type:2,	/* current chronograph type */
