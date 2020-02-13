@@ -404,12 +404,12 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 	u8 ace = tcp_accecn_ace(tcp_hdr(skb));
 
 	switch (ace) {
-	case 0:
+	case 0x0:
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 		break;
-	case 7:
-	case 5:
-	case 1:
+	case 0x7:
+	case 0x5:
+	case 0x1:
 		/* Unused but legal values */
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
@@ -436,6 +436,7 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 	if (treq->accecn_ok) {
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
+		tp->prev_ecnfield = treq->syn_ect_rcv;
 		tcp_ecn_received_counters(sk, skb, skb->len - th->doff * 4);
 	} else {
 		tcp_ecn_mode_set(tp, inet_rsk(req)->ecn_ok ?
@@ -455,7 +456,7 @@ void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)
 
 		rcu_read_lock();
 		ca = tcp_ca_find_key(ca_key);
-		if (likely(ca && try_module_get(ca->owner))) {
+		if (likely(ca && bpf_try_module_get(ca, ca->owner))) {
 			icsk->icsk_ca_dst_locked = tcp_ca_dst_locked(dst);
 			icsk->icsk_ca_ops = ca;
 			ca_got_dst = true;
@@ -466,7 +467,7 @@ void tcp_ca_openreq_child(struct sock *sk, const struct dst_entry *dst)
 	/* If no valid choice made yet, assign current system default ca. */
 	if (!ca_got_dst &&
 	    (!icsk->icsk_ca_setsockopt ||
-	     !try_module_get(icsk->icsk_ca_ops->owner)))
+	     !bpf_try_module_get(icsk->icsk_ca_ops, icsk->icsk_ca_ops->owner)))
 		tcp_assign_congestion_control(sk);
 
 	tcp_set_ca_state(sk, TCP_CA_Open);

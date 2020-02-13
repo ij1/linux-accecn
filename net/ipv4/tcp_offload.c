@@ -122,7 +122,7 @@ struct sk_buff *tcp_gso_segment(struct sk_buff *skb,
 	newcheck = ~csum_fold((__force __wsum)((__force u32)th->check +
 					       (__force u32)delta));
 
-	ecn_cwr_mask = !!(skb_shinfo(skb)->gso_type & SKB_GSO_TCP_ACCECN);
+	ecn_cwr_mask = !!(skb_shinfo(gso_skb)->gso_type & SKB_GSO_TCP_ACCECN);
 
 	while (skb->next) {
 		th->fin = th->psh = 0;
