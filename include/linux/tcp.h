@@ -261,8 +261,8 @@ struct tcp_sock {
 		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
 		ect_reflector_snd:1, /* Use ECT reflector for pure ACKs... */
 		ect_reflector_rcv:1, /* ...filter ECT reflects after first */
-		ecn_fail:1,	/* ECN reflector detected path mangling */
-		accecn_orderbit:1; /* e0b and e1b order in AccECN option */
+		saw_accecn_opt:1,    /* A valid AccECN option was seen */
+		ecn_fail:1;	/* ECN reflector detected path mangling */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
 	u8	chrono_type:2,	/* current chronograph type */
@@ -336,10 +336,11 @@ struct tcp_sock {
 	u32	received_ce;	/* Like the above but for received CE marked packets */
 	u32	received_ce_tx; /* Like the above but max transmitted value */
 	u32	received_ecn_bytes[3];
-	u8	accecn_minlen:2,/* Minimum length of AccECN option sent */
+	u16	accecn_minlen:2,/* Minimum length of AccECN option sent */
 		prev_ecnfield:2,/* ECN bits from the previous segment */
 		accecn_opt_demand:2,/* Demand AccECN option for n next ACKs */
-		estimate_ecnfield:2;/* ECN field for AccECN delivered estimates */
+		estimate_ecnfield:2,/* ECN field for AccECN delivered estimates */
+		accecn_orderbit:1; /* e0b and e1b order in AccECN option */
 	u64	accecn_opt_tstamp;	/* Last AccECN option sent timestamp */
 	u32	lost;		/* Total data packets lost incl. rexmits */
 	u32	app_limited;	/* limited until "delivered" reaches this val */
