@@ -506,7 +506,9 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
 			int idx = !tp->accecn_orderbit ? i : 2 - i;
 			u8 ecnfield = accecn_opt_ecnfield[idx].ecnfield;
-			u32 init_offset = accecn_opt_ecnfield[idx].init_offset;
+			u32 init_offset = accecn_opt_ecnfield[idx].init_offset +
+					  ((i == 0 && tp->accecn_orderbit) ?
+					   0x800000U : 0);
 
 			if (tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
 						 ptr, init_offset)) {
