@@ -581,7 +581,7 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			return delta;
 		if (d_ceb > delta * tp->mss_cache)
 			return safe_delta;
-		if (d_ceb < safe_delta * (tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT))
+		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
 	}
 
