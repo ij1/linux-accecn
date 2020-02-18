@@ -3465,6 +3465,10 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 			 */
 			if (flag & FLAG_RETRANS_DATA_ACKED)
 				flag &= ~FLAG_ORIG_SACK_ACKED;
+
+			sack->delivered_bytes = (skb ?
+						 TCP_SKB_CB(skb)->seq :
+						 tp->snd_una) - prior_snd_una;
 		} else {
 			int delta;
 
