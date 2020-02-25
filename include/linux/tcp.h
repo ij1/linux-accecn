@@ -256,8 +256,6 @@ struct tcp_sock {
 	u8	compressed_ack;
 	u8	syn_ect_snt:2,	/* AccECN ECT memory, only */
 		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
-		ect_reflector_snd:1, /* Use ECT reflector for pure ACKs... */
-		ect_reflector_rcv:1, /* ...filter ECT reflects after first */
 		saw_accecn_opt:1,    /* A valid AccECN option was seen */
 		ecn_fail:1;	/* ECN reflector detected path mangling */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
