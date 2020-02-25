@@ -316,16 +316,11 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 	else if (tcp_ca_needs_ecn(sk) ||
 		 tcp_bpf_ca_needs_ecn(sk))
 		INET_ECN_xmit(sk);
-	/* Check if we want to negotiate AccECN */
-	if (tp->ecn_flags & TCP_ECN_MODE_ACCECN) {
-		u8 ect = tp->syn_ect_rcv;
 
+	if (tp->ecn_flags & TCP_ECN_MODE_ACCECN) {
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
 		TCP_SKB_CB(skb)->tcp_flags |=
-			TCPHDR_CWR * (ect != INET_ECN_ECT_0) |
-			TCPHDR_ECE * (ect == INET_ECN_ECT_1);
-		if (ect & 2)
-			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
+			tcp_accecn_reflector_flags(tp->syn_ect_rcv);
 		tp->syn_ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
 	}
 }
@@ -390,39 +385,22 @@ tcp_ecn_make_synack(const struct request_sock *req, struct tcphdr *th)
 		th->ece = 1;
 }
 
-static bool tcp_accecn_use_reflector(struct tcp_sock *tp,
-                                     const struct sk_buff *skb)
-{
-	if ((tp->bytes_acked > 1) || (tp->bytes_received > 0)) {
-		tp->ect_reflector_snd = 0;
-		return false;
-	} else if ((tp->bytes_acked == 0) &&
-	           (TCP_SKB_CB(skb)->seq == tp->snd_una + 1)) {
-		/* Transient state during simultaneous open 3rd ACK */
-		return true;
-	}
-	if (TCP_SKB_CB(skb)->seq != tp->snd_una)
-		return false;
-	return true;
-}
-
 static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 			       struct tcphdr *th)
 {
 	u32 wire_ace;
 
 	/* The final packet of the 3WHS or anything like it must reflect
-	 * the SYN/ACK ECT instead of putting CEP into ACE field
+	 * the SYN/ACK ECT instead of putting CEP into ACE field, such
+	 * case show up in tcp_flags.
 	 */
-	if (likely(!tp->ect_reflector_snd || !tcp_accecn_use_reflector(tp, skb))) {
+	if (likely(!(TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ACE))) {
 		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
 					    TCP_ACCECN_ACE_MAX_DELTA);
 		wire_ace = tp->received_ce_tx + TCP_ACCECN_CEP_INIT_OFFSET;
 		th->ece = !!(wire_ace & 0x1);
 		th->cwr = !!(wire_ace & 0x2);
 		th->ae = !!(wire_ace & 0x4);
-	} else {
-		tcp_accecn_echo_syn_ect(th, tp->syn_ect_rcv);
 	}
 }
 
@@ -2013,18 +1991,6 @@ static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
 	return !after(end_seq, tcp_wnd_end(tp));
 }
 
-static u32 tcp_accecn_gso_limit(struct tcp_sock *tp,
-				const struct sk_buff *skb)
-{
-	/* Handshake reflector and GSO are not compatible because
-	 * ACE field changes.
-	 */
-	if (unlikely(tp->ect_reflector_snd &&
-		     tcp_accecn_use_reflector(tp, skb)))
-		return 1;
-	return 0;
-}
-
 /* Trim TSO SKB to LEN bytes, put the remaining data into a new packet
  * which is put after SKB on the list.  It is very much like
  * tcp_fragment() except that it may make several kinds of assumptions
@@ -2524,8 +2490,6 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	int cwnd_quota;
 	int result;
 	bool is_cwnd_limited = false, is_rwnd_limited = false;
-	/* AccECN limit will be lifted below if not needed */
-	bool accecn_gso_limit = tcp_ecn_mode_accecn(tp);
 	u32 max_segs;
 
 	sent_pkts = 0;
@@ -2579,15 +2543,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
-			if (accecn_gso_limit) {
-				u32 limit = tcp_accecn_gso_limit(tp, skb);
-				if (limit > 0)
-					cwnd_quota = limit;
-				else
-					accecn_gso_limit = false;
-			}
-
-			if (!push_one && !accecn_gso_limit &&
+			if (!push_one &&
 			    tcp_tso_should_defer(sk, skb, &is_cwnd_limited,
 						 &is_rwnd_limited, max_segs))
 				break;
@@ -3831,7 +3787,7 @@ void tcp_send_delayed_ack(struct sock *sk)
 		 */
 		if (icsk->icsk_ack.blocked ||
 		    time_before_eq(icsk->icsk_ack.timeout, jiffies + (ato >> 2))) {
-			tcp_send_ack(sk);
+			tcp_send_ack(sk, 0);
 			return;
 		}
 
@@ -3844,7 +3800,7 @@ void tcp_send_delayed_ack(struct sock *sk)
 }
 
 /* This routine sends an ack and also updates the window. */
-void __tcp_send_ack(struct sock *sk, u32 rcv_nxt)
+void __tcp_send_ack(struct sock *sk, u32 rcv_nxt, u16 flags)
 {
 	struct sk_buff *buff;
 
@@ -3868,7 +3824,7 @@ void __tcp_send_ack(struct sock *sk, u32 rcv_nxt)
 
 	/* Reserve space for headers and prepare control bits. */
 	skb_reserve(buff, MAX_TCP_HEADER);
-	tcp_init_nondata_skb(buff, tcp_acceptable_seq(sk), TCPHDR_ACK);
+	tcp_init_nondata_skb(buff, tcp_acceptable_seq(sk), TCPHDR_ACK | flags);
 
 	/* We do not want pure acks influencing TCP Small Queues or fq/pacing
 	 * too much.
@@ -3881,9 +3837,9 @@ void __tcp_send_ack(struct sock *sk, u32 rcv_nxt)
 }
 EXPORT_SYMBOL_GPL(__tcp_send_ack);
 
-void tcp_send_ack(struct sock *sk)
+void tcp_send_ack(struct sock *sk, u16 flags)
 {
-	__tcp_send_ack(sk, tcp_sk(sk)->rcv_nxt);
+	__tcp_send_ack(sk, tcp_sk(sk)->rcv_nxt, flags);
 }
 
 /* This routine sends a packet with an out of date sequence
