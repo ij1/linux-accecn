@@ -305,17 +305,6 @@ static u16 tcp_select_window(struct sock *sk)
 	return new_win;
 }
 
-static void tcp_accecn_send_reflector(struct sock *sk, struct sk_buff *skb,
-				      u8 ect)
-{
-	TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
-	TCP_SKB_CB(skb)->tcp_flags |=
-		TCPHDR_CWR * (ect != INET_ECN_ECT_0) |
-		TCPHDR_ECE * (ect == INET_ECN_ECT_1);
-	if (ect & 2)
-		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_AE;
-}
-
 /* Packet ECN state for a SYN-ACK */
 static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 {
@@ -329,7 +318,9 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		INET_ECN_xmit(sk);
 
 	if (tp->ecn_flags & TCP_ECN_MODE_ACCECN) {
-		tcp_accecn_send_reflector(sk, skb, tp->syn_ect_rcv);
+		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
+		TCP_SKB_CB(skb)->tcp_flags |=
+			tcp_accecn_reflector_flags(tp->syn_ect_rcv);
 		tp->syn_ect_snt = inet_sk(sk)->tos & INET_ECN_MASK;
 	}
 }
