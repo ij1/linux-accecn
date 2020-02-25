@@ -6358,7 +6358,8 @@ discard:
 			tcp_drop(sk, skb);
 			return 0;
 		} else {
-			tcp_send_ack(sk, 0);
+			tcp_send_ack(sk, !tcp_ecn_mode_accecn(tp) ? 0 :
+					 tcp_accecn_reflector_flags(tp->syn_ect_rcv));
 		}
 		return -1;
 	}
