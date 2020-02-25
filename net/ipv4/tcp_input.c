@@ -402,7 +402,9 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
 		tp->accecn_opt_demand = 1;
-		tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt);
+		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt) &&
+		    INET_ECN_is_ce(ip_dsfield))
+			tp->delivered_ce++;
 		break;
 	}
 }
