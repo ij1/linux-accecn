@@ -439,7 +439,7 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
  * the u32 value in tcp_sock. As we're processing TCP options, it is
  * safe to access from - 1.
  */
-static bool tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
+static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
@@ -448,7 +448,7 @@ static bool tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	 */
 	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
 	*cnt += delta;
-	return delta != 0;
+	return (s32)delta;
 }
 
 static struct {
@@ -515,10 +515,14 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			u32 init_offset = accecn_opt_ecnfield[idx].init_offset +
 					  ((i == 0 && tp->accecn_orderbit) ?
 					   0x800000U : 0);
+			s32 delta;
 
-			if (tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
-						 ptr, init_offset)) {
-				if (tp->estimate_ecnfield)
+			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
+						     ptr, init_offset);
+			if (delta) {
+				if (delta < 0)
+					res = false;
+				if (delta < 0 || tp->estimate_ecnfield)
 					ambiguous_ecn_bytes_incr = 1;
 				tp->estimate_ecnfield = ecnfield;
 			}
