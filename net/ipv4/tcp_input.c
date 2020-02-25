@@ -511,7 +511,7 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 					  ((i == 0 && tp->accecn_orderbit) ?
 					   0x800000U : 0);
 			s32 delta;
-				
+
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
 						     ptr, init_offset);
 			if (delta) {
