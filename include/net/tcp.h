@@ -660,8 +660,8 @@ void tcp_send_fin(struct sock *sk);
 void tcp_send_active_reset(struct sock *sk, gfp_t priority);
 int tcp_send_synack(struct sock *);
 void tcp_push_one(struct sock *, unsigned int mss_now);
-void __tcp_send_ack(struct sock *sk, u32 rcv_nxt);
-void tcp_send_ack(struct sock *sk);
+void __tcp_send_ack(struct sock *sk, u32 rcv_nxt, u16 flags);
+void tcp_send_ack(struct sock *sk, u16 flags);
 void tcp_send_delayed_ack(struct sock *sk);
 void tcp_send_loss_probe(struct sock *sk);
 bool tcp_schedule_loss_probe(struct sock *sk, bool advancing_rto);
@@ -966,6 +966,14 @@ struct tcp_skb_cb {
 };
 
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
+
+static inline u16 tcp_accecn_reflector_flags(u8 ect)
+{
+	u32 flags = ect + 2;
+	if (ect == 3)
+		flags++;
+	return flags * TCPHDR_ECE;
+}
 
 static inline void bpf_compute_data_end_sk_skb(struct sk_buff *skb)
 {
