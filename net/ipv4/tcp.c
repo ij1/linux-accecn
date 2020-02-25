@@ -1572,7 +1572,7 @@ static void tcp_cleanup_rbuf(struct sock *sk, int copied)
 		}
 	}
 	if (time_to_ack)
-		tcp_send_ack(sk);
+		tcp_send_ack(sk, 0);
 }
 
 static struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
