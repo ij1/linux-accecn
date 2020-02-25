@@ -429,18 +429,6 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 	return 0;
 }
 
-static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
-				     const struct sk_buff *skb)
-{
-	if ((tp->bytes_received > 0) || (tp->bytes_acked > 0)) {
-		tp->ect_reflector_rcv = 0;
-		return false;
-	}
-	if (TCP_SKB_CB(skb)->seq != tp->rcv_nxt)
-		return false;
-	return true;
-}
-
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			      u32 delivered_pkts, int flag)
@@ -460,10 +448,6 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 
 	/* ACE field is not available during handshake */
 	if (flag & FLAG_SYN_ACKED)
-		return 0;
-
-	/* ECT reflector in the first seq, no CEP in ACE */
-	if (tp->ect_reflector_rcv && tcp_accecn_rcv_reflector(tp, skb))
 		return 0;
 
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
