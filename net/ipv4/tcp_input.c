@@ -405,7 +405,7 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		tp->accecn_opt_demand = 1;
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt) &&
 		    INET_ECN_is_ce(ip_dsfield))
-			tp->delivered_ce++;
+			tp->received_ce++;
 		break;
 	}
 }
