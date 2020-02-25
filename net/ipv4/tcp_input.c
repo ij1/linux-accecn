@@ -520,6 +520,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
 						     ptr, init_offset);
 			if (delta) {
+				if (delta < 0)
+					res = false;
 				if (delta < 0 || tp->estimate_ecnfield)
 					ambiguous_ecn_bytes_incr = 1;
 				tp->estimate_ecnfield = ecnfield;
