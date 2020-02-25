@@ -401,7 +401,6 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
-		tp->ect_reflector_snd = 1;
 		tp->accecn_opt_demand = 1;
 		tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt);
 		break;
@@ -418,8 +417,6 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th,
 		} else {
 			tp->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 			tp->prev_ecnfield = tp->syn_ect_rcv;
-			tp->ect_reflector_snd = 1;
-			tp->ect_reflector_rcv = 1;
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		}
 	}
@@ -507,18 +504,6 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 		tp->estimate_ecnfield = 0;
 }
 
-static bool tcp_accecn_rcv_reflector(struct tcp_sock *tp,
-				     const struct sk_buff *skb)
-{
-	if ((tp->bytes_received > 0) || (tp->bytes_acked > 0)) {
-		tp->ect_reflector_rcv = 0;
-		return false;
-	}
-	if (TCP_SKB_CB(skb)->seq != tp->rcv_nxt)
-		return false;
-	return true;
-}
-
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			      u32 delivered_pkts, u32 delivered_bytes, int flag)
@@ -540,10 +525,6 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 
 	/* ACE field is not available during handshake */
 	if (flag & FLAG_SYN_ACKED)
-		return 0;
-
-	/* ECT reflector in the first seq, no CEP in ACE */
-	if (tp->ect_reflector_rcv && tcp_accecn_rcv_reflector(tp, skb))
 		return 0;
 
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
@@ -3698,7 +3679,8 @@ bool tcp_oow_rate_limited(struct net *net, const struct sk_buff *skb,
 }
 
 /* RFC 5961 7 [ACK Throttling] */
-static void tcp_send_challenge_ack(struct sock *sk, const struct sk_buff *skb)
+static void tcp_send_challenge_ack(struct sock *sk, const struct sk_buff *skb,
+				   bool accecn_reflector)
 {
 	/* unprotected vars, we dont care of overwrites */
 	static u32 challenge_timestamp;
@@ -3726,7 +3708,8 @@ static void tcp_send_challenge_ack(struct sock *sk, const struct sk_buff *skb)
 	if (count > 0) {
 		WRITE_ONCE(challenge_count, count - 1);
 		NET_INC_STATS(net, LINUX_MIB_TCPCHALLENGEACK);
-		tcp_send_ack(sk);
+		tcp_send_ack(sk, !accecn_reflector ? 0 :
+				 tcp_accecn_reflector_flags(tp->syn_ect_rcv));
 	}
 }
 
@@ -3890,7 +3873,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		/* RFC 5961 5.2 [Blind Data Injection Attack].[Mitigation] */
 		if (before(ack, prior_snd_una - tp->max_window)) {
 			if (!(flag & FLAG_NO_CHALLENGE_ACK))
-				tcp_send_challenge_ack(sk, skb);
+				tcp_send_challenge_ack(sk, skb, false);
 			return -1;
 		}
 		goto old_ack;
@@ -4474,12 +4457,12 @@ void tcp_fin(struct sock *sk)
 		 * happens, we must ack the received FIN and
 		 * enter the CLOSING state.
 		 */
-		tcp_send_ack(sk);
+		tcp_send_ack(sk, 0);
 		tcp_set_state(sk, TCP_CLOSING);
 		break;
 	case TCP_FIN_WAIT2:
 		/* Received a FIN -- send ACK and enter TIME_WAIT. */
-		tcp_send_ack(sk);
+		tcp_send_ack(sk, 0);
 		tcp_time_wait(sk, TCP_TIME_WAIT, 0);
 		break;
 	default:
@@ -4586,7 +4569,7 @@ static void tcp_send_dupack(struct sock *sk, const struct sk_buff *skb)
 		}
 	}
 
-	tcp_send_ack(sk);
+	tcp_send_ack(sk, 0);
 }
 
 /* These routines update the SACK block as out-of-order packets arrive or
@@ -4646,7 +4629,7 @@ static void tcp_sack_new_ofo_skb(struct sock *sk, u32 seq, u32 end_seq)
 	 */
 	if (this_sack >= TCP_NUM_SACKS) {
 		if (tp->compressed_ack > TCP_FASTRETRANS_THRESH)
-			tcp_send_ack(sk);
+			tcp_send_ack(sk, 0);
 		this_sack--;
 		tp->rx_opt.num_sacks--;
 		sp--;
@@ -5550,7 +5533,7 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 	    /* Protocol state mandates a one-time immediate ACK */
 	    inet_csk(sk)->icsk_ack.pending & ICSK_ACK_NOW) {
 send_now:
-		tcp_send_ack(sk);
+		tcp_send_ack(sk, 0);
 		return;
 	}
 
@@ -5850,7 +5833,7 @@ static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 			if (tp->syn_fastopen && !tp->data_segs_in &&
 			    sk->sk_state == TCP_ESTABLISHED)
 				tcp_fastopen_active_disable(sk);
-			tcp_send_challenge_ack(sk, skb);
+			tcp_send_challenge_ack(sk, skb, false);
 		}
 		goto discard;
 	}
@@ -5867,7 +5850,7 @@ syn_challenge:
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPSYNCHALLENGE);
 		if (tcp_ecn_mode_accecn(tp))
 			tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
-		tcp_send_challenge_ack(sk, skb);
+		tcp_send_challenge_ack(sk, skb, tcp_ecn_mode_accecn(tp));
 		goto discard;
 	}
 
@@ -6375,7 +6358,7 @@ discard:
 			tcp_drop(sk, skb);
 			return 0;
 		} else {
-			tcp_send_ack(sk);
+			tcp_send_ack(sk, 0);
 		}
 		return -1;
 	}
@@ -6579,7 +6562,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 	if (!acceptable) {
 		if (sk->sk_state == TCP_SYN_RECV)
 			return 1;	/* send one RST */
-		tcp_send_challenge_ack(sk, skb);
+		tcp_send_challenge_ack(sk, skb, false);
 		goto discard;
 	}
 	switch (sk->sk_state) {
