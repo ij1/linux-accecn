@@ -1572,7 +1572,7 @@ static void tcp_cleanup_rbuf(struct sock *sk, int copied)
 		}
 	}
 	if (time_to_ack)
-		tcp_send_ack(sk);
+		tcp_send_ack(sk, 0);
 }
 
 static struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
@@ -2622,8 +2622,6 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tp->snd_cwnd = TCP_INIT_CWND;
 	tp->snd_cwnd_cnt = 0;
 	tp->window_clamp = 0;
-	tp->ect_reflector_snd = 0;
-	tp->ect_reflector_rcv = 0;
 	tp->saw_accecn_opt = 0;
 	tp->ecn_fail = 0;
 	tcp_accecn_init_counters(tp);
