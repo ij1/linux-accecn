@@ -2620,6 +2620,8 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	int cwnd_quota;
 	int result;
 	bool is_cwnd_limited = false, is_rwnd_limited = false;
+	/* AccECN limit will be lifted below if not needed */
+	bool accecn_gso_limit = tcp_ecn_mode_accecn(tp);
 	u32 max_segs;
 
 	sent_pkts = 0;
