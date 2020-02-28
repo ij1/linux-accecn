@@ -453,7 +453,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	int ambiguous_ecn_bytes_incr;
 	bool res;
 
-	if (tp->rx_opt.accecn_fail)
+	if (tp->rx_opt.accecn_opt_fail)
 		return false;
 
 	if (tp->rx_opt.accecn < 0) {
@@ -462,7 +462,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			 * potential counter wraps
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
-				tp->rx_opt.accecn_fail = 1;
+				tp->rx_opt.accecn_opt_fail = 1;
 			return false;
 		}
 
@@ -473,8 +473,11 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 		}
 		return false;
 	} else {
-		if (!tp->saw_accecn_opt)
+		if (!tp->saw_accecn_opt) {
 			tp->accecn_orderbit = tp->rx_opt.accecn_orderbit;
+			if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
+				tp->rx_opt.accecn_opt_fail = 1;
+		}
 		tp->saw_accecn_opt = 1;
 	}
 
