@@ -503,7 +503,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 			u8 ecnfield = accecn_opt_ecnfield[i];
 			u32 init_offset = idx ? 0 :
 					        !tp->accecn_orderbit ?
-					        1 : 0x800001;
+					        TCP_ACCECN_E0B_INIT_OFFSET :
+					        TCP_ACCECN_E1B_FIRST_INIT_OFFSET;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
