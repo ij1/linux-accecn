@@ -417,8 +417,11 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		/* Validation only applies to first non-data packet */
 		if (TCP_SKB_CB(skb)->seq == TCP_SKB_CB(skb)->end_seq &&
-		    !TCP_SKB_CB(skb)->sacked)
-			tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt);
+		    !TCP_SKB_CB(skb)->sacked &&
+		    tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt)) {
+			if (tcp_accecn_extract_syn_ect(ace) == INET_ECN_CE)
+				tp->delivered_ce++;
+		}
 		break;
 	}
 }
