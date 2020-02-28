@@ -481,7 +481,7 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
 			u8 ecnfield = accecn_opt_ecnfield[i];
-			u32 init_offset = i ? 0 : 1;
+			u32 init_offset = i ? 0 : TCP_ACCECN_E0B_INIT_OFFSET;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
