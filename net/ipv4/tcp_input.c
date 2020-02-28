@@ -468,14 +468,14 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
 				delivered_bytes;
 		return;
-	} else {
-		if (!tp->saw_accecn_opt) {
-			tp->accecn_orderbit = tp->rx_opt.accecn_orderbit;
-			if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
-				tp->rx_opt.accecn_opt_fail = 1;
-		}
-		tp->saw_accecn_opt = 1;
 	}
+
+	if (!tp->saw_accecn_opt) {
+		tp->accecn_orderbit = tp->rx_opt.accecn_orderbit;
+		if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
+			tp->rx_opt.accecn_opt_fail = 1;
+	}
+	tp->saw_accecn_opt = 1;
 
 	tp->estimate_ecnfield = 0;
 
