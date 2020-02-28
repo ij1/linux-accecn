@@ -330,9 +330,11 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	bool bpf_needs_ecn = tcp_bpf_ca_needs_ecn(sk);
-	bool use_accecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 3 ||
+	bool use_accecn =
+		(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) == 3 ||
 		tcp_ca_needs_accecn(sk);
-	bool use_ecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 1 ||
+	bool use_ecn =
+		(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) == 1 ||
 		tcp_ca_needs_ecn(sk) || bpf_needs_ecn || use_accecn;
 
 	if (!use_ecn) {
@@ -913,6 +915,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 	smc_set_option_cond(tcp_sk(sk), ireq, opts, &remaining);
 
 	if (treq->accecn_ok && req->num_timeout < 2 &&
+	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT) &&
 	    (remaining >= TCPOLEN_EXP_ACCECN_BASE)) {
 		opts->ecn_bytes = synack_ecn_bytes;
 		remaining -= tcp_options_fit_accecn(opts, 0, remaining,
@@ -986,11 +989,11 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 		}
 	}
 
-	if (tcp_ecn_mode_accecn(tp)) {
-		if (tp->saw_accecn_opt &&
-		    (tp->accecn_opt_demand ||
-		     (tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
-		      (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT))))) {
+	if (tcp_ecn_mode_accecn(tp) && saw_accecn_opt &&
+	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT)) {
+		if (tp->accecn_opt_demand ||
+		    (tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
+		     (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT)))) {
 			opts->ecn_bytes = tp->received_ecn_bytes;
 			size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
 						       MAX_TCP_OPTION_SPACE - size,
