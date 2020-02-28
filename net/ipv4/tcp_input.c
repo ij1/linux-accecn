@@ -470,11 +470,6 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 		return;
 	}
 
-	if (!tp->saw_accecn_opt)
-		if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
-			tp->rx_opt.accecn_opt_fail = 1;
-	tp->saw_accecn_opt = 1;
-
 	tp->estimate_ecnfield = 0;
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
@@ -484,6 +479,12 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 		ptr += 2;
 	}
 	ptr += 2;
+
+	if (!tp->saw_accecn_opt) {
+		if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
+			tp->rx_opt.accecn_opt_fail = 1;
+		tp->saw_accecn_opt = 1;
+	}
 
 	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
