@@ -115,7 +115,7 @@ struct tcp_options_received {
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
 	u8	num_sacks:3,	/* Number of SACK blocks		*/
 		accecn_orderbit:1,/* e0b & e1b order indicator		*/
-		accecn_fail:1;	/* AccECN option on SYN/ACK was invalid */
+		accecn_opt_fail:1;/* AccECN option on SYN/ACK was invalid */
 	s8	accecn;		/* AccECN index in header, -1=no option	*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
 	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
@@ -157,6 +157,7 @@ struct tcp_request_sock {
 	u8				accecn_ok  : 1,
 					saw_accecn_opt : 1,
 					accecn_orderbit: 1, /* e0b & e1b order */
+					accecn_opt_fail: 1,
 					syn_ect_snt: 2,
 					syn_ect_rcv: 2;
 	u32				txhash;
