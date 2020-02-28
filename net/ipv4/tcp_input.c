@@ -449,13 +449,8 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	return (s32)delta;
 }
 
-static struct {
-	u8	ecnfield;
-	u32	init_offset;
-} accecn_opt_ecnfield[3] = {
-	{ INET_ECN_ECT_0, TCP_ACCECN_E0B_INIT_OFFSET },
-	{ INET_ECN_CE, TCP_ACCECN_CEB_INIT_OFFSET },
-	{ INET_ECN_ECT_1, TCP_ACCECN_E1B_INIT_OFFSET }
+static u8 accecn_opt_ecnfield[3] = {
+	INET_ECN_ECT_0, INET_ECN_CE, INET_ECN_ECT_1,
 };
 
 static void tcp_accecn_process_option(struct tcp_sock *tp,
@@ -487,8 +482,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			u8 ecnfield = accecn_opt_ecnfield[i].ecnfield;
-			u32 init_offset = accecn_opt_ecnfield[i].init_offset;
+			u8 ecnfield = accecn_opt_ecnfield[i];
+			u32 init_offset = !i ? 1 : 0;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
