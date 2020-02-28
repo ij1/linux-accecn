@@ -287,7 +287,7 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 		 * and we already seen ECT on a previous segment,
 		 * it is probably a retransmit with RFC3168 ECN.
 		 */
-		if ((tp->ecn_flags & TCP_ECN_SEEN) && tcp_ecn_mode_rfc3168(tp))
+		if (tp->ecn_flags & TCP_ECN_SEEN)
 			tcp_enter_quickack_mode(sk, 2);
 		break;
 	case INET_ECN_CE:
