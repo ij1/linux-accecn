@@ -305,6 +305,9 @@ tcp_ecn - INTEGER
 		  but do not request ECN on outgoing connections.
 		3 Enable AccECN when requested by incoming connections and
 		  also request AccECN on outgoing connection attempts.
+	    0x102 Enable AccECN in optionless mode for incoming connections.
+	    0x103 Enable AccECN in optionless mode for incoming and outgoing
+		  connections.
 	Default: 2
 
 tcp_ecn_fallback - BOOLEAN
