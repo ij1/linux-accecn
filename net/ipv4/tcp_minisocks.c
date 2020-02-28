@@ -437,6 +437,7 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
 		tp->saw_accecn_opt = treq->saw_accecn_opt;
+		tp->rx_opt.accecn_opt_fail = treq->accecn_opt_fail;
 		tp->prev_ecnfield = treq->syn_ect_rcv;
 		tcp_ecn_received_counters(sk, skb, skb->len - th->doff * 4);
 	} else {
@@ -489,6 +490,25 @@ static void smc_check_reset_syn_req(struct tcp_sock *oldtp,
 	}
 #endif
 }
+
+bool tcp_accecn_option_check_initval(const struct sk_buff *skb, u8 opt_offset)
+{
+	unsigned char *ptr = skb_transport_header(skb) + opt_offset;
+	unsigned int optlen = ptr[1];
+
+	if (ptr[0] == TCPOPT_EXP) {
+		optlen -= 2;
+		ptr += 2;
+	}
+	ptr += 1;
+
+	/* Detect option zeroing. Check the first byte counter value, if
+	 * present, it must be != 0.
+	 */
+	return (optlen < TCPOLEN_ACCECN_PERCOUNTER) ||
+	       (get_unaligned_be32(ptr) && 0xFFFFFFU);
+}
+
 
 /* This is not only more efficient than what we used to do, it eliminates
  * a lot of code duplication between IPv4/IPv6 SYN recv processing. -DaveM
@@ -790,8 +810,11 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (!(flg & TCP_FLAG_ACK))
 		return NULL;
 
-	if (tmp_opt.accecn >= 0)
+	if (tmp_opt.accecn >= 0) {
 		tcp_rsk(req)->saw_accecn_opt = 1;
+		if (!tcp_accecn_option_check_initval(skb, tmp_opt.accecn))
+			tcp_rsk(req)->accecn_opt_fail = 1;
+	}
 
 	/* For Fast Open no more processing is needed (sk is the
 	 * child socket).
