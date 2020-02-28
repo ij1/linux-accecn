@@ -712,6 +712,52 @@ static void mptcp_set_option_cond(const struct request_sock *req,
 	}
 }
 
+/* Initial values for AccECN option, ordered is based on ECN field bits
+ * similar to received_ecn_bytes. Used for SYN/ACK AccECN option.
+ */
+u32 synack_ecn_bytes[3] = { 0, 0, 0 };
+
+static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
+{
+	/* How much there's room for combining with the aligment padding? */
+	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
+	    OPTION_SACK_ADVERTISE)
+		return 2;
+	else if (opts->options & OPTION_WSCALE)
+		return 1;
+	return 0;
+}
+
+/* AccECN can take here and there take advantage of NOPs for alignment of
+ * other options
+ */
+static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
+				  int remaining, int max_combine_saving)
+{
+	int size = TCP_ACCECN_MAXSIZE;
+	opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
+
+	while (opts->num_ecn_bytes >= required) {
+		int leftover_size = size & 0x3;
+		/* Pad to dword if cannot combine */
+		if (leftover_size > max_combine_saving)
+			leftover_size = -((4 - leftover_size) & 0x3);
+
+		if (remaining >= size - leftover_size) {
+			size -= leftover_size;
+			break;
+		}
+
+		opts->num_ecn_bytes--;
+		size -= TCPOLEN_ACCECN_PERCOUNTER;
+	}
+	if (opts->num_ecn_bytes < required)
+		return 0;
+
+	opts->options |= OPTION_ACCECN;
+	return size;
+}
+
 /* Compute TCP options for SYN packets. This is not the final
  * network wire format yet.
  */
@@ -791,52 +837,6 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 	}
 
 	return MAX_TCP_OPTION_SPACE - remaining;
-}
-
-/* Initial values for AccECN option, ordered is based on ECN field bits
- * similar to received_ecn_bytes. Used for SYN/ACK AccECN option.
- */
-u32 synack_ecn_bytes[3] = { 0, 0, 0 };
-
-static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
-{
-	/* How much there's room for combining with the aligment padding? */
-	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
-	    OPTION_SACK_ADVERTISE)
-		return 2;
-	else if (opts->options & OPTION_WSCALE)
-		return 1;
-	return 0;
-}
-
-/* AccECN can take here and there take advantage of NOPs for alignment of
- * other options
- */
-static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
-				  int remaining, int max_combine_saving)
-{
-	int size = TCP_ACCECN_MAXSIZE;
-	opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
-
-	while (opts->num_ecn_bytes >= required) {
-		int leftover_size = size & 0x3;
-		/* Pad to dword if cannot combine */
-		if (leftover_size > max_combine_saving)
-			leftover_size = -((4 - leftover_size) & 0x3);
-
-		if (remaining >= size - leftover_size) {
-			size -= leftover_size;
-			break;
-		}
-
-		opts->num_ecn_bytes--;
-		size -= TCPOLEN_ACCECN_PERCOUNTER;
-	}
-	if (opts->num_ecn_bytes < required)
-		return 0;
-
-	opts->options |= OPTION_ACCECN;
-	return size;
 }
 
 /* Set up TCP options for SYN-ACKs. */
