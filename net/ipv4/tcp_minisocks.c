@@ -437,7 +437,6 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
 		tp->saw_accecn_opt = treq->saw_accecn_opt;
-		tp->rx_opt.accecn_opt_fail = treq->accecn_opt_fail;
 		tp->prev_ecnfield = treq->syn_ect_rcv;
 		tcp_ecn_received_counters(sk, skb, skb->len - th->doff * 4);
 	} else {
@@ -491,22 +490,29 @@ static void smc_check_reset_syn_req(struct tcp_sock *oldtp,
 #endif
 }
 
-bool tcp_accecn_option_check_initval(const struct sk_buff *skb, u8 opt_offset)
+u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 {
 	unsigned char *ptr = skb_transport_header(skb) + opt_offset;
 	unsigned int optlen = ptr[1];
+	u8 orderbit;
 
 	if (ptr[0] == TCPOPT_EXP) {
 		optlen -= 2;
 		ptr += 2;
 	}
-	ptr += 1;
+	ptr += 2;
 
 	/* Detect option zeroing. Check the first byte counter value, if
 	 * present, it must be != 0.
 	 */
-	return (optlen < TCPOLEN_ACCECN_PERCOUNTER) ||
-	       (get_unaligned_be32(ptr) && 0xFFFFFFU);
+	if ((optlen >= TCPOLEN_ACCECN_PERCOUNTER) &&
+	    !(get_unaligned_be32(ptr - 1) & 0xFFFFFFU))
+		return TCP_ACCECN_OPT_FAIL;
+
+	orderbit = !!(*ptr & 0x80);
+	return optlen >= TCPOLEN_ACCECN_PERCOUNTER ?
+		TCP_ACCECN_OPT_COUNTER_SEEN + orderbit :
+		TCP_ACCECN_OPT_EMPTY_SEEN;
 }
 
 
@@ -810,11 +816,8 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (!(flg & TCP_FLAG_ACK))
 		return NULL;
 
-	if (tmp_opt.accecn >= 0) {
-		tcp_rsk(req)->saw_accecn_opt = 1;
-		if (!tcp_accecn_option_check_initval(skb, tmp_opt.accecn))
-			tcp_rsk(req)->accecn_opt_fail = 1;
-	}
+	if (tmp_opt.accecn >= 0)
+		tcp_rsk(req)->saw_accecn_opt = tcp_accecn_option_init(skb, tmp_opt.accecn);
 
 	/* For Fast Open no more processing is needed (sk is the
 	 * child socket).

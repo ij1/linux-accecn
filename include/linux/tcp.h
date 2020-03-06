@@ -113,8 +113,7 @@ struct tcp_options_received {
 		smc_ok : 1,	/* SMC seen on SYN packet		*/
 		snd_wscale : 4,	/* Window scaling received from sender	*/
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
-	u8	num_sacks:3,	/* Number of SACK blocks		*/
-		accecn_opt_fail:1;/* AccECN option on SYN/ACK was invalid */
+	u8	num_sacks;	/* Number of SACK blocks		*/
 	s8	accecn;		/* AccECN index in header, -1=no option	*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
 	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
@@ -154,8 +153,7 @@ struct tcp_request_sock {
 	bool				is_mptcp;
 #endif
 	u8				accecn_ok  : 1,
-					saw_accecn_opt : 1,
-					accecn_opt_fail: 1,
+					saw_accecn_opt : 3,
 					syn_ect_snt: 2,
 					syn_ect_rcv: 2;
 	u32				txhash;
@@ -257,7 +255,7 @@ struct tcp_sock {
 	u8	compressed_ack;
 	u8	syn_ect_snt:2,	/* AccECN ECT memory, only */
 		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
-		saw_accecn_opt:1,    /* A valid AccECN option was seen */
+		saw_accecn_opt:3,    /* A valid AccECN option was seen */
 		ecn_fail:1;	/* ECN reflector detected path mangling */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
