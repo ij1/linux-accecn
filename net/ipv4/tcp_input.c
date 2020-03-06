@@ -461,9 +461,6 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 		return false;
 	}
 
-	res = !!tp->estimate_ecnfield;
-	tp->estimate_ecnfield = 0;
-
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
 	optlen = ptr[1];
 	if (ptr[0] == TCPOPT_EXP) {
@@ -472,6 +469,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 	ptr += 2;
 
+	res = !!tp->estimate_ecnfield;
+	tp->estimate_ecnfield = 0;
 	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
