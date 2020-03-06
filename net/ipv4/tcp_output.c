@@ -913,7 +913,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 
 	smc_set_option_cond(tcp_sk(sk), ireq, opts, &remaining);
 
-	if (treq->accecn_ok && req->num_timeout < 2 &&
+	if (treq->accecn_ok && req->num_timeout < 1 &&
 	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT) &&
 	    (remaining >= TCPOLEN_EXP_ACCECN_BASE)) {
 		opts->ecn_bytes = synack_ecn_bytes;
