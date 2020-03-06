@@ -444,7 +444,8 @@ static u8 accecn_opt_ecnfield[3] = {
 	INET_ECN_ECT_0, INET_ECN_CE, INET_ECN_ECT_1,
 };
 
-static void tcp_accecn_process_option(struct tcp_sock *tp,
+/* Returns true if the byte counters can be used */
+static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
 				      u32 delivered_bytes)
 {
@@ -452,9 +453,10 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	unsigned int optlen;
 	int i;
 	int ambiguous_ecn_bytes_incr;
+	bool res;
 
 	if (tp->saw_accecn_opt == TCP_ACCECN_OPT_FAIL)
-		return;
+		return false;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (!tp->saw_accecn_opt) {
@@ -463,15 +465,18 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
 				tp->saw_accecn_opt = TCP_ACCECN_OPT_FAIL;
-			return;
+			return false;
 		}
 
-		if (tp->estimate_ecnfield)
+		if (tp->estimate_ecnfield) {
 			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
 				delivered_bytes;
-		return;
+			return true;
+		}
+		return false;
 	}
 
+	res = !!tp->estimate_ecnfield;
 	tp->estimate_ecnfield = 0;
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
@@ -501,6 +506,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
 						     ptr, init_offset);
 			if (delta) {
+				if (delta < 0)
+					res = false;
 				if (delta < 0 || tp->estimate_ecnfield)
 					ambiguous_ecn_bytes_incr = 1;
 				tp->estimate_ecnfield = ecnfield;
@@ -511,6 +518,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 	if (ambiguous_ecn_bytes_incr)
 		tp->estimate_ecnfield = 0;
+
+	return res;
 }
 
 /* Returns the ECN CE delta */
