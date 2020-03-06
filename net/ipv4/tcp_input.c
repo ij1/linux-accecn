@@ -470,11 +470,9 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 		return;
 	}
 
-	if (!tp->saw_accecn_opt) {
-		tp->accecn_orderbit = tp->rx_opt.accecn_orderbit;
+	if (!tp->saw_accecn_opt)
 		if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
 			tp->rx_opt.accecn_opt_fail = 1;
-	}
 	tp->saw_accecn_opt = 1;
 
 	tp->estimate_ecnfield = 0;
@@ -490,12 +488,8 @@ static void tcp_accecn_process_option(struct tcp_sock *tp,
 	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			int idx = !tp->accecn_orderbit ? i : 2 - i;
 			u8 ecnfield = accecn_opt_ecnfield[i];
-			u32 init_offset = idx ? 0 :
-					        !tp->accecn_orderbit ?
-					        TCP_ACCECN_E0B_INIT_OFFSET :
-					        TCP_ACCECN_E1B_FIRST_INIT_OFFSET;
+			u32 init_offset = i ? 0 : TCP_ACCECN_E0B_INIT_OFFSET;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
@@ -4217,11 +4211,8 @@ void tcp_parse_options(const struct net *net,
 			case TCPOPT_EXP:
 				if (opsize >= TCPOLEN_EXP_ACCECN_BASE &&
 				    get_unaligned_be16(ptr) ==
-				    TCPOPT_ACCECN_MAGIC) {
+				    TCPOPT_ACCECN_MAGIC)
 					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
-					if (opsize >= TCPOLEN_EXP_ACCECN_BASE + TCPOLEN_ACCECN_PERCOUNTER)
-						opt_rx->accecn_orderbit = !!(*(ptr + 2) & 0x80);
-				}
 
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.

@@ -437,7 +437,6 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
 		tp->saw_accecn_opt = treq->saw_accecn_opt;
-		tp->accecn_orderbit = treq->accecn_orderbit;
 		tp->rx_opt.accecn_opt_fail = treq->accecn_opt_fail;
 		tp->prev_ecnfield = treq->syn_ect_rcv;
 		tcp_ecn_received_counters(sk, skb, skb->len - th->doff * 4);
@@ -813,7 +812,6 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 
 	if (tmp_opt.accecn >= 0) {
 		tcp_rsk(req)->saw_accecn_opt = 1;
-		tcp_rsk(req)->accecn_orderbit = tmp_opt.accecn_orderbit;
 		if (!tcp_accecn_option_check_initval(skb, tmp_opt.accecn))
 			tcp_rsk(req)->accecn_opt_fail = 1;
 	}
