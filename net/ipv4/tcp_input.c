@@ -526,7 +526,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
-	u32 delta, safe_delta, d_ceb;
+	u32 delta, safe_delta;
 	u32 corrected_ace;
 	u32 old_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1];
 	bool counters_valid;
@@ -556,8 +556,8 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 		     ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
 
 	if (counters_valid) {
-		d_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1] - old_ceb;
-		if (!d_ceb)
+		s32 d_ceb = (s32)(tp->delivered_ecn_bytes[INET_ECN_CE - 1] - old_ceb);
+		if (d_ceb <= 0)
 			return delta;
 		if (d_ceb > delta * tp->mss_cache)
 			return safe_delta;
