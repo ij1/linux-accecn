@@ -1,14 +1,12 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: AccECN option order bit & failure handling
+Subject: [PATCH] tcp: AccECN option may fail in various way
 
-AccECN option has two possible field orders. Collect the
-order bit from first AccECN option that has enough length
-to contain it.
-
-AccECN option may fail in various way, handle these:
+Handle these:
 - Remove option from SYN/ACK rexmits to handle blackholes
 - If no option arrives in SYN/ACK, assume Option is not usable
 	- If an option arrives later, re-enabled
+
+TODO:
 - If option is zeroed, disable AccECN option processing
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
