@@ -816,7 +816,8 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (!(flg & TCP_FLAG_ACK))
 		return NULL;
 
-	if (tmp_opt.accecn >= 0)
+	if (tcp_rsk(req)->accecn_ok && tmp_opt.accecn >= 0 &&
+	    tcp_rsk(req)->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN)
 		tcp_rsk(req)->saw_accecn_opt = tcp_accecn_option_init(skb, tmp_opt.accecn);
 
 	/* For Fast Open no more processing is needed (sk is the
