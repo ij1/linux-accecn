@@ -365,7 +365,8 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 }
 
 /* See Table 2 of the AccECN draft */
-static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
+static void tcp_ecn_rcv_synack(struct sock *sk, const struct sk_buff *skb,
+			       const struct tcphdr *th,
 			       u8 ip_dsfield)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -389,7 +390,8 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		}
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
-		tp->saw_accecn_opt = !!(tp->rx_opt.accecn >= 0);
+		tp->saw_accecn_opt = tcp_accecn_option_init(skb,
+							    tp->rx_opt.accecn);
 		tp->accecn_opt_demand = 2;
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt) &&
 		    INET_ECN_is_ce(ip_dsfield))
@@ -453,7 +455,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	int ambiguous_ecn_bytes_incr;
 	bool res;
 
-	if (tp->rx_opt.accecn_opt_fail)
+	if (tp->saw_accecn_opt == TCP_ACCECN_OPT_FAIL)
 		return false;
 
 	if (tp->rx_opt.accecn < 0) {
@@ -462,7 +464,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			 * potential counter wraps
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
-				tp->rx_opt.accecn_opt_fail = 1;
+				tp->saw_accecn_opt = TCP_ACCECN_OPT_FAIL;
 			return false;
 		}
 
@@ -472,11 +474,6 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			return true;
 		}
 		return false;
-	} else {
-		if (!tp->saw_accecn_opt)
-			if (!tcp_accecn_option_check_initval(skb, tp->rx_opt.accecn))
-				tp->rx_opt.accecn_opt_fail = 1;
-		tp->saw_accecn_opt = 1;
 	}
 
 	res = !!tp->estimate_ecnfield;
@@ -490,11 +487,20 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 	ptr += 2;
 
+	if (tp->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN)
+		tp->saw_accecn_opt = tcp_accecn_option_init(skb,
+							    tp->rx_opt.accecn);
+
 	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			u8 ecnfield = accecn_opt_ecnfield[i];
-			u32 init_offset = i ? 0 : TCP_ACCECN_E0B_INIT_OFFSET;
+			u8 orderbit = tp->saw_accecn_opt & TCP_ACCECN_OPT_ORDERBIT;
+			int idx = orderbit ? i : 2 - i;
+			u8 ecnfield = accecn_opt_ecnfield[idx];
+			u32 init_offset = i ? 0 :
+					      !orderbit ?
+					      TCP_ACCECN_E0B_INIT_OFFSET :
+					      TCP_ACCECN_E1B_FIRST_INIT_OFFSET;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
@@ -6305,7 +6311,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 */
 
 		if (tcp_ecn_mode_any(tp))
-			tcp_ecn_rcv_synack(sk, th, TCP_SKB_CB(skb)->ip_dsfield);
+			tcp_ecn_rcv_synack(sk, skb, th, TCP_SKB_CB(skb)->ip_dsfield);
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_try_undo_spurious_syn(sk);
