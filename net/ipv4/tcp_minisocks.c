@@ -495,7 +495,6 @@ u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 {
 	unsigned char *ptr = skb_transport_header(skb) + opt_offset;
 	unsigned int optlen = ptr[1];
-	u8 orderbit;
 
 	if (ptr[0] == TCPOPT_EXP) {
 		optlen -= 2;
@@ -503,17 +502,19 @@ u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 	}
 	ptr += 2;
 
-	/* Detect option zeroing. Check the first byte counter value, if
-	 * present, it must be != 0.
-	 */
-	if ((optlen >= TCPOLEN_ACCECN_PERCOUNTER) &&
-	    !(get_unaligned_be32(ptr - 1) & 0xFFFFFFU))
-		return TCP_ACCECN_OPT_FAIL;
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		u32 first_field = get_unaligned_be32(ptr - 1) & 0xFFFFFFU;
+		u8 orderbit = first_field >> 23;
+		/* Detect option zeroing. Check the first byte counter value,
+		 * if present, it must be != 0.
+		 */
+		if (!first_field)
+			return TCP_ACCECN_OPT_FAIL;
 
-	orderbit = !!(*ptr & 0x80);
-	return optlen >= TCPOLEN_ACCECN_PERCOUNTER ?
-		TCP_ACCECN_OPT_COUNTER_SEEN + orderbit :
-		TCP_ACCECN_OPT_EMPTY_SEEN;
+		return TCP_ACCECN_OPT_COUNTER_SEEN + orderbit;
+	}
+
+	return TCP_ACCECN_OPT_EMPTY_SEEN;
 }
 
 
