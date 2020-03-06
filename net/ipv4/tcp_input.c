@@ -3596,17 +3596,10 @@ static void tcp_snd_una_update(struct tcp_sock *tp, u32 ack)
 static void tcp_rcv_nxt_update(struct tcp_sock *tp, u32 seq)
 {
 	u32 delta = seq - tp->rcv_nxt;
-	u64 old_bytes_received = tp->bytes_received;
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_received += delta;
 	WRITE_ONCE(tp->rcv_nxt, seq);
-
-	/* Demand AccECN option at least every 2^22 bytes to avoid
-	 * overflowing the ECN byte counters.
-	 */
-	if ((tp->bytes_received ^ old_bytes_received) & ~((1 << 22) - 1))
-		tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
 }
 
 /* Update our send window.
@@ -5722,8 +5715,18 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 
 		if (payload_len > 0) {
 			u8 minlen = tcp_ecn_field_to_accecn_len(ecnfield);
+			u32 oldbytes = tp->received_ecn_bytes[ecnfield - 1];
+
 			tp->received_ecn_bytes[ecnfield - 1] += payload_len;
 			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
+
+			/* Demand AccECN option at least every 2^22 bytes to
+			 * avoid overflowing the ECN byte counters.
+			 */
+			if ((tp->received_ecn_bytes[ecnfield - 1] ^ oldbytes) &
+			    ~((1 << 22) - 1))
+				tp->accecn_opt_demand = max_t(u8, 1,
+							      tp->accecn_opt_demand);
 		}
 	}
 
