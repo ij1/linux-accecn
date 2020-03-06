@@ -988,7 +988,8 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 		}
 	}
 
-	if (tcp_ecn_mode_accecn(tp) && tp->saw_accecn_opt &&
+	if (tcp_ecn_mode_accecn(tp) &&
+	    (tp->saw_accecn_opt & TCP_ACCECN_OPT_SEEN) &&
 	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT)) {
 		if (tp->accecn_opt_demand ||
 		    (tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
