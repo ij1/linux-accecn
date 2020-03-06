@@ -384,10 +384,6 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct sk_buff *skb,
 			tcp_ecn_mode_set(tp, TCP_ECN_MODE_RFC3168);
 		break;
 	default:
-		if (!tcp_ecn_mode_pending(tp)) {
-			tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
-			break;
-		}
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
 		if (tp->rx_opt.accecn >= 0) {
