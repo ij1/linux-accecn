@@ -450,7 +450,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	unsigned char *ptr;
 	unsigned int optlen;
 	int i;
-	int ambiguous_ecn_bytes_incr;
+	bool ambiguous_ecn_bytes_incr = false;
+	bool first_changed = false;
 	bool res;
 
 	if (tp->saw_accecn_opt == TCP_ACCECN_OPT_FAIL)
@@ -487,8 +488,6 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 							    tp->rx_opt.accecn);
 
 	res = !!tp->estimate_ecnfield;
-	tp->estimate_ecnfield = 0;
-	ambiguous_ecn_bytes_incr = 0;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
 			u8 orderbit = tp->saw_accecn_opt & TCP_ACCECN_OPT_ORDERBIT;
@@ -503,11 +502,19 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
 						     ptr, init_offset);
 			if (delta) {
-				if (delta < 0)
+				if (delta < 0) {
 					res = false;
-				if (delta < 0 || tp->estimate_ecnfield)
-					ambiguous_ecn_bytes_incr = 1;
-				tp->estimate_ecnfield = ecnfield;
+					ambiguous_ecn_bytes_incr = true;
+				}
+				if (ecnfield != tp->estimate_ecnfield) {
+					if (!first_changed) {
+						tp->estimate_ecnfield = ecnfield;
+						first_changed = true;
+					} else {
+						res = false;
+						ambiguous_ecn_bytes_incr = true;
+					}
+				}
 			}
 
 			optlen -= TCPOLEN_ACCECN_PERCOUNTER;
