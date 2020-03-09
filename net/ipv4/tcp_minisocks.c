@@ -97,6 +97,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 	bool paws_reject = false;
 
 	tmp_opt.saw_tstamp = 0;
+	tmp_opt.accecn = -1;
 	if (th->doff > (sizeof(*th) >> 2) && tcptw->tw_ts_recent_stamp) {
 		tcp_parse_options(twsk_net(tw), skb, &tmp_opt, 0, NULL);
 
