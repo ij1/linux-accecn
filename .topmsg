@@ -1,6 +1,0 @@
-From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: accecn option ceb/cep heuristic
-
-The heuristic algorithm from draft-09 Appendix A.2.2.
-
-Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
