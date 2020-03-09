@@ -547,10 +547,16 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	opt_deltas_valid = tcp_accecn_process_option(tp, skb, delivered_bytes);
 
 	if (delivered_pkts) {
-		int ewma_delta = ((delivered_pkts << (PKTS_ACKED_PREC + PKTS_ACKED_WEIGHT)) -
-				  tp->pkts_acked_ewma) >> PKTS_ACKED_WEIGHT;
-		tp->pkts_acked_ewma = (u16)min_t(int, 0xFFFF,
-						 tp->pkts_acked_ewma + ewma_delta);
+		if (!tp->pkts_acked_ewma) {
+			tp->pkts_acked_ewma = delivered_pkts << PKTS_ACKED_PREC;
+		} else {
+			int ewma_delta = ((delivered_pkts << (PKTS_ACKED_PREC +
+							      PKTS_ACKED_WEIGHT)) -
+					  tp->pkts_acked_ewma) >> PKTS_ACKED_WEIGHT;
+			tp->pkts_acked_ewma = (u16)min_t(int, 0xFFFF,
+							 tp->pkts_acked_ewma +
+							 ewma_delta);
+		}
 	}
 
 	if (!(flag & FLAG_SLOWPATH)) {
