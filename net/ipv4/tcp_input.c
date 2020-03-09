@@ -5874,7 +5874,12 @@ static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 	if (th->syn) {
 		if (tcp_ecn_mode_accecn(tp)) {
 			send_accecn_reflector = true;
-			tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
+			if (tp->rx_opt.accecn >= 0 &&
+			    tp->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN) {
+				tp->saw_accecn_opt = tcp_accecn_option_init(skb,
+									    tp->rx_opt.accecn);
+				tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
+			}
 		}
 syn_challenge:
 		if (syn_inerr)
