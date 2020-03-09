@@ -186,6 +186,9 @@ static struct sock *subflow_syn_recv_sock(const struct sock *sk,
 
 	pr_debug("listener=%p, req=%p, conn=%p", listener, req, listener->conn);
 
+	if (tcp_rsk(req)->is_mptcp == 0)
+		goto create_child;
+
 	/* if the sk is MP_CAPABLE, we try to fetch the client key */
 	subflow_req = mptcp_subflow_rsk(req);
 	if (subflow_req->mp_capable) {
@@ -405,6 +408,18 @@ validate_seq:
 	return MAPPING_OK;
 }
 
+static int subflow_read_actor(read_descriptor_t *desc,
+			      struct sk_buff *skb,
+			      unsigned int offset, size_t len)
+{
+	size_t copy_len = min(desc->count, len);
+
+	desc->count -= copy_len;
+
+	pr_debug("flushed %zu bytes, %zu left", copy_len, desc->count);
+	return copy_len;
+}
+
 static bool subflow_check_data_avail(struct sock *ssk)
 {
 	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(ssk);
@@ -479,16 +494,12 @@ static bool subflow_check_data_avail(struct sock *ssk)
 		pr_debug("discarding %zu bytes, current map len=%d", delta,
 			 map_remaining);
 		if (delta) {
-			struct mptcp_read_arg arg = {
-				.msg = NULL,
-			};
 			read_descriptor_t desc = {
 				.count = delta,
-				.arg.data = &arg,
 			};
 			int ret;
 
-			ret = tcp_read_sock(ssk, &desc, mptcp_read_actor);
+			ret = tcp_read_sock(ssk, &desc, subflow_read_actor);
 			if (ret < 0) {
 				ssk->sk_err = -ret;
 				goto fatal;
@@ -551,11 +562,8 @@ static void subflow_data_ready(struct sock *sk)
 		return;
 	}
 
-	if (mptcp_subflow_data_available(sk)) {
-		set_bit(MPTCP_DATA_READY, &mptcp_sk(parent)->flags);
-
-		parent->sk_data_ready(parent);
-	}
+	if (mptcp_subflow_data_available(sk))
+		mptcp_data_ready(parent, sk);
 }
 
 static void subflow_write_space(struct sock *sk)
@@ -582,9 +590,9 @@ subflow_default_af_ops(struct sock *sk)
 	return &subflow_specific;
 }
 
-void mptcp_handle_ipv6_mapped(struct sock *sk, bool mapped)
-{
 #if IS_ENABLED(CONFIG_MPTCP_IPV6)
+void mptcpv6_handle_mapped(struct sock *sk, bool mapped)
+{
 	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(sk);
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct inet_connection_sock_af_ops *target;
@@ -599,8 +607,8 @@ void mptcp_handle_ipv6_mapped(struct sock *sk, bool mapped)
 
 	subflow->icsk_af_ops = icsk->icsk_af_ops;
 	icsk->icsk_af_ops = target;
-#endif
 }
+#endif
 
 int mptcp_subflow_create_socket(struct sock *sk, struct socket **new_sock)
 {
@@ -621,7 +629,9 @@ int mptcp_subflow_create_socket(struct sock *sk, struct socket **new_sock)
 	 */
 	sf->sk->sk_net_refcnt = 1;
 	get_net(net);
+#ifdef CONFIG_PROC_FS
 	this_cpu_add(*net->core.sock_inuse, 1);
+#endif
 	err = tcp_set_ulp(sf->sk, "mptcp");
 	release_sock(sf->sk);
 
@@ -685,11 +695,8 @@ static void subflow_state_change(struct sock *sk)
 	 * a fin packet carrying a DSS can be unnoticed if we don't trigger
 	 * the data available machinery here.
 	 */
-	if (parent && subflow->mp_capable && mptcp_subflow_data_available(sk)) {
-		set_bit(MPTCP_DATA_READY, &mptcp_sk(parent)->flags);
-
-		parent->sk_data_ready(parent);
-	}
+	if (parent && subflow->mp_capable && mptcp_subflow_data_available(sk))
+		mptcp_data_ready(parent, sk);
 
 	if (parent && !(parent->sk_shutdown & RCV_SHUTDOWN) &&
 	    !subflow->rx_eof && subflow_is_done(sk)) {
@@ -767,7 +774,7 @@ static void subflow_ulp_clone(const struct request_sock *req,
 	struct mptcp_subflow_context *old_ctx = mptcp_subflow_ctx(newsk);
 	struct mptcp_subflow_context *new_ctx;
 
-	if (!subflow_req->mp_capable) {
+	if (!tcp_rsk(req)->is_mptcp || !subflow_req->mp_capable) {
 		subflow_ulp_fallback(newsk, old_ctx);
 		return;
 	}
