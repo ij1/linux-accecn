@@ -385,6 +385,7 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 /* sysctl_tcp_ecn value */
 #define TCP_ECN_ENABLE_MASK	0x3
 #define TCP_ACCECN_NO_OPT	0x100
+#define TCP_ACCECN_UNSAFE_CEP	0x200
 
 #define	TCP_ECN_MODE_RFC3168	0x1
 #define	TCP_ECN_QUEUE_CWR	0x2
