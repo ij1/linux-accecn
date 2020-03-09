@@ -688,7 +688,10 @@ struct mlx5_ifc_flow_table_nic_cap_bits {
 	u8         nic_rx_multi_path_tirs[0x1];
 	u8         nic_rx_multi_path_tirs_fts[0x1];
 	u8         allow_sniffer_and_nic_rx_shared_tir[0x1];
-	u8	   reserved_at_3[0x1d];
+	u8	   reserved_at_3[0x4];
+	u8	   sw_owner_reformat_supported[0x1];
+	u8	   reserved_at_8[0x18];
+
 	u8	   encap_general_header[0x1];
 	u8	   reserved_at_21[0xa];
 	u8	   log_max_packet_reformat_context[0x5];
@@ -1188,7 +1191,8 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8         log_max_cq[0x5];
 
 	u8         log_max_eq_sz[0x8];
-	u8         reserved_at_e8[0x2];
+	u8         relaxed_ordering_write[0x1];
+	u8         relaxed_ordering_read[0x1];
 	u8         log_max_mkey[0x6];
 	u8         reserved_at_f0[0x8];
 	u8         dump_fill_mkey[0x1];
@@ -1211,7 +1215,8 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8         reserved_at_130[0xa];
 	u8         log_max_ra_res_dc[0x6];
 
-	u8         reserved_at_140[0xa];
+	u8         reserved_at_140[0x9];
+	u8         roce_accl[0x1];
 	u8         log_max_ra_req_qp[0x6];
 	u8         reserved_at_150[0xa];
 	u8         log_max_ra_res_qp[0x6];
@@ -1446,14 +1451,15 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 
 	u8         reserved_at_440[0x20];
 
-	u8         tls[0x1];
-	u8         reserved_at_461[0x2];
+	u8         reserved_at_460[0x3];
 	u8         log_max_uctx[0x5];
 	u8         reserved_at_468[0x3];
 	u8         log_max_umem[0x5];
 	u8         max_num_eqs[0x10];
 
-	u8         reserved_at_480[0x3];
+	u8         reserved_at_480[0x1];
+	u8         tls_tx[0x1];
+	u8         reserved_at_482[0x1];
 	u8         log_max_l2_table[0x5];
 	u8         reserved_at_488[0x8];
 	u8         log_uar_page_sz[0x10];
@@ -3428,7 +3434,9 @@ struct mlx5_ifc_mkc_bits {
 
 	u8         translations_octword_size[0x20];
 
-	u8         reserved_at_1c0[0x1b];
+	u8         reserved_at_1c0[0x19];
+	u8         relaxed_ordering_read[0x1];
+	u8         reserved_at_1d9[0x1];
 	u8         log_page_size[0x5];
 
 	u8         reserved_at_1e0[0x20];
@@ -4889,7 +4897,19 @@ struct mlx5_ifc_query_q_counter_out_bits {
 
 	u8         req_cqe_flush_error[0x20];
 
-	u8         reserved_at_620[0x1e0];
+	u8         reserved_at_620[0x20];
+
+	u8         roce_adp_retrans[0x20];
+
+	u8         roce_adp_retrans_to[0x20];
+
+	u8         roce_slow_restart[0x20];
+
+	u8         roce_slow_restart_cnps[0x20];
+
+	u8         roce_slow_restart_trans[0x20];
+
+	u8         reserved_at_6e0[0x120];
 };
 
 struct mlx5_ifc_query_q_counter_in_bits {
