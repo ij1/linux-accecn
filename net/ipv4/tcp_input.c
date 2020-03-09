@@ -527,9 +527,10 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 }
 
 /* Returns the ECN CE delta */
-static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
+static u32 tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	u32 delta, safe_delta, d_ceb;
 	u32 corrected_ace;
 	u32 old_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1];
@@ -554,6 +555,8 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
+		return delta;
+	if (!(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_UNSAFE_CEP))
 		return delta;
 
 	safe_delta = delivered_pkts -
@@ -3973,7 +3976,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_process(tp, skb,
+		ecn_count = tcp_accecn_process(sk, skb,
 					       tp->delivered - delivered,
 					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
@@ -4013,7 +4016,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 no_queue:
 	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_process(tp, skb,
+		ecn_count = tcp_accecn_process(sk, skb,
 					       tp->delivered - delivered,
 					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
