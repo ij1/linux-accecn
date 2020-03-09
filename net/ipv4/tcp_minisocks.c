@@ -411,10 +411,8 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 	case 0x5:
 	case 0x1:
 		/* Unused but legal values */
-		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		break;
 	default:
-		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		/* Validation only applies to first non-data packet */
 		if (TCP_SKB_CB(skb)->seq == TCP_SKB_CB(skb)->end_seq &&
 		    !TCP_SKB_CB(skb)->sacked &&
@@ -436,6 +434,7 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 
 	if (treq->accecn_ok) {
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
+		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_snt = treq->syn_ect_snt;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
 		tp->prev_ecnfield = treq->syn_ect_rcv;
