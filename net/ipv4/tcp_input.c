@@ -550,8 +550,7 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 		if (!tp->pkts_acked_ewma) {
 			tp->pkts_acked_ewma = delivered_pkts << PKTS_ACKED_PREC;
 		} else {
-			int ewma_delta = ((delivered_pkts << (PKTS_ACKED_PREC +
-							      PKTS_ACKED_WEIGHT)) -
+			int ewma_delta = ((delivered_pkts << PKTS_ACKED_PREC) -
 					  tp->pkts_acked_ewma) >> PKTS_ACKED_WEIGHT;
 			tp->pkts_acked_ewma = (u16)min_t(int, 0xFFFF,
 							 tp->pkts_acked_ewma +
