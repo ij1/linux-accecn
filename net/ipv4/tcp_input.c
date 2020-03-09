@@ -386,7 +386,8 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct sk_buff *skb,
 	default:
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
-		if (tp->rx_opt.accecn >= 0) {
+		if (tp->rx_opt.accecn >= 0 &&
+		    tp->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN) {
 			tp->saw_accecn_opt = tcp_accecn_option_init(skb,
 								    tp->rx_opt.accecn);
 			tp->accecn_opt_demand = 2;
