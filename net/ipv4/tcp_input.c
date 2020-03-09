@@ -5815,6 +5815,7 @@ static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	bool rst_seq_match = false;
+	bool send_accecn_reflector = false;
 
 	/* RFC1323: H1. Apply PAWS check first. */
 	if (tcp_fast_parse_options(sock_net(sk), skb, th, tp) &&
@@ -5903,13 +5904,20 @@ static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 	 * RFC 5961 4.2 : Send a challenge ack
 	 */
 	if (th->syn) {
+		if (tcp_ecn_mode_accecn(tp)) {
+			send_accecn_reflector = true;
+			if (tp->rx_opt.accecn >= 0 &&
+			    tp->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN) {
+				tp->saw_accecn_opt = tcp_accecn_option_init(skb,
+									    tp->rx_opt.accecn);
+				tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
+			}
+		}
 syn_challenge:
 		if (syn_inerr)
 			TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPSYNCHALLENGE);
-		if (tcp_ecn_mode_accecn(tp))
-			tp->accecn_opt_demand = max_t(u8, 1, tp->accecn_opt_demand);
-		tcp_send_challenge_ack(sk, skb, tcp_ecn_mode_accecn(tp));
+		tcp_send_challenge_ack(sk, skb, send_accecn_reflector);
 		goto discard;
 	}
 
