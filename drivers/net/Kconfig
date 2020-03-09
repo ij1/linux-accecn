@@ -258,6 +258,19 @@ config GENEVE
 	  To compile this driver as a module, choose M here: the module
 	  will be called geneve.
 
+config BAREUDP
+       tristate "Bare UDP Encapsulation"
+       depends on INET
+       depends on IPV6 || !IPV6
+       select NET_UDP_TUNNEL
+       select GRO_CELLS
+       help
+          This adds a bare UDP tunnel module for tunnelling different
+          kinds of traffic like MPLS, IP, etc. inside a UDP tunnel.
+
+          To compile this driver as a module, choose M here: the module
+          will be called bareudp.
+
 config GTP
 	tristate "GPRS Tunneling Protocol datapath (GTP-U)"
 	depends on INET
@@ -532,12 +545,12 @@ config FUJITSU_ES
 	  This driver provides support for Extended Socket network device
 	  on Extended Partitioning of FUJITSU PRIMEQUEST 2000 E2 series.
 
-config THUNDERBOLT_NET
-	tristate "Networking over Thunderbolt cable"
-	depends on THUNDERBOLT && INET
+config USB4_NET
+	tristate "Networking over USB4 and Thunderbolt cables"
+	depends on USB4 && INET
 	help
-	  Select this if you want to create network between two
-	  computers over a Thunderbolt cable. The driver supports Apple
+	  Select this if you want to create network between two computers
+	  over a USB4 and Thunderbolt cables. The driver supports Apple
 	  ThunderboltIP protocol and allows communication with any host
 	  supporting the same protocol including Windows and macOS.
 
