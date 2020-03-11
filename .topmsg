@@ -4,6 +4,10 @@ Subject: [PATCH] tcp: try to fit AccECN option with SACK
 As SACK blocks tend to eat all option space when there are
 many holes, it is useful to compromise on sending many SACK
 blocks in every ACK and try to fit AccECN option there
-by reduction the number of SACK blocks.
+by reduction the number of SACK blocks. But never go below
+two SACK blocks because of AccECN option.
+
+As AccECN option is often not put to every ACK, the space
+hijack is usually only temporary.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
