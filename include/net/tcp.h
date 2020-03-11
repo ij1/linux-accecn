@@ -902,7 +902,6 @@ static inline void __tcp_accecn_init_bytes_counters(int *counter_array)
 
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 {
-	tp->delivered_ce = 0;
 	tp->received_ce = 0;
 	tp->received_ce_tx = 0;
 	__tcp_accecn_init_bytes_counters(tp->received_ecn_bytes);
