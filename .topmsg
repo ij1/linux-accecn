@@ -4,6 +4,7 @@ Subject: [PATCH] tcp: accecn option send control
 Instead of sending the option in every ACK, limit sending to
 those ACKs where the option is necessary:
 - Handshake
+- First data (only an approximation to avoid extra state)
 - "Change-triggered ACK" + the ACK following it. The
   2nd ACK is necessary to unambiguously indicate which
   of the ECN byte counters in increasing. The first
