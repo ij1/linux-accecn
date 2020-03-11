@@ -754,6 +754,21 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 	if (opts->num_ecn_bytes < required)
 		return 0;
 
+	if (opts->num_ecn_bytes < required) {
+		if (opts->num_sack_blocks > 2) {
+			/* Try to fit the option by removing one SACK block */
+			opts->num_sack_blocks--;
+			size = tcp_options_fit_accecn(opts, required,
+						      remaining + TCPOLEN_SACK_PERBLOCK,
+						      max_combine_saving);
+			if (opts->options & OPTION_ACCECN)
+				return size - TCPOLEN_SACK_PERBLOCK;
+			else
+				opts->num_sack_blocks++;
+		}
+		return 0;
+	}
+
 	opts->options |= OPTION_ACCECN;
 	return size;
 }
@@ -846,7 +861,6 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 		remaining -= tcp_options_fit_accecn(opts, 0, remaining,
 						    tcp_synack_options_combine_saving(opts));
 	}
-
 	return MAX_TCP_OPTION_SPACE - remaining;
 }
 
