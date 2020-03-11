@@ -861,6 +861,7 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 		remaining -= tcp_options_fit_accecn(opts, 0, remaining,
 						    tcp_synack_options_combine_saving(opts));
 	}
+
 	return MAX_TCP_OPTION_SPACE - remaining;
 }
 
