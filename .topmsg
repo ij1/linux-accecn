@@ -1,4 +1,7 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: accecn option
+Subject: [PATCH] tcp: AccECN option
+
+AccECN option tx & rx side without option send control
+related features that are added in a later change.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
