@@ -1,6 +1,6 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN core
 
-Accurate ECN
+Accurate ECN (without negotiation and AccECN Option).
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
