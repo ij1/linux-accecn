@@ -1,6 +1,4 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN negotiation
 
-The ECT teflector complicates things a lot here.
-
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
