@@ -285,7 +285,7 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
 	case INET_ECN_NOT_ECT:
 		/* Funny extension: if ECT is not set on a segment,
 		 * and we already seen ECT on a previous segment,
-		 * it is probably a retransmit with RFC3168 ECN.
+		 * it is probably a retransmit.
 		 */
 		if (tp->ecn_flags & TCP_ECN_SEEN)
 			tcp_enter_quickack_mode(sk, 2);
