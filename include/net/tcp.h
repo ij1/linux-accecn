@@ -855,7 +855,6 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 {
-	tp->delivered_ce = 0;
 	tp->received_ce = 0;
 	tp->received_ce_tx = 0;
 }
