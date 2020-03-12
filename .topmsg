@@ -1,5 +1,5 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] gso: accecn support
+Subject: [PATCH] gso: AccECN support
 
 Handling the CWR flag differs between RFC 3168 ECN and AccECN.
 Take it into account in GSO by not clearing the CWR bit.
