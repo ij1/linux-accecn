@@ -1,5 +1,5 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: accecn option send control
+Subject: [PATCH] tcp: AccECN option send control
 
 Instead of sending the option in every ACK, limit sending to
 those ACKs where the option is necessary:
