@@ -1,5 +1,5 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: accecn support to tcp_add_backlog
+Subject: [PATCH] tcp: AccECN support to tcp_add_backlog
 
 AE flag needs to preserved for AccECN.
 
