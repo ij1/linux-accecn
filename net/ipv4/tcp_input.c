@@ -343,20 +343,6 @@ bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 		return true;
 
 	if (!tcp_ect_transition_valid(sent_ect, ect)) {
-		struct inet_sock *inet = inet_sk(sk);
-		if (sk->sk_family == AF_INET) {
-			net_dbg_ratelimited("ECN mismatch on path to %pI4:%u/%u got=%d expected=%d\n",
-					    &inet->inet_daddr,
-					    ntohs(inet->inet_dport),
-					    inet->inet_num,
-					    ect, sent_ect);
-		} else if (sk->sk_family == AF_INET6) {
-			net_dbg_ratelimited("ECN mismatch on path to %pI6:%u/%u got=%d expected=%d\n",
-					    &sk->sk_v6_daddr,
-					    ntohs(inet->inet_dport),
-					    inet->inet_num,
-					    ect, sent_ect);
-		}
 		tp->ecn_fail = 1;
 		return false;
 	}
