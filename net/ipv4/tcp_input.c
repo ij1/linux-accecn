@@ -3700,6 +3700,8 @@ static int __tcp_replace_ts_recent(struct tcp_sock *tp, s32 tstamp_delta)
 
 static int tcp_replace_ts_recent(struct tcp_sock *tp, u32 seq)
 {
+	s32 delta;
+
 	if (tp->rx_opt.saw_tstamp && !after(seq, tp->rcv_wup)) {
 		/* PAWS bug workaround wrt. ACK frames, the PAWS discard
 		 * extra check below makes sure this can only happen
@@ -3709,7 +3711,7 @@ static int tcp_replace_ts_recent(struct tcp_sock *tp, u32 seq)
 		 */
 
 		if (tcp_paws_check(&tp->rx_opt, 0)) {
-			s32 delta = tp->rx_opt.rcv_tsval - tp->rx_opt.ts_recent;
+			delta = tp->rx_opt.rcv_tsval - tp->rx_opt.ts_recent;
 			return __tcp_replace_ts_recent(tp, delta);
 		}
 	}
@@ -3755,6 +3757,7 @@ static inline void tcp_in_ack_event(struct sock *sk, int flag)
 
 	if (icsk->icsk_ca_ops->in_ack_event) {
 		u32 ack_ev_flags = 0;
+
 		if (flag & FLAG_WIN_UPDATE)
 			ack_ev_flags |= CA_ACK_WIN_UPDATE;
 		if (flag & FLAG_SLOWPATH) {
