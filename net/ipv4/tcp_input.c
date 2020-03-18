@@ -538,6 +538,7 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			tp->pkts_acked_ewma = delivered_pkts << PKTS_ACKED_PREC;
 		} else {
 			u32 ewma = tp->pkts_acked_ewma;
+
 			ewma = (((ewma << PKTS_ACKED_WEIGHT) - ewma) +
 				(delivered_pkts << PKTS_ACKED_PREC)) >>
 			       PKTS_ACKED_WEIGHT;
