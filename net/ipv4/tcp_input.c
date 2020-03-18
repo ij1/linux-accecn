@@ -315,8 +315,9 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
  */
 static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
-    u8 ace = tcp_accecn_ace(th);
-    return ace && ace != 0x3;
+	u8 ace = tcp_accecn_ace(th);
+
+	return ace && ace != 0x3;
 }
 
 /* Check ECN field transition to detect invalid transitions */
@@ -514,7 +515,6 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 
 	safe_delta = delivered_pkts -
 		     ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
-
 
 	return safe_delta;
 }
