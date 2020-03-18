@@ -3543,6 +3543,7 @@ static inline void tcp_in_ack_event(struct sock *sk, int flag)
 
 	if (icsk->icsk_ca_ops->in_ack_event) {
 		u32 ack_ev_flags = 0;
+
 		if (flag & FLAG_WIN_UPDATE)
 			ack_ev_flags |= CA_ACK_WIN_UPDATE;
 		if (flag & FLAG_SLOWPATH) {
