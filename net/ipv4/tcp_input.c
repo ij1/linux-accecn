@@ -4187,8 +4187,8 @@ void tcp_parse_options(const struct net *net,
 				 * 16 bits magic number.
 				 */
 				else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
-				    get_unaligned_be16(ptr) ==
-				    TCPOPT_FASTOPEN_MAGIC)
+					 get_unaligned_be16(ptr) ==
+					 TCPOPT_FASTOPEN_MAGIC)
 					tcp_parse_fastopen_option(opsize -
 						TCPOLEN_EXP_FASTOPEN_BASE,
 						ptr + 2, th->syn, foc, true);
