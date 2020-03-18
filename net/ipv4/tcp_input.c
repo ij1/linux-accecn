@@ -3509,6 +3509,7 @@ static int tcp_replace_ts_recent(struct tcp_sock *tp, u32 seq)
 
 		if (tcp_paws_check(&tp->rx_opt, 0)) {
 			s32 delta = tp->rx_opt.rcv_tsval - tp->rx_opt.ts_recent;
+
 			return __tcp_replace_ts_recent(tp, delta);
 		}
 	}
