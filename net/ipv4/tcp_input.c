@@ -5574,6 +5574,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 
 	if (!INET_ECN_is_not_ect(ecnfield)) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
+
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
