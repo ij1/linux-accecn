@@ -418,8 +418,8 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 		if (TCP_SKB_CB(skb)->seq == TCP_SKB_CB(skb)->end_seq &&
 		    !TCP_SKB_CB(skb)->sacked &&
 		    tcp_accecn_validate_syn_feedback(sk, ace, syn_ect_snt)) {
-			if ((tcp_accecn_extract_syn_ect(ace) == INET_ECN_CE)
-			    && !tp->delivered_ce)
+			if ((tcp_accecn_extract_syn_ect(ace) == INET_ECN_CE) &&
+			    !tp->delivered_ce)
 				tp->delivered_ce++;
 		}
 		break;
@@ -518,7 +518,6 @@ u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 
 	return TCP_ACCECN_OPT_EMPTY_SEEN;
 }
-
 
 /* This is not only more efficient than what we used to do, it eliminates
  * a lot of code duplication between IPv4/IPv6 SYN recv processing. -DaveM

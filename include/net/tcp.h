@@ -992,6 +992,7 @@ struct tcp_skb_cb {
 static inline u16 tcp_accecn_reflector_flags(u8 ect)
 {
 	u32 flags = ect + 2;
+
 	if (ect == 3)
 		flags++;
 	return flags * TCPHDR_ECE;
