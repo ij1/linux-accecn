@@ -574,8 +574,8 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 		if (opts->num_ecn_bytes > 0) {
 			*ptr++ = htonl((e0b << 8) |
 				       (opts->num_ecn_bytes > 1 ?
-				        (ceb >> 16) & 0xff :
-				        TCPOPT_NOP));
+					(ceb >> 16) & 0xff :
+					TCPOPT_NOP));
 			if (opts->num_ecn_bytes == 2) {
 				leftover_bytes = (ceb >> 8) & 0xffff;
 			} else {
@@ -602,6 +602,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 
 	if (unlikely(OPTION_WSCALE & options)) {
 		u8 highbyte = TCPOPT_NOP;
+
 		if (unlikely(leftover_size == 1))
 			highbyte = leftover_bytes >> 8;
 		*ptr++ = htonl((highbyte << 24) |
@@ -719,7 +720,7 @@ u32 synack_ecn_bytes[3] = { 0, 0, 0 };
 
 static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
 {
-	/* How much there's room for combining with the aligment padding? */
+	/* How much there's room for combining with the alignment padding? */
 	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
 	    OPTION_SACK_ADVERTISE)
 		return 2;
@@ -735,6 +736,7 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 				  int remaining, int max_combine_saving)
 {
 	int size = TCP_ACCECN_MAXSIZE;
+
 	opts->num_ecn_bytes = TCP_ACCECN_NUMCOUNTERS;
 
 	while (opts->num_ecn_bytes >= required) {
