@@ -716,7 +716,7 @@ u32 synack_ecn_bytes[3] = { 0, 0, 0 };
 
 static u32 tcp_synack_options_combine_saving(struct tcp_out_options *opts)
 {
-	/* How much there's room for combining with the aligment padding? */
+	/* How much there's room for combining with the alignment padding? */
 	if ((opts->options & (OPTION_SACK_ADVERTISE|OPTION_TS)) ==
 	    OPTION_SACK_ADVERTISE)
 		return 2;
