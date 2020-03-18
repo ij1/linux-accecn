@@ -765,8 +765,8 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 						      max_combine_saving);
 			if (opts->options & OPTION_ACCECN)
 				return size - TCPOLEN_SACK_PERBLOCK;
-			else
-				opts->num_sack_blocks++;
+
+			opts->num_sack_blocks++;
 		}
 		return 0;
 	}
