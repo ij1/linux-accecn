@@ -514,6 +514,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 
 	if (unlikely(OPTION_WSCALE & options)) {
 		u8 highbyte = TCPOPT_NOP;
+
 		if (unlikely(leftover_size == 1))
 			highbyte = leftover_bytes >> 8;
 		*ptr++ = htonl((highbyte << 24) |
