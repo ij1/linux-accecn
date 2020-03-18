@@ -519,7 +519,6 @@ u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 	return TCP_ACCECN_OPT_EMPTY_SEEN;
 }
 
-
 /* This is not only more efficient than what we used to do, it eliminates
  * a lot of code duplication between IPv4/IPv6 SYN recv processing. -DaveM
  *
