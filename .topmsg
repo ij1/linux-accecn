@@ -8,7 +8,7 @@ AccECN specifications:
 
 Accurate ECN allows feeding back the number of CE (congestion
 experienced) marks accurately to the sender in contrast to
-RFC3168 ECN that can only signal marks seen yes/no one per RTT.
+RFC3168 ECN that can only signal one marks-seen-yes/no per RTT.
 Congestion control algorithms can take advantage of the accurate
 ECN information to fine-tune their congestion response to avoid
 drastic rate reduction when only mild congestion is encountered.
@@ -21,12 +21,14 @@ feedback. This signalling channel is lossy when ACE field overflow
 occurs. The receiver tried to avoid causing an ACE overflow itself
 by limiting the outbound ACE field delta.
 
-Conservative strategy is select here to deal with the ACE
+Conservative strategy is selected here to deal with the ACE
 overflow, however, some strategies using the AccECN option later
 in the overall patchset mitigate against false overflows detected.
 
 The ACE field values on the wire are offset by
-TCP_ACCECN_CEP_INIT_OFFSET.
+TCP_ACCECN_CEP_INIT_OFFSET. Delivered_ce/received_ce count the
+real CE marks rather than forcing all downstream users to adapt
+to the wire offset.
 
 Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
