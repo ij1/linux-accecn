@@ -5,7 +5,7 @@ Whenever timestamp advances, it declares progress which
 can be used the other parts of the stack to decide that
 the ACK is the most recent one seen so far.
 
-AccECN will use this flag when deciding whether to update
-CEP from the ACE field or not.
+AccECN will use this flag when deciding whether to use the
+ACK to update AccECN state or not.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
