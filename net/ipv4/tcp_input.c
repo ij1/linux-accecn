@@ -5660,7 +5660,7 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 }
 
 /* Maps ECT/CE bits to minimum length of AccECN option */
-static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
+static unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 {
 	unsigned int opt;
 
@@ -5670,7 +5670,6 @@ static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 
 	return opt;
 }
-
 
 /* Updates Accurate ECN received counters from the received IP ECN field */
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
