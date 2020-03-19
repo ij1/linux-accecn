@@ -1,5 +1,8 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN negotiation
 
+Accurate ECN negotiation parts, based on this specifications:
+  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
+
 Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
