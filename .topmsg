@@ -3,7 +3,9 @@ Subject: [PATCH] tcp: AccECN needs to know delivered bytes
 
 AccECN byte counter estimation requires delivered bytes
 which can be calculated while processing SACK blocks and
-cumulative ACK.
+cumulative ACK. The delivered bytes will used to estimate
+the byte counters between AccECN option (on ACKs w/o the
+option).
 
 Non-SACK calculation is quite annoying, inaccurate, and
 likely bogus.
