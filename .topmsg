@@ -12,4 +12,10 @@ Based on specification:
 (Some features of the spec will be added in the later changes
 rather than in this one).
 
+The AccECN option (with 24-bit fields) often ends in odd sizes
+so the option write code tries to take advantage of some nop
+used to pad the other TCP options.
+
+The delivered_ecn_bytes pairs with received_ecn_bytes.
+
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
