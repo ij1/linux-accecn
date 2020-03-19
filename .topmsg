@@ -1,4 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: add AccECN rx byte counters
 
+These counters track IP ECN field payload byte sums for all
+arriving (acceptable) packets. The AccECN option (added by
+a later patch in the series) echoes these counters back to
+sender side.
+
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
