@@ -10,12 +10,30 @@ that are added by a later change.
 Based on specification:
   https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
 (Some features of the spec will be added in the later changes
-rather than in this one).
+rather than in this one, most importantly, the field order
+bit in the highest bit of the first byte counter).
 
-The AccECN option (with 24-bit fields) often ends in odd sizes
-so the option write code tries to take advantage of some nop
-used to pad the other TCP options.
+A full-length AccECN option is always attempted but if it does
+not fit, the minimum length is selected based on the counters
+that have changed since the last update. The AccECN option
+(with 24-bit fields) often ends in odd sizes so the option
+write code tries to take advantage of some nop used to pad
+the other TCP options.
 
-The delivered_ecn_bytes pairs with received_ecn_bytes.
+The delivered_ecn_bytes pairs with received_ecn_bytes similar
+to how delivered_ce pairs with received_ce. In contrast to
+ACE field, however, the option is not always available to update
+delivered_ecn_bytes. For ACK w/o AccECN option, the delivered
+bytes calculated based on the cumulative ACK+SACK information
+are assigned to one of the counters using an estimation
+heuristic to select the most likely ECN byte counter. Any
+estimation error is corrected when the next AccECN option
+arrives. It may occur that the heuristic gets too confused
+when there are enough different byte counter deltas between
+ACKs with the AccECN option in which case the heuristic just
+gives up on updating the counters for a while.
+
+Bit 0x100 in tcp_ecn sysctl can be used to select optionless
+mode for AccECN.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
