@@ -4,18 +4,17 @@ Subject: [PATCH] tcp: AccECN option send control
 Instead of sending the option in every ACK, limit sending to
 those ACKs where the option is necessary:
 - Handshake
-- First data (only an approximation to avoid extra state)
+- First data (only an approximation to avoid adding extra
+  state or checks beyond tp->accecn_opt_demand).
 - "Change-triggered ACK" + the ACK following it. The
   2nd ACK is necessary to unambiguously indicate which
   of the ECN byte counters in increasing. The first
   ACK has two counters increasing due to the ecnfield
   edge.
-- ACKs with CE to allow CEP delta calculations to take
-  advantage of the option
+- ACKs with CE to allow CEP delta validations to take
+  advantage of the option.
 - Force option to be sent every at least once per 2^22
-  bytes. The check is done using bytes_received to avoid
-  adding another var into tcp_sock and may demand option
-  even if one was recently sent but that is not a big
-  deal.
+  bytes. The check is done using the 23th bit edges of
+  the byte counters.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
