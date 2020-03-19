@@ -1,9 +1,17 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN core
 
-Accurate ECN (without negotiation and AccECN Option that will
-be added by later changes). Based on AccECN specifications:
+This change implements Accurate ECN without negotiation and
+AccECN Option (that will be added by later changes). Based on
+AccECN specifications:
   https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
+
+Accurate ECN allows feeding back the number of CE (congestion
+experienced) marks accurately to the sender in contrast to
+RFC3168 ECN that can only signal marks seen yes/no one per RTT.
+Congestion control algorithms can take advantage of the accurate
+ECN information to fine-tune their congestion response to avoid
+drastic rate reduction when only mild congestion is encountered.
 
 Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
