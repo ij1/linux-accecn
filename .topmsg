@@ -15,12 +15,11 @@ mangling. CE marks should not occur currently because SYN=1
 segments are sent with Non-ECT in IP ECN field (but proposal
 exists to remove this restriction).
 
-For SYNACK reflecting SYN IP ECN field reflection is relatively
-simple. Reflecting SYNACK's IP ECN field in the final/third
-ACK of the handshake is a SYN=0 segment is more challenging.
-Linux TCP code is not well prepared for using the final/third
-ACK a signalling channel which makes things somewhat
-complicated here.
+Reflecting SYN IP ECN field in SYNACK is relatively simple.
+Reflecting SYNACK's IP ECN field in the final/third ACK of
+the handshake is more challenging. Linux TCP code is not well
+prepared for using the final/third ACK a signalling channel
+which makes things somewhat complicated here.
 
 Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
