@@ -313,7 +313,7 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
  * 011 or 111, it MUST negotiate the use of AccECN as if they had been set to
  * 111.
  */
-static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
+static bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
 	u8 ace = tcp_accecn_ace(th);
 
@@ -3658,7 +3658,7 @@ static void tcp_process_tlp_ack(struct sock *sk, u32 ack, int flag)
 	}
 }
 
-static inline void tcp_in_ack_event(struct sock *sk, int flag)
+static void tcp_in_ack_event(struct sock *sk, int flag)
 {
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
