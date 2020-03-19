@@ -1,6 +1,7 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN option ceb/cep heuristic
 
-The heuristic algorithm from draft-09 Appendix A.2.2.
+The heuristic algorithm from draft-11 Appendix A.2.2 to
+mitigate against false ACE field overflows.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
