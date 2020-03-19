@@ -2,6 +2,6 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: Pass flags to tcp_send_ack
 
 Accurate ECN reflector needs to send custom flags to handle
-IP-ECN field reflector.
+SYN/SYNACK IP-ECN field reflector.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
