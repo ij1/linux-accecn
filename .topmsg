@@ -1,7 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN core
 
-Accurate ECN (without negotiation and AccECN Option).
+Accurate ECN (without negotiation and AccECN Option that will
+be added by later changes). Based on AccECN specifications:
+  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
 
 Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
