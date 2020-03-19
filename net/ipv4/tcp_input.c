@@ -313,7 +313,7 @@ static void tcp_data_ecn_check(struct sock *sk, const struct sk_buff *skb)
  * 011 or 111, it MUST negotiate the use of AccECN as if they had been set to
  * 111.
  */
-static inline bool tcp_accecn_syn_requested(const struct tcphdr *th)
+static bool tcp_accecn_syn_requested(const struct tcphdr *th)
 {
 	u8 ace = tcp_accecn_ace(th);
 
@@ -3813,7 +3813,7 @@ static void tcp_process_tlp_ack(struct sock *sk, u32 ack, int flag)
 	}
 }
 
-static inline void tcp_in_ack_event(struct sock *sk, int flag)
+static void tcp_in_ack_event(struct sock *sk, int flag)
 {
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
@@ -5723,7 +5723,7 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 }
 
 /* Maps ECT/CE bits to minimum length of AccECN option */
-static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
+static unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 {
 	unsigned int opt;
 
@@ -5733,7 +5733,6 @@ static inline unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 
 	return opt;
 }
-
 
 /* Updates Accurate ECN received counters from the received IP ECN field */
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
