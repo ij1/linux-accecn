@@ -14,7 +14,7 @@ those ACKs where the option is necessary:
 - ACKs with CE to allow CEP delta validations to take
   advantage of the option.
 - Force option to be sent every at least once per 2^22
-  bytes. The check is done using the 23th bit edges of
-  the byte counters.
+  bytes. The check is done using the the bit edges of
+  the byte counters (avoids need for extra variables).
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
