@@ -577,7 +577,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 					(ceb >> 16) & 0xff :
 					TCPOPT_NOP));
 			if (opts->num_ecn_bytes == 2) {
-				leftover_bytes = (ceb >> 8) & 0xffff;
+				leftover_bytes = ceb & 0xffff;
 			} else {
 				*ptr++ = htonl((ceb << 16) |
 					       ((e1b >> 8) & 0xffff));
