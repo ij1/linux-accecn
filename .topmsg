@@ -13,5 +13,20 @@ Congestion control algorithms can take advantage of the accurate
 ECN information to fine-tune their congestion response to avoid
 drastic rate reduction when only mild congestion is encountered.
 
+With Accurate ECN, tp->received_ce (r.cep in AccECN spec) keeps
+track of how many segments have arrived with a CE mark. Accurate
+ECN uses ACE field (ECE, CWR, AE) to communicate the value back
+to the sender which updates tp->delivered_ce (s.cep) based on the
+feedback. This signalling channel is lossy when ACE field overflow
+occurs. The receiver tried to avoid causing an ACE overflow itself
+by limiting the outbound ACE field delta.
+
+Conservative strategy is select here to deal with the ACE
+overflow, however, some strategies using the AccECN option later
+in the overall patchset mitigate against false overflows detected.
+
+The ACE field values on the wire are offset by
+TCP_ACCECN_CEP_INIT_OFFSET.
+
 Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
