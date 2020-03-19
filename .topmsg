@@ -1,7 +1,15 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN option
 
-AccECN option tx & rx side without option send control
-related features that are added in a later change.
+The Accurate ECN allows echoing back the sum of bytes for
+each IP ECN field value in the received packets using
+AccECN option. This change implements AccECN option tx & rx
+side processing without option send control related features
+that are added by a later change.
+
+Based on specification:
+  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
+(Some features of the spec will be added in the later changes
+rather than in this one).
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
