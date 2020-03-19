@@ -2,6 +2,8 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: try to avoid safer when ACKs are thinned
 
 Add newly acked pkts EWMA. When ACK thinning occurs, select
-between safer and unsafe cep delta based on it.
+between safer and unsafe cep delta based on it. If the
+packets ACKed per ACK tends to be large, don't conservatively
+assume ACE field overflow.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
