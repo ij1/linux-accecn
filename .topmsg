@@ -3,7 +3,9 @@ Subject: [PATCH] tcp: AccECN option order bit & failure handling
 
 AccECN option has two possible field orders. Collect the
 order bit from first AccECN option that has enough length
-to contain it.
+to contain the first byte counter field (Sections
+3.2.1 & 3.2.3 of the spec):
+  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
 
 AccECN option may fail in various way, handle these:
 - Remove option from SYN/ACK rexmits to handle blackholes
