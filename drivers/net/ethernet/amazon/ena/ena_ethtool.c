@@ -221,7 +221,7 @@ static void ena_queue_strings(struct ena_adapter *adapter, u8 **data)
 
 			snprintf(*data, ETH_GSTRING_LEN,
 				 "queue_%u_tx_%s", i, ena_stats->name);
-			 (*data) += ETH_GSTRING_LEN;
+			(*data) += ETH_GSTRING_LEN;
 		}
 		/* Rx stats */
 		for (j = 0; j < ENA_STATS_ARRAY_RX; j++) {
@@ -826,6 +826,8 @@ static int ena_set_tunable(struct net_device *netdev,
 }
 
 static const struct ethtool_ops ena_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
+				     ETHTOOL_COALESCE_USE_ADAPTIVE_RX,
 	.get_link_ksettings	= ena_get_link_ksettings,
 	.get_drvinfo		= ena_get_drvinfo,
 	.get_msglevel		= ena_get_msglevel,
