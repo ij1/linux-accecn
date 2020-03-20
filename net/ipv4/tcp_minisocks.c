@@ -429,8 +429,8 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 				  const struct request_sock *req,
 				  const struct sk_buff *skb)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	const struct tcp_request_sock *treq = tcp_rsk(req);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (treq->accecn_ok) {
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
