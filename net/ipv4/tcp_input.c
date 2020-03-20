@@ -410,6 +410,7 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
+
 	/* If delta has the highest bit set (24th bit) indicating negative,
 	 * sign extend to correct an estimation error in the ecn_bytes
 	 */
@@ -427,12 +428,12 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
 				      u32 delivered_bytes)
 {
-	unsigned char *ptr;
-	unsigned int optlen;
-	int i;
 	bool ambiguous_ecn_bytes_incr = false;
 	bool first_changed = false;
+	unsigned int optlen;
+	unsigned char *ptr;
 	bool res;
+	int i;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield) {
