@@ -337,8 +337,8 @@ static bool tcp_ect_transition_valid(u8 snt, u8 rcv)
 
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ect = tcp_accecn_extract_syn_ect(ace);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_fallback)
 		return true;

@@ -401,8 +401,8 @@ EXPORT_SYMBOL(tcp_openreq_init_rwin);
 void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 			  u8 syn_ect_snt)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ace = tcp_accecn_ace(tcp_hdr(skb));
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	switch (ace) {
 	case 0x0:
@@ -430,8 +430,8 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 				  const struct request_sock *req,
 				  const struct sk_buff *skb)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	const struct tcp_request_sock *treq = tcp_rsk(req);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (treq->accecn_ok) {
 		const struct tcphdr *th = (const struct tcphdr *)skb->data;
