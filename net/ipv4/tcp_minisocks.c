@@ -400,8 +400,8 @@ EXPORT_SYMBOL(tcp_openreq_init_rwin);
 void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 			  u8 syn_ect_snt)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ace = tcp_accecn_ace(tcp_hdr(skb));
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	switch (ace) {
 	case 0x0:
