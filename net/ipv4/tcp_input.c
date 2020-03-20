@@ -519,10 +519,10 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
-	u32 delta, safe_delta, d_ceb;
-	u32 corrected_ace;
 	u32 old_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1];
+	u32 delta, safe_delta, d_ceb;
 	bool opt_deltas_valid;
+	u32 corrected_ace;
 
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
