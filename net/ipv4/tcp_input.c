@@ -5681,9 +5681,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 	u8 is_ce = INET_ECN_is_ce(ecnfield);
 	struct tcp_sock *tp = tcp_sk(sk);
-	u8 ecn_edge;
-
-	ecn_edge = tp->prev_ecnfield != ecnfield;
+	bool ecn_edge;
 
 	if (!INET_ECN_is_not_ect(ecnfield)) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
@@ -5708,6 +5706,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 		}
 	}
 
+	ecn_edge = tp->prev_ecnfield != ecnfield;
 	if (ecn_edge || is_ce) {
 		tp->prev_ecnfield = ecnfield;
 		/* Demand Accurate ECN change-triggered ACKs. Two ACK are
