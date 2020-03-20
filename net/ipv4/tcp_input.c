@@ -412,6 +412,7 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 {
 	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
 	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
+
 	/* If delta has the highest bit set (24th bit) indicating negative,
 	 * sign extend to correct an estimation error in the ecn_bytes
 	 */
@@ -429,12 +430,12 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
 				      u32 delivered_bytes)
 {
-	unsigned char *ptr;
-	unsigned int optlen;
-	int i;
 	bool ambiguous_ecn_bytes_incr = false;
 	bool first_changed = false;
+	unsigned int optlen;
+	unsigned char *ptr;
 	bool res;
+	int i;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield) {
@@ -3834,7 +3835,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 delivered = tp->delivered;
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
-	u32 ecn_count = 0; /* Did we receive ECE/an AccECN ACE update? */
+	u32 ecn_count = 0;	  /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
 	sack_state.delivered_bytes = 0;
@@ -5677,10 +5678,10 @@ static unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 	u8 is_ce = INET_ECN_is_ce(ecnfield);
-	u8 ecn_edge = tp->prev_ecnfield != ecnfield;
+	struct tcp_sock *tp = tcp_sk(sk);
+	bool ecn_edge;
 
 	if (!INET_ECN_is_not_ect(ecnfield)) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
@@ -5705,6 +5706,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 		}
 	}
 
+	ecn_edge = tp->prev_ecnfield != ecnfield;
 	if (ecn_edge || is_ce) {
 		tp->prev_ecnfield = ecnfield;
 		/* Demand Accurate ECN change-triggered ACKs. Two ACK are
