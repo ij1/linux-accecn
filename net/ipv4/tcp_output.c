@@ -527,8 +527,8 @@ static void mptcp_options_write(__be32 *ptr, struct tcp_out_options *opts)
 static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			      struct tcp_out_options *opts)
 {
-	u16 options = opts->options;	/* mungable copy */
 	u16 leftover_bytes = NOP_LEFTOVER;	/* replace next NOPs if avail */
+	u16 options = opts->options;	/* mungable copy */
 	int leftover_size = 2;
 
 	if (unlikely(OPTION_MD5 & options)) {
@@ -874,8 +874,8 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 				       struct tcp_fastopen_cookie *foc)
 {
 	struct inet_request_sock *ireq = inet_rsk(req);
-	struct tcp_request_sock *treq = tcp_rsk(req);
 	unsigned int remaining = MAX_TCP_OPTION_SPACE;
+	struct tcp_request_sock *treq = tcp_rsk(req);
 
 #ifdef CONFIG_TCP_MD5SIG
 	if (md5) {
