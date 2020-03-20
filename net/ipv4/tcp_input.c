@@ -3747,7 +3747,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 delivered = tp->delivered;
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
-	u32 ecn_count = 0; /* Did we receive ECE/an AccECN ACE update? */
+	u32 ecn_count = 0;	  /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
 	sack_state.delivered_bytes = 0;
@@ -5571,9 +5571,9 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 ecnfield = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 	u8 is_ce = INET_ECN_is_ce(ecnfield);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (!INET_ECN_is_not_ect(ecnfield)) {
 		tp->ecn_flags |= TCP_ECN_SEEN;
