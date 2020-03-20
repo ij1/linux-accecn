@@ -5596,9 +5596,9 @@ static bool tcp_reset_check(const struct sock *sk, const struct sk_buff *skb)
 static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 				  const struct tcphdr *th, int syn_inerr)
 {
+	bool send_accecn_reflector = false;
 	struct tcp_sock *tp = tcp_sk(sk);
 	bool rst_seq_match = false;
-	bool send_accecn_reflector = false;
 
 	/* RFC1323: H1. Apply PAWS check first. */
 	if (tcp_fast_parse_options(sock_net(sk), skb, th, tp) &&
