@@ -519,8 +519,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 static u32 tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
-	u32 old_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1];
 	struct tcp_sock *tp = tcp_sk(sk);
+	u32 old_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1];
 	u32 delta, safe_delta, d_ceb;
 	bool opt_deltas_valid;
 	u32 corrected_ace;
