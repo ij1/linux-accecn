@@ -2,6 +2,23 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] gso: AccECN support
 
 Handling the CWR flag differs between RFC 3168 ECN and AccECN.
-Take it into account in GSO by not clearing the CWR bit.
+With RFC 3168 ECN aware TSO (NETIF_F_TSO_ECN) CWR flag is cleared
+starting from 2nd segment which is incompatible how AccECN handles
+the CWR flag. Such super-segments are indicated by SKB_GSO_TCP_ECN.
+With AccECN, CWR flag (or more accurately, the ACE field that also
+includes ECE & AE flags) changes only when new packet(s) with CE
+mark arrives so the flag should not be changed within a super-skb.
+The new skb/feature flags are necessary to prevent such TSO engines
+corrupting AccECN ACE counters by clearing the CWR flag (if the
+CWR handling feature cannot be turned off).
+
+If NIC is completely unaware of RFC3168 ECN (doesn't support
+NETIF_F_TSO_ECN) or its TSO engine can be set to not touch CWR flag
+despite supporting also NETIF_F_TSO_ECN, TSO could be safely used
+with AccECN on such NIC. This should be evaluated per NIC basis
+(not done in this patch series for any NICs).
+
+For the cases, where TSO cannot keep its hands off the CWR flag,
+a GSO fallback is provided by this patch.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
