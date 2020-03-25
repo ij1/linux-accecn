@@ -54,7 +54,7 @@ enum {
 	NETIF_F_GSO_UDP_BIT,		/* ... UFO, deprecated except tuntap */
 	NETIF_F_GSO_UDP_L4_BIT,		/* ... UDP payload GSO (not UFO) */
 	NETIF_F_GSO_FRAGLIST_BIT,		/* ... Fraglist GSO */
-	NETIF_F_GSO_ACCECN_BIT,		/* ... TCP AccECN support */
+	NETIF_F_GSO_ACCECN_BIT,		/* TCP AccECN with TSO (no CWR clearing) */
 	/**/NETIF_F_GSO_LAST =		/* last bit, see GSO_MASK */
 		NETIF_F_GSO_FRAGLIST_BIT,
 
