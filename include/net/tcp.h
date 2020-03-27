@@ -363,12 +363,6 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 	}
 }
 
-/* sysctl_tcp_ecn value */
-#define TCP_ECN_RFC3168_INOUT	0x1
-#define TCP_ECN_RFC3168_IN	0x2
-#define TCP_ACCECN_IN		0x4
-#define TCP_ACCECN_INOUT	0x8
-
 #define	TCP_ECN_MODE_RFC3168	0x1
 #define	TCP_ECN_QUEUE_CWR	0x2
 #define	TCP_ECN_DEMAND_CWR	0x4
