@@ -2,10 +2,11 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] gro: prevent ACE field corruption & better AccECN handling
 
 There are important differences in how the CWR field behaves
-in RFC3168 and AccECN.
+in RFC3168 and AccECN. With AccECN, CWR flag is part of the
+ACE counter and its changes are important so adjust the flags
+changed mask accordingly.
 
-Thus, it is better to never let anything to receive
-a mixed-CWR skb. Set the Accurate ECN GSO flag to
-avoid corrupting CWR bits somewhere.
+Also, if CWR is there, set the Accurate ECN GSO flag to avoid
+corrupting CWR flag somewhere.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
