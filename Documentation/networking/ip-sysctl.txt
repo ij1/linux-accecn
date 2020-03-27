@@ -301,14 +301,18 @@ tcp_ecn - INTEGER
 		0 Disable ECN.  Neither initiate nor accept ECN.
 		1 Enable ECN when requested by incoming connections and
 		  also request ECN on outgoing connection attempts.
-		2 Enable ECN or AccECN when requested by incoming connections
+		2 Enable ECN when requested by incoming connections
 		  but do not request ECN on outgoing connections.
-		3 Enable AccECN when requested by incoming connections and
+		3 Enable ECN or AccECN when requested by incoming connections
+		  but do not request ECN on outgoing connections.
+		4 Enable AccECN when requested by incoming connections and
 		  also request AccECN on outgoing connection attempts.
-	    0x102 Enable AccECN in optionless mode for incoming connections.
-	    0x103 Enable AccECN in optionless mode for incoming and outgoing
-		  connections.
+	    0x103 Same as 3 but suppress sending Accurate ECN TCP option.
+	    0x104 Same as 4 but suppress sending Accurate ECN TCP option.
 	Default: 2
+
+	Note that the highest variant of ECN feedback that both peers support
+	is chosen by the ECN negotiation (Accurate ECN, ECN, or no ECN).
 
 tcp_ecn_fallback - BOOLEAN
 	If the kernel detects that ECN connection misbehaves, enable fall
