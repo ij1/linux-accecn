@@ -6837,7 +6837,7 @@ static void tcp_ecn_create_request(struct request_sock *req,
 	u32 ecn_ok_dst;
 
 	if (tcp_accecn_syn_requested(th) &&
-	    (net->ipv4.sysctl_tcp_ecn & (TCP_ACCECN_INOUT|TCP_ACCECN_IN) ||
+	    (((net->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) >= 3) ||
 	     tcp_ca_needs_accecn(listen_sk))) {
 		inet_rsk(req)->ecn_ok = 1;
 		tcp_rsk(req)->accecn_ok = 1;
