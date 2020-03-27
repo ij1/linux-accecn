@@ -297,24 +297,22 @@ tcp_ecn - INTEGER
 	support for it.  This feature is useful in avoiding losses due
 	to congestion by allowing supporting routers to signal
 	congestion before having to drop packets.
-
-	The values (bitmap) are:
-	   0x1: Enable ECN when requested by incoming connections and also
-	        request ECN on outgoing connection attempts.
-	   0x2: Enable ECN when requested by incoming connections but do not
-	        request ECN on outgoing connections.
-	   0x4: Enable Accurate ECN when requested by incoming connections
-	        but do not request Accurate ECN on outgoing connections.
-	   0x8: Enable Accurate ECN when requested by incoming connections and
-	        also request Accurate ECN on outgoing connection attempts.
-	 0x100: Suppress sending Accurate ECN TCP option.
+	Possible values are:
+		0 Disable ECN.  Neither initiate nor accept ECN.
+		1 Enable ECN when requested by incoming connections and
+		  also request ECN on outgoing connection attempts.
+		2 Enable ECN when requested by incoming connections
+		  but do not request ECN on outgoing connections.
+		3 Enable ECN or AccECN when requested by incoming connections
+		  but do not request ECN on outgoing connections.
+		4 Enable AccECN when requested by incoming connections and
+		  also request AccECN on outgoing connection attempts.
+	    0x103 Same as 3 but suppress sending Accurate ECN TCP option.
+	    0x104 Same as 4 but suppress sending Accurate ECN TCP option.
 	Default: 2
 
 	Note that the highest variant of ECN feedback that both peers support
-	is chosen (Accurate ECN, ECN, or no ECN). Currently, Accurate ECN
-	(0x4 and 0x8) downgrades to ECN even if ECN is not set (0x1 or 0x2),
-	however, we reserve a possibility that direct downgrade from Accurate
-	ECN to no ECN may be implemented in the future.
+	is chosen by the ECN negotiation (Accurate ECN, ECN, or no ECN).
 
 tcp_ecn_fallback - BOOLEAN
 	If the kernel detects that ECN connection misbehaves, enable fall
