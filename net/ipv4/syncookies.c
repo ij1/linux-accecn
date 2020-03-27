@@ -269,7 +269,7 @@ bool cookie_ecn_ok(const struct tcp_options_received *tcp_opt,
 	if (!ecn_ok)
 		return false;
 
-	if (net->ipv4.sysctl_tcp_ecn)
+	if (net->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK)
 		return true;
 
 	return dst_feature(dst, RTAX_FEATURE_ECN);
