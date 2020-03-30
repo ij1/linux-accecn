@@ -151,6 +151,7 @@ struct tcp_request_sock {
 	bool				tfo_listener;
 	bool				is_mptcp;
 	u8				accecn_ok  : 1,
+					saw_accecn_opt : 3,
 					syn_ect_snt: 2,
 					syn_ect_rcv: 2;
 	u32				txhash;
@@ -252,6 +253,7 @@ struct tcp_sock {
 	u8	compressed_ack;
 	u8	syn_ect_snt:2,	/* AccECN ECT memory, only */
 		syn_ect_rcv:2,	/* ... needed durign 3WHS + first seqno */
+		saw_accecn_opt:3,    /* A valid AccECN option was seen */
 		ecn_fail:1;	/* ECN reflector detected path mangling */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
