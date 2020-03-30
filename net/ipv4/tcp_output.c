@@ -332,9 +332,10 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 	bool bpf_needs_ecn = tcp_bpf_ca_needs_ecn(sk);
 	bool use_ecn, use_accecn;
 
-	use_accecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 4 ||
+	use_accecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 5 ||
 		     tcp_ca_needs_accecn(sk);
 	use_ecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 1 ||
+		  sock_net(sk)->ipv4.sysctl_tcp_ecn == 3 ||
 		  tcp_ca_needs_ecn(sk) || bpf_needs_ecn || use_accecn;
 
 	if (!use_ecn) {
