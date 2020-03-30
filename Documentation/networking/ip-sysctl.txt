@@ -296,23 +296,24 @@ tcp_ecn - INTEGER
 	ECN is used only when both ends of the TCP connection indicate
 	support for it.  This feature is useful in avoiding losses due
 	to congestion by allowing supporting routers to signal
-	congestion before having to drop packets.
-	Possible values are:
-		0 Disable ECN.  Neither initiate nor accept ECN.
-		1 Enable ECN when requested by incoming connections and
-		  also request ECN on outgoing connection attempts.
-		2 Enable ECN when requested by incoming connections
-		  but do not request ECN on outgoing connections.
-		3 Enable ECN or AccECN when requested by incoming connections
-		  but do not request ECN on outgoing connections.
-		4 Enable AccECN when requested by incoming connections and
-		  also request AccECN on outgoing connection attempts.
-	    0x103 Same as 3 but suppress sending Accurate ECN TCP option.
-	    0x104 Same as 4 but suppress sending Accurate ECN TCP option.
-	Default: 2
+	congestion before having to drop packets. The highest variant
+	of ECN feedback that both peers support is chosen by the ECN
+	negotiation (Accurate ECN, ECN, or no ECN).
 
-	Note that the highest variant of ECN feedback that both peers support
-	is chosen by the ECN negotiation (Accurate ECN, ECN, or no ECN).
+	Possible values are:
+		  0 Disable ECN.  Neither initiate nor accept ECN.
+		  1 Enable ECN when requested by incoming connections and
+		    also request ECN on outgoing connection attempts.
+		  2 Enable ECN when requested by incoming connections
+		    but do not request ECN on outgoing connections.
+		  3 Enable ECN or AccECN when requested by incoming connections
+		    and request ECN on outgoing connection attempts.
+		  4 Enable ECN or AccECN when requested by incoming connections
+		    but do not request ECN on outgoing connections.
+		  5 Enable AccECN when requested by incoming connections and
+		    also request AccECN on outgoing connection attempts.
+	0x103-0x105 Same as 3-5 but suppress sending Accurate ECN TCP option.
+	Default: 2
 
 tcp_ecn_fallback - BOOLEAN
 	If the kernel detects that ECN connection misbehaves, enable fall
