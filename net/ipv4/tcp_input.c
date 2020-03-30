@@ -402,9 +402,93 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 	return 0;
 }
 
+/* Handles AccECN option ECT and CE 24-bit byte counters update into
+ * the u32 value in tcp_sock. As we're processing TCP options, it is
+ * safe to access from - 1.
+ */
+static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
+{
+	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
+	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
+
+	/* If delta has the highest bit set (24th bit) indicating negative,
+	 * sign extend to correct an estimation error in the ecn_bytes
+	 */
+	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
+	*cnt += delta;
+	return (s32)delta;
+}
+
+static u8 accecn_opt_ecnfield[3] = {
+	INET_ECN_ECT_0, INET_ECN_CE, INET_ECN_ECT_1,
+};
+
+/* Returns true if the byte counters can be used */
+static bool tcp_accecn_process_option(struct tcp_sock *tp,
+				      const struct sk_buff *skb,
+				      u32 delivered_bytes)
+{
+	bool ambiguous_ecn_bytes_incr = false;
+	bool first_changed = false;
+	unsigned int optlen;
+	unsigned char *ptr;
+	bool res;
+	int i;
+
+	if (tp->rx_opt.accecn < 0) {
+		if (tp->estimate_ecnfield) {
+			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
+				delivered_bytes;
+			return true;
+		}
+		return false;
+	}
+
+	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
+	optlen = ptr[1];
+	if (ptr[0] == TCPOPT_EXP) {
+		optlen -= 2;
+		ptr += 2;
+	}
+	ptr += 2;
+
+	res = !!tp->estimate_ecnfield;
+	for (i = 0; i < 3; i++) {
+		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+			u8 ecnfield = accecn_opt_ecnfield[i];
+			u32 init_offset = i ? 0 : TCP_ACCECN_E0B_INIT_OFFSET;
+			s32 delta;
+
+			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
+						     ptr, init_offset);
+			if (delta) {
+				if (delta < 0) {
+					res = false;
+					ambiguous_ecn_bytes_incr = true;
+				}
+				if (ecnfield != tp->estimate_ecnfield) {
+					if (!first_changed) {
+						tp->estimate_ecnfield = ecnfield;
+						first_changed = true;
+					} else {
+						res = false;
+						ambiguous_ecn_bytes_incr = true;
+					}
+				}
+			}
+
+			optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+		}
+	}
+	if (ambiguous_ecn_bytes_incr)
+		tp->estimate_ecnfield = 0;
+
+	return res;
+}
+
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
-			      u32 delivered_pkts, int flag)
+			      u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
@@ -412,6 +496,8 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
+
+	tcp_accecn_process_option(tp, skb, delivered_bytes);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
@@ -3839,7 +3925,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
+					       tp->delivered - delivered,
+					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
@@ -3878,7 +3965,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 no_queue:
 	if (tcp_ecn_mode_accecn(tp)) {
 		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
+					       tp->delivered - delivered,
+					       sack_state.delivered_bytes, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
 	}
@@ -4005,6 +4093,7 @@ void tcp_parse_options(const struct net *net,
 
 	ptr = (const unsigned char *)(th + 1);
 	opt_rx->saw_tstamp = 0;
+	opt_rx->accecn = -1;
 
 	while (length > 0) {
 		int opcode = *ptr++;
@@ -4094,12 +4183,16 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
+				if (opsize >= TCPOLEN_EXP_ACCECN_BASE &&
+				    get_unaligned_be16(ptr) ==
+				    TCPOPT_ACCECN_MAGIC)
+					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */
-				if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
-				    get_unaligned_be16(ptr) ==
-				    TCPOPT_FASTOPEN_MAGIC)
+				else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
+					 get_unaligned_be16(ptr) ==
+					 TCPOPT_FASTOPEN_MAGIC)
 					tcp_parse_fastopen_option(opsize -
 						TCPOLEN_EXP_FASTOPEN_BASE,
 						ptr + 2, th->syn, foc, true);
@@ -5567,6 +5660,18 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
+/* Maps ECT/CE bits to minimum length of AccECN option */
+static unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
+{
+	unsigned int opt;
+
+	opt = (ecnfield - 2) & INET_ECN_MASK;
+	/* Shift+XOR for 11 -> 10 */
+	opt = (opt ^ (opt >> 1)) + 1;
+
+	return opt;
+}
+
 /* Updates Accurate ECN received counters from the received IP ECN field */
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len)
@@ -5582,7 +5687,9 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
 		if (payload_len > 0) {
+			u8 minlen = tcp_ecn_field_to_accecn_len(ecnfield);
 			tp->received_ecn_bytes[ecnfield - 1] += payload_len;
+			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
 		}
 	}
 }
@@ -6639,7 +6746,8 @@ static void tcp_ecn_create_request(struct request_sock *req,
 	u32 ecn_ok_dst;
 
 	if (tcp_accecn_syn_requested(th) &&
-	    (net->ipv4.sysctl_tcp_ecn >= 3 || tcp_ca_needs_accecn(listen_sk))) {
+	    (((net->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) >= 3) ||
+	     tcp_ca_needs_accecn(listen_sk))) {
 		inet_rsk(req)->ecn_ok = 1;
 		tcp_rsk(req)->accecn_ok = 1;
 		tcp_rsk(req)->syn_ect_rcv =
@@ -6652,7 +6760,7 @@ static void tcp_ecn_create_request(struct request_sock *req,
 
 	ect = !INET_ECN_is_not_ect(TCP_SKB_CB(skb)->ip_dsfield);
 	ecn_ok_dst = dst_feature(dst, DST_FEATURE_ECN_MASK);
-	ecn_ok = net->ipv4.sysctl_tcp_ecn || ecn_ok_dst;
+	ecn_ok = (net->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) || ecn_ok_dst;
 
 	if (((!ect || th->res1 || th->ae) && ecn_ok) ||
 	    tcp_ca_needs_ecn(listen_sk) ||
