@@ -178,7 +178,8 @@ struct prague {
 	u32 rtt_transition_delay;
 	u32 rtt_target;		/* RTT scaling target */
 	u8  saw_ce:1,		/* Is there an AQM on the path? */
-	    rtt_indep:3;	/* RTT independence mode */
+	    rtt_indep:3,	/* RTT independence mode */
+	    in_loss:1;		/* In cwnd reduction caused by loss */
 };
 
 struct rtt_scaling_ops {
@@ -454,7 +455,7 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 		acked -= rs->ece_delta;
 	}
 
-	if (acked <= 0)
+	if (acked <= 0 || ca->in_loss)
 		goto adjust;
 
 	if (!tcp_is_cwnd_limited(sk)) {
@@ -505,6 +506,11 @@ adjust:
 	return;
 }
 
+static void prague_ca_open(struct sock *sk)
+{
+	prague_ca(sk)->in_loss = 0;
+}
+
 static void prague_enter_loss(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
@@ -514,6 +520,7 @@ static void prague_enter_loss(struct sock *sk)
 	ca->loss_cwnd_cnt = ca->cwnd_cnt;
 	ca->cwnd_cnt -=
 		(((u64)tp->snd_cwnd) << (CWND_UNIT - 1)) + (ca->cwnd_cnt >> 1);
+	ca->in_loss = 1;
 	prague_cwnd_changed(sk);
 }
 
@@ -631,6 +638,9 @@ static void prague_state(struct sock *sk, u8 new_state)
 	case TCP_CA_CWR:
 		prague_enter_cwr(sk);
 		break;
+	case TCP_CA_Open:
+		prague_ca_open(sk);
+		break;
 	}
 }
 
@@ -660,10 +670,9 @@ static void prague_cong_control(struct sock *sk, const struct rate_sample *rs)
 static u32 prague_ssthresh(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 ssthresh = max_t(u32, tp->snd_cwnd, tp->snd_ssthresh);
-	prague_update_rtt_scaling(sk, ssthresh);
 
-	return ssthresh;
+	prague_update_rtt_scaling(sk, tp->snd_ssthresh);
+	return tp->snd_ssthresh;
 }
 
 static u32 prague_tso_seg(struct sock *sk, unsigned int mss_now)
