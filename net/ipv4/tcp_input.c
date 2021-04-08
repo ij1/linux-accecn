@@ -565,7 +565,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 }
 
 /* Returns the ECN CE delta */
-static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
+static u32 tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			      u32 delivered_pkts, u32 delivered_bytes, int *flag)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
