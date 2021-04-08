@@ -26,6 +26,76 @@ acpi_hw_gpe_enable_write(u8 enable_mask,
 
 /******************************************************************************
  *
+ * FUNCTION:    acpi_hw_gpe_read
+ *
+ * PARAMETERS:  value               - Where the value is returned
+ *              reg                 - GPE register structure
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Read from a GPE register in either memory or IO space.
+ *
+ * LIMITATIONS: <These limitations also apply to acpi_hw_gpe_write>
+ *      space_ID must be system_memory or system_IO.
+ *
+ ******************************************************************************/
+
+acpi_status acpi_hw_gpe_read(u64 *value, struct acpi_gpe_address *reg)
+{
+	acpi_status status;
+	u32 value32;
+
+	if (reg->space_id == ACPI_ADR_SPACE_SYSTEM_MEMORY) {
+#ifdef ACPI_GPE_USE_LOGICAL_ADDRESSES
+		*value = (u64)ACPI_GET8((unsigned long)reg->address);
+		return_ACPI_STATUS(AE_OK);
+#else
+		return acpi_os_read_memory((acpi_physical_address)reg->address,
+					    value, ACPI_GPE_REGISTER_WIDTH);
+#endif
+	}
+
+	status = acpi_os_read_port((acpi_io_address)reg->address,
+				   &value32, ACPI_GPE_REGISTER_WIDTH);
+	if (ACPI_FAILURE(status))
+		return_ACPI_STATUS(status);
+
+	*value = (u64)value32;
+
+	return_ACPI_STATUS(AE_OK);
+}
+
+/******************************************************************************
+ *
+ * FUNCTION:    acpi_hw_gpe_write
+ *
+ * PARAMETERS:  value               - Value to be written
+ *              reg                 - GPE register structure
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Write to a GPE register in either memory or IO space.
+ *
+ ******************************************************************************/
+
+acpi_status acpi_hw_gpe_write(u64 value, struct acpi_gpe_address *reg)
+{
+	if (reg->space_id == ACPI_ADR_SPACE_SYSTEM_MEMORY) {
+#ifdef ACPI_GPE_USE_LOGICAL_ADDRESSES
+		ACPI_SET8((unsigned long)reg->address, value);
+		return_ACPI_STATUS(AE_OK);
+#else
+		return acpi_os_write_memory((acpi_physical_address)reg->address,
+					    value, ACPI_GPE_REGISTER_WIDTH);
+#endif
+	}
+
+	return acpi_os_write_port((acpi_io_address)reg->address, (u32)value,
+				  ACPI_GPE_REGISTER_WIDTH);
+}
+
+/******************************************************************************
+ *
  * FUNCTION:	acpi_hw_get_gpe_register_bit
  *
  * PARAMETERS:	gpe_event_info	    - Info block for the GPE
@@ -79,7 +149,8 @@ acpi_hw_low_set_gpe(struct acpi_gpe_event_info *gpe_event_info, u32 action)
 
 	/* Get current value of the enable register that contains this GPE */
 
-	status = acpi_hw_read(&enable_mask, &gpe_register_info->enable_address);
+	status = acpi_hw_gpe_read(&enable_mask,
+				  &gpe_register_info->enable_address);
 	if (ACPI_FAILURE(status)) {
 		return (status);
 	}
@@ -118,9 +189,8 @@ acpi_hw_low_set_gpe(struct acpi_gpe_event_info *gpe_event_info, u32 action)
 
 		/* Write the updated enable mask */
 
-		status =
-		    acpi_hw_write(enable_mask,
-				  &gpe_register_info->enable_address);
+		status = acpi_hw_gpe_write(enable_mask,
+					   &gpe_register_info->enable_address);
 	}
 	return (status);
 }
@@ -158,8 +228,8 @@ acpi_status acpi_hw_clear_gpe(struct acpi_gpe_event_info *gpe_event_info)
 	 */
 	register_bit = acpi_hw_get_gpe_register_bit(gpe_event_info);
 
-	status =
-	    acpi_hw_write(register_bit, &gpe_register_info->status_address);
+	status = acpi_hw_gpe_write(register_bit,
+				   &gpe_register_info->status_address);
 	return (status);
 }
 
@@ -227,7 +297,7 @@ acpi_hw_get_gpe_status(struct acpi_gpe_event_info *gpe_event_info,
 
 	/* GPE currently enabled (enable bit == 1)? */
 
-	status = acpi_hw_read(&in_byte, &gpe_register_info->enable_address);
+	status = acpi_hw_gpe_read(&in_byte, &gpe_register_info->enable_address);
 	if (ACPI_FAILURE(status)) {
 		return (status);
 	}
@@ -238,7 +308,7 @@ acpi_hw_get_gpe_status(struct acpi_gpe_event_info *gpe_event_info,
 
 	/* GPE currently active (status bit == 1)? */
 
-	status = acpi_hw_read(&in_byte, &gpe_register_info->status_address);
+	status = acpi_hw_gpe_read(&in_byte, &gpe_register_info->status_address);
 	if (ACPI_FAILURE(status)) {
 		return (status);
 	}
@@ -274,7 +344,8 @@ acpi_hw_gpe_enable_write(u8 enable_mask,
 
 	gpe_register_info->enable_mask = enable_mask;
 
-	status = acpi_hw_write(enable_mask, &gpe_register_info->enable_address);
+	status = acpi_hw_gpe_write(enable_mask,
+				   &gpe_register_info->enable_address);
 	return (status);
 }
 
@@ -341,9 +412,8 @@ acpi_hw_clear_gpe_block(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 
 		/* Clear status on all GPEs in this register */
 
-		status =
-		    acpi_hw_write(0xFF,
-				  &gpe_block->register_info[i].status_address);
+		status = acpi_hw_gpe_write(0xFF,
+					   &gpe_block->register_info[i].status_address);
 		if (ACPI_FAILURE(status)) {
 			return (status);
 		}
@@ -444,12 +514,19 @@ acpi_hw_enable_wakeup_gpe_block(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 	return (AE_OK);
 }
 
+struct acpi_gpe_block_status_context {
+	struct acpi_gpe_register_info *gpe_skip_register_info;
+	u8 gpe_skip_mask;
+	u8 retval;
+};
+
 /******************************************************************************
  *
  * FUNCTION:    acpi_hw_get_gpe_block_status
  *
  * PARAMETERS:  gpe_xrupt_info      - GPE Interrupt info
  *              gpe_block           - Gpe Block info
+ *              context             - GPE list walk context data
  *
  * RETURN:      Success
  *
@@ -460,12 +537,13 @@ acpi_hw_enable_wakeup_gpe_block(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 static acpi_status
 acpi_hw_get_gpe_block_status(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 			     struct acpi_gpe_block_info *gpe_block,
-			     void *ret_ptr)
+			     void *context)
 {
+	struct acpi_gpe_block_status_context *c = context;
 	struct acpi_gpe_register_info *gpe_register_info;
 	u64 in_enable, in_status;
 	acpi_status status;
-	u8 *ret = ret_ptr;
+	u8 ret_mask;
 	u32 i;
 
 	/* Examine each GPE Register within the block */
@@ -473,19 +551,23 @@ acpi_hw_get_gpe_block_status(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 	for (i = 0; i < gpe_block->register_count; i++) {
 		gpe_register_info = &gpe_block->register_info[i];
 
-		status = acpi_hw_read(&in_enable,
-				      &gpe_register_info->enable_address);
+		status = acpi_hw_gpe_read(&in_enable,
+					  &gpe_register_info->enable_address);
 		if (ACPI_FAILURE(status)) {
 			continue;
 		}
 
-		status = acpi_hw_read(&in_status,
-				      &gpe_register_info->status_address);
+		status = acpi_hw_gpe_read(&in_status,
+					  &gpe_register_info->status_address);
 		if (ACPI_FAILURE(status)) {
 			continue;
 		}
 
-		*ret |= in_enable & in_status;
+		ret_mask = in_enable & in_status;
+		if (ret_mask && c->gpe_skip_register_info == gpe_register_info) {
+			ret_mask &= ~c->gpe_skip_mask;
+		}
+		c->retval |= ret_mask;
 	}
 
 	return (AE_OK);
@@ -561,24 +643,41 @@ acpi_status acpi_hw_enable_all_wakeup_gpes(void)
  *
  * FUNCTION:    acpi_hw_check_all_gpes
  *
- * PARAMETERS:  None
+ * PARAMETERS:  gpe_skip_device      - GPE devoce of the GPE to skip
+ *              gpe_skip_number      - Number of the GPE to skip
  *
  * RETURN:      Combined status of all GPEs
  *
- * DESCRIPTION: Check all enabled GPEs in all GPE blocks and return TRUE if the
+ * DESCRIPTION: Check all enabled GPEs in all GPE blocks, except for the one
+ *              represented by the "skip" arguments, and return TRUE if the
  *              status bit is set for at least one of them of FALSE otherwise.
  *
  ******************************************************************************/
 
-u8 acpi_hw_check_all_gpes(void)
+u8 acpi_hw_check_all_gpes(acpi_handle gpe_skip_device, u32 gpe_skip_number)
 {
-	u8 ret = 0;
+	struct acpi_gpe_block_status_context context = {
+		.gpe_skip_register_info = NULL,
+		.retval = 0,
+	};
+	struct acpi_gpe_event_info *gpe_event_info;
+	acpi_cpu_flags flags;
 
 	ACPI_FUNCTION_TRACE(acpi_hw_check_all_gpes);
 
-	(void)acpi_ev_walk_gpe_list(acpi_hw_get_gpe_block_status, &ret);
+	flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
 
-	return (ret != 0);
+	gpe_event_info = acpi_ev_get_gpe_event_info(gpe_skip_device,
+						    gpe_skip_number);
+	if (gpe_event_info) {
+		context.gpe_skip_register_info = gpe_event_info->register_info;
+		context.gpe_skip_mask = acpi_hw_get_gpe_register_bit(gpe_event_info);
+	}
+
+	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
+
+	(void)acpi_ev_walk_gpe_list(acpi_hw_get_gpe_block_status, &context);
+	return (context.retval != 0);
 }
 
 #endif				/* !ACPI_REDUCED_HARDWARE */
