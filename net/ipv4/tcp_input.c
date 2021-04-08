@@ -412,6 +412,9 @@ static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
 	if (*flag & FLAG_SYN_ACKED)
 		return 0;
 
+	if (tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_ACE_MAX_DELTA)
+		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
+
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
@@ -3732,10 +3735,6 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	if (ecn_count) {
 		if (tcp_ecn_mode_rfc3168(tp))
 			ecn_count = delivered;
-
-		if (tcp_ecn_mode_accecn(tp) &&
-		    tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_ACE_MAX_DELTA)
-			inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 		NET_ADD_STATS(net, LINUX_MIB_TCPDELIVEREDCE, ecn_count);
 	}
 
