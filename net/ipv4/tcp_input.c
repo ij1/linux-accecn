@@ -3215,6 +3215,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 
 		if (sacked & TCPCB_SACKED_ACKED) {
 			tp->sacked_out -= acked_pcount;
+			/* snd_una delta covers these skbs */
 			sack->delivered_bytes -= skb->len;
 		} else if (tcp_is_sack(tp)) {
 			tcp_count_delivered(tp, acked_pcount, ece_ack);
@@ -3322,8 +3323,8 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 		}
 
 		sack->delivered_bytes = (skb ?
-					 TCP_SKB_CB(skb)->seq :
-					 tp->snd_una) - prior_snd_una;
+					 TCP_SKB_CB(skb)->seq : tp->snd_una) -
+					prior_snd_una;
 	} else if (skb && rtt_update && sack_rtt_us >= 0 &&
 		   sack_rtt_us > tcp_stamp_us_delta(tp->tcp_mstamp,
 						    tcp_skb_timestamp_us(skb))) {
