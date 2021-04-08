@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/*
- * Driver for the Texas Instruments DP83867 PHY
+/* Driver for the Texas Instruments DP83867 PHY
  *
  * Copyright (C) 2015 Texas Instruments Inc.
  */
@@ -30,7 +29,8 @@
 #define DP83867_CTRL		0x1f
 
 /* Extended Registers */
-#define DP83867_CFG4            0x0031
+#define DP83867_FLD_THR_CFG	0x002e
+#define DP83867_CFG4		0x0031
 #define DP83867_CFG4_SGMII_ANEG_MASK (BIT(5) | BIT(6))
 #define DP83867_CFG4_SGMII_ANEG_TIMER_11MS   (3 << 5)
 #define DP83867_CFG4_SGMII_ANEG_TIMER_800US  (2 << 5)
@@ -93,6 +93,7 @@
 #define DP83867_STRAP_STS2_CLK_SKEW_RX_MASK	GENMASK(2, 0)
 #define DP83867_STRAP_STS2_CLK_SKEW_RX_SHIFT	0
 #define DP83867_STRAP_STS2_CLK_SKEW_NONE	BIT(2)
+#define DP83867_STRAP_STS2_STRAP_FLD		BIT(10)
 
 /* PHY CTRL bits */
 #define DP83867_PHYCR_TX_FIFO_DEPTH_SHIFT	14
@@ -110,7 +111,6 @@
 #define DP83867_RGMII_RX_CLK_DELAY_MAX		0xf
 #define DP83867_RGMII_RX_CLK_DELAY_SHIFT	0
 #define DP83867_RGMII_RX_CLK_DELAY_INV	(DP83867_RGMII_RX_CLK_DELAY_MAX + 1)
-
 
 /* IO_MUX_CFG bits */
 #define DP83867_IO_MUX_CFG_IO_IMPEDANCE_MASK	0x1f
@@ -144,6 +144,9 @@
 
 /* CFG4 bits */
 #define DP83867_CFG4_PORT_MIRROR_EN              BIT(0)
+
+/* FLD_THR_CFG */
+#define DP83867_FLD_THR_CFG_ENERGY_LOST_THR_MASK	0x7
 
 enum {
 	DP83867_PORT_MIRROING_KEEP,
@@ -210,9 +213,9 @@ static int dp83867_set_wol(struct phy_device *phydev,
 		if (wol->wolopts & WAKE_MAGICSECURE) {
 			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RXFSOP1,
 				      (wol->sopass[1] << 8) | wol->sopass[0]);
-			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RXFSOP1,
+			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RXFSOP2,
 				      (wol->sopass[3] << 8) | wol->sopass[2]);
-			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RXFSOP1,
+			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RXFSOP3,
 				      (wol->sopass[5] << 8) | wol->sopass[4]);
 
 			val_rxcfg |= DP83867_WOL_SEC_EN;
@@ -360,7 +363,7 @@ static int dp83867_get_downshift(struct phy_device *phydev, u8 *data)
 		break;
 	default:
 		return -EINVAL;
-	};
+	}
 
 	*data = enable ? count : DOWNSHIFT_DEV_DISABLE;
 
@@ -379,23 +382,23 @@ static int dp83867_set_downshift(struct phy_device *phydev, u8 cnt)
 				      DP83867_DOWNSHIFT_EN);
 
 	switch (cnt) {
-		case DP83867_DOWNSHIFT_1_COUNT:
-			count = DP83867_DOWNSHIFT_1_COUNT_VAL;
-			break;
-		case DP83867_DOWNSHIFT_2_COUNT:
-			count = DP83867_DOWNSHIFT_2_COUNT_VAL;
-			break;
-		case DP83867_DOWNSHIFT_4_COUNT:
-			count = DP83867_DOWNSHIFT_4_COUNT_VAL;
-			break;
-		case DP83867_DOWNSHIFT_8_COUNT:
-			count = DP83867_DOWNSHIFT_8_COUNT_VAL;
-			break;
-		default:
-			phydev_err(phydev,
-				   "Downshift count must be 1, 2, 4 or 8\n");
-			return -EINVAL;
-	};
+	case DP83867_DOWNSHIFT_1_COUNT:
+		count = DP83867_DOWNSHIFT_1_COUNT_VAL;
+		break;
+	case DP83867_DOWNSHIFT_2_COUNT:
+		count = DP83867_DOWNSHIFT_2_COUNT_VAL;
+		break;
+	case DP83867_DOWNSHIFT_4_COUNT:
+		count = DP83867_DOWNSHIFT_4_COUNT_VAL;
+		break;
+	case DP83867_DOWNSHIFT_8_COUNT:
+		count = DP83867_DOWNSHIFT_8_COUNT_VAL;
+		break;
+	default:
+		phydev_err(phydev,
+			   "Downshift count must be 1, 2, 4 or 8\n");
+		return -EINVAL;
+	}
 
 	val = DP83867_DOWNSHIFT_EN;
 	val |= FIELD_PREP(DP83867_DOWNSHIFT_ATTEMPT_MASK, count);
@@ -406,7 +409,7 @@ static int dp83867_set_downshift(struct phy_device *phydev, u8 cnt)
 }
 
 static int dp83867_get_tunable(struct phy_device *phydev,
-				struct ethtool_tunable *tuna, void *data)
+			       struct ethtool_tunable *tuna, void *data)
 {
 	switch (tuna->id) {
 	case ETHTOOL_PHY_DOWNSHIFT:
@@ -417,7 +420,7 @@ static int dp83867_get_tunable(struct phy_device *phydev,
 }
 
 static int dp83867_set_tunable(struct phy_device *phydev,
-				struct ethtool_tunable *tuna, const void *data)
+			       struct ethtool_tunable *tuna, const void *data)
 {
 	switch (tuna->id) {
 	case ETHTOOL_PHY_DOWNSHIFT:
@@ -483,7 +486,7 @@ static int dp83867_verify_rgmii_cfg(struct phy_device *phydev)
 	return 0;
 }
 
-#ifdef CONFIG_OF_MDIO
+#if IS_ENABLED(CONFIG_OF_MDIO)
 static int dp83867_of_init(struct phy_device *phydev)
 {
 	struct dp83867_private *dp83867 = phydev->priv;
@@ -519,11 +522,10 @@ static int dp83867_of_init(struct phy_device *phydev)
 		dp83867->io_impedance = -1; /* leave at default */
 
 	dp83867->rxctrl_strap_quirk = of_property_read_bool(of_node,
-					"ti,dp83867-rxctrl-strap-quirk");
+							    "ti,dp83867-rxctrl-strap-quirk");
 
 	dp83867->sgmii_ref_clk_en = of_property_read_bool(of_node,
-					"ti,sgmii-ref-clock-output-enable");
-
+							  "ti,sgmii-ref-clock-output-enable");
 
 	dp83867->rx_id_delay = DP83867_RGMII_RX_CLK_DELAY_INV;
 	ret = of_property_read_u32(of_node, "ti,rx-internal-delay",
@@ -621,6 +623,20 @@ static int dp83867_config_init(struct phy_device *phydev)
 	if (dp83867->rxctrl_strap_quirk)
 		phy_clear_bits_mmd(phydev, DP83867_DEVADDR, DP83867_CFG4,
 				   BIT(7));
+
+	bs = phy_read_mmd(phydev, DP83867_DEVADDR, DP83867_STRAP_STS2);
+	if (bs & DP83867_STRAP_STS2_STRAP_FLD) {
+		/* When using strap to enable FLD, the ENERGY_LOST_FLD_THR will
+		 * be set to 0x2. This may causes the PHY link to be unstable -
+		 * the default value 0x1 need to be restored.
+		 */
+		ret = phy_modify_mmd(phydev, DP83867_DEVADDR,
+				     DP83867_FLD_THR_CFG,
+				     DP83867_FLD_THR_CFG_ENERGY_LOST_THR_MASK,
+				     0x1);
+		if (ret)
+			return ret;
+	}
 
 	if (phy_interface_is_rgmii(phydev) ||
 	    phydev->interface == PHY_INTERFACE_MODE_SGMII) {

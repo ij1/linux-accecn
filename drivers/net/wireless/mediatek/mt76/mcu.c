@@ -6,17 +6,20 @@
 #include "mt76.h"
 
 struct sk_buff *
-mt76_mcu_msg_alloc(const void *data, int head_len,
-		   int data_len, int tail_len)
+mt76_mcu_msg_alloc(struct mt76_dev *dev, const void *data,
+		   int data_len)
 {
+	const struct mt76_mcu_ops *ops = dev->mcu_ops;
+	int length = ops->headroom + data_len + ops->tailroom;
 	struct sk_buff *skb;
 
-	skb = alloc_skb(head_len + data_len + tail_len,
-			GFP_KERNEL);
+	skb = alloc_skb(length, GFP_KERNEL);
 	if (!skb)
 		return NULL;
 
-	skb_reserve(skb, head_len);
+	memset(skb->head, 0, length);
+	skb_reserve(skb, ops->headroom);
+
 	if (data && data_len)
 		skb_put_data(skb, data, data_len);
 
