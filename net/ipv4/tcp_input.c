@@ -3335,6 +3335,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 
 		if (sacked & TCPCB_SACKED_ACKED) {
 			tp->sacked_out -= acked_pcount;
+			/* snd_una delta covers these skbs */
 			sack->delivered_bytes -= skb->len;
 		} else if (tcp_is_sack(tp)) {
 			tcp_count_delivered(tp, acked_pcount, ece_ack);
@@ -3442,8 +3443,8 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 		}
 
 		sack->delivered_bytes = (skb ?
-					 TCP_SKB_CB(skb)->seq :
-					 tp->snd_una) - prior_snd_una;
+					 TCP_SKB_CB(skb)->seq : tp->snd_una) -
+					prior_snd_una;
 	} else if (skb && rtt_update && sack_rtt_us >= 0 &&
 		   sack_rtt_us > tcp_stamp_us_delta(tp->tcp_mstamp,
 						    tcp_skb_timestamp_us(skb))) {
@@ -3847,10 +3848,10 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	u32 ecn_count = 0;	  /* Did we receive ECE/an AccECN ACE update? */
 	u32 prior_fack;
 
-	sack_state.delivered_bytes = 0;
 	sack_state.first_sackt = 0;
 	sack_state.rate = &rs;
 	sack_state.sack_delivered = 0;
+	sack_state.delivered_bytes = 0;
 
 	/* We very likely will need to access rtx queue. */
 	prefetch(sk->tcp_rtx_queue.rb_node);
