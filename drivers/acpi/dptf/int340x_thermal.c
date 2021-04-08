@@ -13,10 +13,6 @@
 
 #define INT3401_DEVICE 0X01
 static const struct acpi_device_id int340x_thermal_device_ids[] = {
-	{"INT1040"},
-	{"INT1043"},
-	{"INT1044"},
-	{"INT1047"},
 	{"INT3400"},
 	{"INT3401", INT3401_DEVICE},
 	{"INT3402"},
@@ -28,6 +24,17 @@ static const struct acpi_device_id int340x_thermal_device_ids[] = {
 	{"INT3409"},
 	{"INT340A"},
 	{"INT340B"},
+	{"INTC1040"},
+	{"INTC1041"},
+	{"INTC1043"},
+	{"INTC1044"},
+	{"INTC1045"},
+	{"INTC1046"},
+	{"INTC1047"},
+	{"INTC1048"},
+	{"INTC1049"},
+	{"INTC1060"},
+	{"INTC1061"},
 	{""},
 };
 
