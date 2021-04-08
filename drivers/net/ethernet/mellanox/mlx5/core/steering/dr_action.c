@@ -933,7 +933,6 @@ static int dr_actions_l2_rewrite(struct mlx5dr_domain *dmn,
 
 	action->rewrite.data = (void *)ops;
 	action->rewrite.num_of_actions = i;
-	action->rewrite.chunk->byte_size = i * sizeof(*ops);
 
 	ret = mlx5dr_send_postsend_action(dmn, action);
 	if (ret) {
@@ -1663,7 +1662,7 @@ dr_action_modify_check_field_limitation(struct mlx5dr_action *action,
 }
 
 static bool
-dr_action_modify_check_is_ttl_modify(const u64 *sw_action)
+dr_action_modify_check_is_ttl_modify(const void *sw_action)
 {
 	u16 sw_field = MLX5_GET(set_action_in, sw_action, field);
 
