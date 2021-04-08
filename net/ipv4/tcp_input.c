@@ -1067,13 +1067,18 @@ void tcp_mark_skb_lost(struct sock *sk, struct sk_buff *skb)
 	}
 }
 
+static void tcp_count_delivered_ce(struct tcp_sock *tp, u32 ecn_count)
+{
+	tp->delivered_ce += ecn_count;
+}
+
 /* Updates the delivered and delivered_ce counts */
 static void tcp_count_delivered(struct tcp_sock *tp, u32 delivered,
 				bool ece_ack)
 {
 	tp->delivered += delivered;
 	if (ece_ack)
-		tp->delivered_ce += delivered;
+		tcp_count_delivered_ce(tp, delivered);
 }
 
 /* This procedure tags the retransmission queue when SACKs arrive.
