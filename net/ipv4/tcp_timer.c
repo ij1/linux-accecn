@@ -302,7 +302,7 @@ void tcp_delack_timer_handler(struct sock *sk)
 			icsk->icsk_ack.ato      = TCP_ATO_MIN;
 		}
 		tcp_mstamp_refresh(tcp_sk(sk));
-		tcp_send_ack(sk, 0);
+		tcp_send_ack(sk);
 		__NET_INC_STATS(sock_net(sk), LINUX_MIB_DELAYEDACKS);
 	}
 
@@ -758,7 +758,7 @@ static enum hrtimer_restart tcp_compressed_ack_kick(struct hrtimer *timer)
 			 * LINUX_MIB_TCPACKCOMPRESSED accurate.
 			 */
 			tp->compressed_ack--;
-			tcp_send_ack(sk, 0);
+			tcp_send_ack(sk);
 		}
 	} else {
 		if (!test_and_set_bit(TCP_DELACK_TIMER_DEFERRED,

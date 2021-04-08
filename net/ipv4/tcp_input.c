@@ -3567,7 +3567,7 @@ static void tcp_send_challenge_ack(struct sock *sk, const struct sk_buff *skb)
 	if (count > 0) {
 		WRITE_ONCE(challenge_count, count - 1);
 		NET_INC_STATS(net, LINUX_MIB_TCPCHALLENGEACK);
-		tcp_send_ack(sk, 0);
+		tcp_send_ack(sk);
 	}
 }
 
@@ -4292,12 +4292,12 @@ void tcp_fin(struct sock *sk)
 		 * happens, we must ack the received FIN and
 		 * enter the CLOSING state.
 		 */
-		tcp_send_ack(sk, 0);
+		tcp_send_ack(sk);
 		tcp_set_state(sk, TCP_CLOSING);
 		break;
 	case TCP_FIN_WAIT2:
 		/* Received a FIN -- send ACK and enter TIME_WAIT. */
-		tcp_send_ack(sk, 0);
+		tcp_send_ack(sk);
 		tcp_time_wait(sk, TCP_TIME_WAIT, 0);
 		break;
 	default:
@@ -4404,7 +4404,7 @@ static void tcp_send_dupack(struct sock *sk, const struct sk_buff *skb)
 		}
 	}
 
-	tcp_send_ack(sk, 0);
+	tcp_send_ack(sk);
 }
 
 /* These routines update the SACK block as out-of-order packets arrive or
@@ -4454,7 +4454,7 @@ static void tcp_sack_compress_send_ack(struct sock *sk)
 		      tp->compressed_ack - 1);
 
 	tp->compressed_ack = 0;
-	tcp_send_ack(sk, 0);
+	tcp_send_ack(sk);
 }
 
 /* Reasonable amount of sack blocks included in TCP SACK option
@@ -5399,7 +5399,7 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 	    /* Protocol state mandates a one-time immediate ACK */
 	    inet_csk(sk)->icsk_ack.pending & ICSK_ACK_NOW) {
 send_now:
-		tcp_send_ack(sk, 0);
+		tcp_send_ack(sk);
 		return;
 	}
 
@@ -6173,7 +6173,7 @@ discard:
 			tcp_drop(sk, skb);
 			return 0;
 		} else {
-			tcp_send_ack(sk, 0);
+			tcp_send_ack(sk);
 		}
 		return -1;
 	}
