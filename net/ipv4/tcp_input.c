@@ -392,9 +392,10 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 }
 
 /* Returns the ECN CE delta */
-static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
+static u32 tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			      u32 delivered_pkts, int *flag)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	u32 delta, safe_delta;
 	u32 corrected_ace;
 
@@ -3862,7 +3863,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	tcp_rack_update_reo_wnd(sk, &rs);
 
 	if (tcp_ecn_mode_accecn(tp))
-		ecn_count = tcp_accecn_process(tp, skb, tp->delivered - delivered, &flag);
+		ecn_count = tcp_accecn_process(sk, skb, tp->delivered - delivered, &flag);
 
 	tcp_in_ack_event(sk, flag);
 
@@ -3897,7 +3898,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 no_queue:
 	if (tcp_ecn_mode_accecn(tp))
-		ecn_count = tcp_accecn_process(tp, skb, tp->delivered - delivered, &flag);
+		ecn_count = tcp_accecn_process(sk, skb, tp->delivered - delivered, &flag);
 	tcp_in_ack_event(sk, flag);
 	/* If data was DSACKed, see if we can undo a cwnd reduction. */
 	if (flag & FLAG_DSACKING_ACK) {
