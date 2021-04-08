@@ -309,6 +309,20 @@ static bool tcp_in_quickack_mode(struct sock *sk)
 		(icsk->icsk_ack.quick && !inet_csk_in_pingpong_mode(sk));
 }
 
+static void tcp_count_delivered_ce(struct tcp_sock *tp, u32 ecn_count)
+{
+	tp->delivered_ce += ecn_count;
+}
+
+/* Updates the delivered and delivered_ce counts */
+static void tcp_count_delivered(struct tcp_sock *tp, u32 delivered,
+				bool ece_ack)
+{
+	tp->delivered += delivered;
+	if (ece_ack)
+		tcp_count_delivered_ce(tp, delivered);
+}
+
 static void tcp_ecn_queue_cwr(struct tcp_sock *tp)
 {
 	if (tp->ecn_flags & TCP_ECN_OK)
@@ -1065,20 +1079,6 @@ void tcp_mark_skb_lost(struct sock *sk, struct sk_buff *skb)
 		TCP_SKB_CB(skb)->sacked |= TCPCB_LOST;
 		tcp_notify_skb_loss_event(tp, skb);
 	}
-}
-
-static void tcp_count_delivered_ce(struct tcp_sock *tp, u32 ecn_count)
-{
-	tp->delivered_ce += ecn_count;
-}
-
-/* Updates the delivered and delivered_ce counts */
-static void tcp_count_delivered(struct tcp_sock *tp, u32 delivered,
-				bool ece_ack)
-{
-	tp->delivered += delivered;
-	if (ece_ack)
-		tcp_count_delivered_ce(tp, delivered);
 }
 
 /* This procedure tags the retransmission queue when SACKs arrive.
