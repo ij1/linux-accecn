@@ -3696,10 +3696,10 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
 	u32 prior_fack;
 
-	sack_state.delivered_bytes = 0;
 	sack_state.first_sackt = 0;
 	sack_state.rate = &rs;
 	sack_state.sack_delivered = 0;
+	sack_state.delivered_bytes = 0;
 
 	/* We very likely will need to access rtx queue. */
 	prefetch(sk->tcp_rtx_queue.rb_node);
