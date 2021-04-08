@@ -4603,7 +4603,7 @@ static void tcp_sack_compress_send_ack(struct sock *sk)
 		      tp->compressed_ack - 1);
 
 	tp->compressed_ack = 0;
-	tcp_send_ack(sk, 0);
+	tcp_send_ack(sk);
 }
 
 /* Reasonable amount of sack blocks included in TCP SACK option
