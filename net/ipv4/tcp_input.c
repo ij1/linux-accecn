@@ -393,34 +393,38 @@ static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *
 
 /* Returns the ECN CE delta */
 static u32 tcp_accecn_process(struct tcp_sock *tp, const struct sk_buff *skb,
-			      u32 delivered_pkts, int flag)
+			      u32 delivered_pkts, int *flag)
 {
 	u32 delta, safe_delta;
 	u32 corrected_ace;
 
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
-	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+	if (!(*flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
 
-	if (!(flag & FLAG_SLOWPATH)) {
+	if (!(*flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
 		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 			return 0;
 	}
 
 	/* ACE field is not available during handshake */
-	if (flag & FLAG_SYN_ACKED)
+	if (*flag & FLAG_SYN_ACKED)
 		return 0;
 
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
-		return delta;
+		goto out;
 
-	safe_delta = delivered_pkts -
-		     ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
+	safe_delta = delivered_pkts - ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
+	delta = safe_delta;
 
-	return safe_delta;
+out:
+	tcp_count_delivered_ce(tp, delta);
+	if (delta > 0)
+		*flag |= FLAG_ECE;
+	return delta;
 }
 
 /* Buffer size and advertised window tuning.
@@ -3729,7 +3733,6 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 		if (tcp_ecn_mode_rfc3168(tp))
 			ecn_count = delivered;
 
-		tp->delivered_ce += ecn_count;
 		if (tcp_ecn_mode_accecn(tp) &&
 		    tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_ACE_MAX_DELTA)
 			inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
@@ -3859,12 +3862,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	tcp_rack_update_reo_wnd(sk, &rs);
 
-	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
-		if (ecn_count > 0)
-			flag |= FLAG_ECE;
-	}
+	if (tcp_ecn_mode_accecn(tp))
+		ecn_count = tcp_accecn_process(tp, skb, tp->delivered - delivered, &flag);
 
 	tcp_in_ack_event(sk, flag);
 
@@ -3898,14 +3897,8 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	return 1;
 
 no_queue:
-	if (tcp_ecn_mode_accecn(tp)) {
-		ecn_count = tcp_accecn_process(tp, skb,
-					       tp->delivered - delivered, flag);
-		if (ecn_count > 0)
-			flag |= FLAG_ECE;
-	} else if (flag & FLAG_ECE) {
-		ecn_count = tp->delivered - delivered;
-	}
+	if (tcp_ecn_mode_accecn(tp))
+		ecn_count = tcp_accecn_process(tp, skb, tp->delivered - delivered, &flag);
 	tcp_in_ack_event(sk, flag);
 	/* If data was DSACKed, see if we can undo a cwnd reduction. */
 	if (flag & FLAG_DSACKING_ACK) {
