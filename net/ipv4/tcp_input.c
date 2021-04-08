@@ -3903,6 +3903,8 @@ no_queue:
 					       tp->delivered - delivered, flag);
 		if (ecn_count > 0)
 			flag |= FLAG_ECE;
+	} else if (flag & FLAG_ECE) {
+		ecn_count = tp->delivered - delivered;
 	}
 	tcp_in_ack_event(sk, flag);
 	/* If data was DSACKed, see if we can undo a cwnd reduction. */
