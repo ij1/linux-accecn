@@ -12,15 +12,15 @@
 #include "mscc_macsec.h"
 #endif
 
-enum rgmii_rx_clock_delay {
-	RGMII_RX_CLK_DELAY_0_2_NS = 0,
-	RGMII_RX_CLK_DELAY_0_8_NS = 1,
-	RGMII_RX_CLK_DELAY_1_1_NS = 2,
-	RGMII_RX_CLK_DELAY_1_7_NS = 3,
-	RGMII_RX_CLK_DELAY_2_0_NS = 4,
-	RGMII_RX_CLK_DELAY_2_3_NS = 5,
-	RGMII_RX_CLK_DELAY_2_6_NS = 6,
-	RGMII_RX_CLK_DELAY_3_4_NS = 7
+enum rgmii_clock_delay {
+	RGMII_CLK_DELAY_0_2_NS = 0,
+	RGMII_CLK_DELAY_0_8_NS = 1,
+	RGMII_CLK_DELAY_1_1_NS = 2,
+	RGMII_CLK_DELAY_1_7_NS = 3,
+	RGMII_CLK_DELAY_2_0_NS = 4,
+	RGMII_CLK_DELAY_2_3_NS = 5,
+	RGMII_CLK_DELAY_2_6_NS = 6,
+	RGMII_CLK_DELAY_3_4_NS = 7
 };
 
 /* Microsemi VSC85xx PHY registers */
@@ -133,6 +133,7 @@ enum rgmii_rx_clock_delay {
  * in the same package.
  */
 #define MSCC_PHY_PAGE_EXTENDED_GPIO	  0x0010 /* Extended reg - GPIO */
+#define MSCC_PHY_PAGE_1588		  0x1588 /* PTP (1588) */
 #define MSCC_PHY_PAGE_TEST		  0x2a30 /* Test reg */
 #define MSCC_PHY_PAGE_TR		  0x52b5 /* Token ring registers */
 
@@ -161,9 +162,15 @@ enum rgmii_rx_clock_delay {
 /* Extended Page 2 Registers */
 #define MSCC_PHY_CU_PMD_TX_CNTL		  16
 
-#define MSCC_PHY_RGMII_CNTL		  20
-#define RGMII_RX_CLK_DELAY_MASK		  0x0070
-#define RGMII_RX_CLK_DELAY_POS		  4
+/* RGMII setting controls at address 18E2, for VSC8572 and similar */
+#define VSC8572_RGMII_CNTL		  18
+#define VSC8572_RGMII_RX_DELAY_MASK	  0x000E
+#define VSC8572_RGMII_TX_DELAY_MASK	  0x0070
+
+/* RGMII controls at address 20E2, for VSC8502 and similar */
+#define VSC8502_RGMII_CNTL		  20
+#define VSC8502_RGMII_RX_DELAY_MASK	  0x0070
+#define VSC8502_RGMII_TX_DELAY_MASK	  0x0007
 
 #define MSCC_PHY_WOL_LOWER_MAC_ADDR	  21
 #define MSCC_PHY_WOL_MID_MAC_ADDR	  22
@@ -241,10 +248,12 @@ enum rgmii_rx_clock_delay {
 #define MAC_CFG_MASK			  0xc000
 #define MAC_CFG_SGMII			  0x0000
 #define MAC_CFG_QSGMII			  0x4000
+#define MAC_CFG_RGMII			  0x8000
 
 /* Test page Registers */
 #define MSCC_PHY_TEST_PAGE_5		  5
 #define MSCC_PHY_TEST_PAGE_8		  8
+#define TR_CLK_DISABLE			  0x8000
 #define MSCC_PHY_TEST_PAGE_9		  9
 #define MSCC_PHY_TEST_PAGE_20		  20
 #define MSCC_PHY_TEST_PAGE_24		  24
@@ -259,6 +268,7 @@ enum rgmii_rx_clock_delay {
 /* Microsemi PHY ID's
  *   Code assumes lowest nibble is 0
  */
+#define PHY_ID_VSC8502			  0x00070630
 #define PHY_ID_VSC8504			  0x000704c0
 #define PHY_ID_VSC8514			  0x00070670
 #define PHY_ID_VSC8530			  0x00070560
@@ -345,7 +355,8 @@ struct vsc8531_private {
 	const struct vsc85xx_hw_stat *hw_stats;
 	u64 *stats;
 	int nstats;
-	bool pkg_init;
+	/* PHY address within the package. */
+	u8 addr;
 	/* For multiple port PHYs; the MDIO address of the base PHY in the
 	 * package.
 	 */
@@ -363,9 +374,38 @@ struct vsc8531_private {
 	unsigned long ingr_flows;
 	unsigned long egr_flows;
 #endif
+
+	struct mii_timestamper mii_ts;
+
+	bool input_clk_init;
+	struct vsc85xx_ptp *ptp;
+	/* LOAD/SAVE GPIO pin, used for retrieving or setting time to the PHC. */
+	struct gpio_desc *load_save;
+
+	/* For multiple port PHYs; the MDIO address of the base PHY in the
+	 * pair of two PHYs that share a 1588 engine. PHY0 and PHY2 are coupled.
+	 * PHY1 and PHY3 as well. PHY0 and PHY1 are base PHYs for their
+	 * respective pair.
+	 */
+	unsigned int ts_base_addr;
+	u8 ts_base_phy;
+
+	/* ts_lock: used for per-PHY timestamping operations.
+	 * phc_lock: used for per-PHY PHC opertations.
+	 */
+	struct mutex ts_lock;
+	struct mutex phc_lock;
 };
 
-#ifdef CONFIG_OF_MDIO
+/* Shared structure between the PHYs of the same package.
+ * gpio_lock: used for PHC operations. Common for all PHYs as the load/save GPIO
+ * is shared.
+ */
+struct vsc85xx_shared_private {
+	struct mutex gpio_lock;
+};
+
+#if IS_ENABLED(CONFIG_OF_MDIO)
 struct vsc8531_edge_rate_table {
 	u32 vddmac;
 	u32 slowdown[8];
@@ -386,6 +426,38 @@ static inline void vsc8584_handle_macsec_interrupt(struct phy_device *phydev)
 }
 static inline void vsc8584_config_macsec_intr(struct phy_device *phydev)
 {
+}
+#endif
+
+#if IS_ENABLED(CONFIG_NETWORK_PHY_TIMESTAMPING)
+void vsc85xx_link_change_notify(struct phy_device *phydev);
+void vsc8584_config_ts_intr(struct phy_device *phydev);
+int vsc8584_ptp_init(struct phy_device *phydev);
+int vsc8584_ptp_probe_once(struct phy_device *phydev);
+int vsc8584_ptp_probe(struct phy_device *phydev);
+irqreturn_t vsc8584_handle_ts_interrupt(struct phy_device *phydev);
+#else
+static inline void vsc85xx_link_change_notify(struct phy_device *phydev)
+{
+}
+static inline void vsc8584_config_ts_intr(struct phy_device *phydev)
+{
+}
+static inline int vsc8584_ptp_init(struct phy_device *phydev)
+{
+	return 0;
+}
+static inline int vsc8584_ptp_probe_once(struct phy_device *phydev)
+{
+	return 0;
+}
+static inline int vsc8584_ptp_probe(struct phy_device *phydev)
+{
+	return 0;
+}
+static inline irqreturn_t vsc8584_handle_ts_interrupt(struct phy_device *phydev)
+{
+	return IRQ_NONE;
 }
 #endif
 
