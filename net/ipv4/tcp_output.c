@@ -495,8 +495,8 @@ struct tcp_out_options {
 	u16 options;		/* bit field of OPTION_* */
 	u16 mss;		/* 0 to disable */
 	u8 ws;			/* window scale, 0 to disable */
-	u8 num_sack_blocks:3,	/* number of SACK blocks to include */
-	   num_ecn_bytes:2;	/* number of AccECN fields needed */
+	u8 num_sack_blocks;	/* number of SACK blocks to include */
+	u8 num_ecn_bytes;	/* number of AccECN fields needed */
 	u8 hash_size;		/* bytes in hash_location */
 	u8 bpf_opt_len;		/* length of BPF hdr option */
 	__u8 *hash_location;	/* temporary pointer, overloaded */
