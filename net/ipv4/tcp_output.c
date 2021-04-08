@@ -3935,7 +3935,7 @@ void tcp_send_delayed_ack(struct sock *sk)
 	if (icsk->icsk_ack.pending & ICSK_ACK_TIMER) {
 		/* If delack timer is about to expire, send ACK now. */
 		if (time_before_eq(icsk->icsk_ack.timeout, jiffies + (ato >> 2))) {
-			tcp_send_ack(sk, 0);
+			tcp_send_ack(sk);
 			return;
 		}
 
@@ -3990,9 +3990,9 @@ void __tcp_send_ack(struct sock *sk, u32 rcv_nxt, u16 flags)
 }
 EXPORT_SYMBOL_GPL(__tcp_send_ack);
 
-void tcp_send_ack(struct sock *sk, u16 flags)
+void tcp_send_ack(struct sock *sk)
 {
-	__tcp_send_ack(sk, tcp_sk(sk)->rcv_nxt, flags);
+	__tcp_send_ack(sk, tcp_sk(sk)->rcv_nxt, 0);
 }
 
 /* This routine sends a packet with an out of date sequence
