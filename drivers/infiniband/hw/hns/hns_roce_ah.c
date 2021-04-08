@@ -39,13 +39,30 @@
 #define HNS_ROCE_VLAN_SL_BIT_MASK	7
 #define HNS_ROCE_VLAN_SL_SHIFT		13
 
-int hns_roce_create_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr,
-		       u32 flags, struct ib_udata *udata)
+static inline u16 get_ah_udp_sport(const struct rdma_ah_attr *ah_attr)
+{
+	u32 fl = ah_attr->grh.flow_label;
+	u16 sport;
+
+	if (!fl)
+		sport = get_random_u32() %
+			(IB_ROCE_UDP_ENCAP_VALID_PORT_MAX + 1 -
+			 IB_ROCE_UDP_ENCAP_VALID_PORT_MIN) +
+			IB_ROCE_UDP_ENCAP_VALID_PORT_MIN;
+	else
+		sport = rdma_flow_label_to_udp_sport(fl);
+
+	return sport;
+}
+
+int hns_roce_create_ah(struct ib_ah *ibah, struct rdma_ah_init_attr *init_attr,
+		       struct ib_udata *udata)
 {
 	struct hns_roce_dev *hr_dev = to_hr_dev(ibah->device);
 	const struct ib_gid_attr *gid_attr;
 	struct device *dev = hr_dev->dev;
 	struct hns_roce_ah *ah = to_hr_ah(ibah);
+	struct rdma_ah_attr *ah_attr = init_attr->ah_attr;
 	const struct ib_global_route *grh = rdma_ah_read_grh(ah_attr);
 	u16 vlan_id = 0xffff;
 	bool vlan_en = false;
@@ -78,6 +95,8 @@ int hns_roce_create_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr,
 
 	memcpy(ah->av.dgid, grh->dgid.raw, HNS_ROCE_GID_SIZE);
 	ah->av.sl = rdma_ah_get_sl(ah_attr);
+	ah->av.flowlabel = grh->flow_label;
+	ah->av.udp_sport = get_ah_udp_sport(ah_attr);
 
 	return 0;
 }
@@ -96,9 +115,4 @@ int hns_roce_query_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr)
 	rdma_ah_set_dgid_raw(ah_attr, ah->av.dgid);
 
 	return 0;
-}
-
-void hns_roce_destroy_ah(struct ib_ah *ah, u32 flags)
-{
-	return;
 }
