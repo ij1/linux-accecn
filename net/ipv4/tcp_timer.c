@@ -758,7 +758,7 @@ static enum hrtimer_restart tcp_compressed_ack_kick(struct hrtimer *timer)
 			 * LINUX_MIB_TCPACKCOMPRESSED accurate.
 			 */
 			tp->compressed_ack--;
-			tcp_send_ack(sk, 0);
+			tcp_send_ack(sk);
 		}
 	} else {
 		if (!test_and_set_bit(TCP_DELACK_TIMER_DEFERRED,
