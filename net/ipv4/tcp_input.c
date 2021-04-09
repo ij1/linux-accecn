@@ -637,6 +637,7 @@ static u32 tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			goto out;
 	}
 	delta = safe_delta;
+
 out:
 	tcp_count_delivered_ce(tp, delta);
 	if (delta > 0)
