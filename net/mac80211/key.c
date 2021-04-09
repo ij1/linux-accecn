@@ -6,7 +6,7 @@
  * Copyright 2007-2008	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright 2015-2017	Intel Deutschland GmbH
- * Copyright 2018-2019  Intel Corporation
+ * Copyright 2018-2020  Intel Corporation
  */
 
 #include <linux/if_ether.h>
@@ -177,13 +177,6 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 		}
 	}
 
-	/* TKIP countermeasures don't work in encap offload mode */
-	if (key->conf.cipher == WLAN_CIPHER_SUITE_TKIP &&
-	    sdata->hw_80211_encap) {
-		sdata_dbg(sdata, "TKIP is not allowed in hw 80211 encap mode\n");
-		return -EINVAL;
-	}
-
 	ret = drv_set_key(key->local, SET_KEY, sdata,
 			  sta ? &sta->sta : NULL, &key->conf);
 
@@ -219,14 +212,6 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 	case WLAN_CIPHER_SUITE_CCMP_256:
 	case WLAN_CIPHER_SUITE_GCMP:
 	case WLAN_CIPHER_SUITE_GCMP_256:
-		/* We cannot do software crypto of data frames with
-		 * encapsulation offload enabled. However for 802.11w to
-		 * function properly we need cmac/gmac keys.
-		 */
-		if (sdata->hw_80211_encap)
-			return -EINVAL;
-		/* Fall through */
-
 	case WLAN_CIPHER_SUITE_AES_CMAC:
 	case WLAN_CIPHER_SUITE_BIP_CMAC_256:
 	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
@@ -277,20 +262,27 @@ static void ieee80211_key_disable_hw_accel(struct ieee80211_key *key)
 			  sta ? sta->sta.addr : bcast_addr, ret);
 }
 
-int ieee80211_set_tx_key(struct ieee80211_key *key)
+static int _ieee80211_set_tx_key(struct ieee80211_key *key, bool force)
 {
 	struct sta_info *sta = key->sta;
 	struct ieee80211_local *local = key->local;
 
 	assert_key_lock(local);
 
+	set_sta_flag(sta, WLAN_STA_USES_ENCRYPTION);
+
 	sta->ptk_idx = key->conf.keyidx;
 
-	if (!ieee80211_hw_check(&local->hw, AMPDU_KEYBORDER_SUPPORT))
+	if (force || !ieee80211_hw_check(&local->hw, AMPDU_KEYBORDER_SUPPORT))
 		clear_sta_flag(sta, WLAN_STA_BLOCK_BA);
 	ieee80211_check_fast_xmit(sta);
 
 	return 0;
+}
+
+int ieee80211_set_tx_key(struct ieee80211_key *key)
+{
+	return _ieee80211_set_tx_key(key, false);
 }
 
 static void ieee80211_pairwise_rekey(struct ieee80211_key *old,
@@ -481,11 +473,8 @@ static int ieee80211_key_replace(struct ieee80211_sub_if_data *sdata,
 		if (pairwise) {
 			rcu_assign_pointer(sta->ptk[idx], new);
 			if (new &&
-			    !(new->conf.flags & IEEE80211_KEY_FLAG_NO_AUTO_TX)) {
-				sta->ptk_idx = idx;
-				clear_sta_flag(sta, WLAN_STA_BLOCK_BA);
-				ieee80211_check_fast_xmit(sta);
-			}
+			    !(new->conf.flags & IEEE80211_KEY_FLAG_NO_AUTO_TX))
+				_ieee80211_set_tx_key(new, true);
 		} else {
 			rcu_assign_pointer(sta->gtk[idx], new);
 		}
@@ -728,7 +717,7 @@ static void ieee80211_key_free_common(struct ieee80211_key *key)
 		ieee80211_aes_gcm_key_free(key->u.gcmp.tfm);
 		break;
 	}
-	kzfree(key);
+	kfree_sensitive(key);
 }
 
 static void __ieee80211_key_destroy(struct ieee80211_key *key,

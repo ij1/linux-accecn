@@ -10,6 +10,7 @@
 #include <linux/uio.h>
 #include <linux/uaccess.h>
 #include <linux/splice.h>
+#include <linux/security.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
 #include "overlayfs.h"
@@ -32,17 +33,32 @@ static char ovl_whatisit(struct inode *inode, struct inode *realinode)
 		return 'm';
 }
 
+/* No atime modificaton nor notify on underlying */
+#define OVL_OPEN_FLAGS (O_NOATIME | FMODE_NONOTIFY)
+
 static struct file *ovl_open_realfile(const struct file *file,
 				      struct inode *realinode)
 {
 	struct inode *inode = file_inode(file);
 	struct file *realfile;
 	const struct cred *old_cred;
-	int flags = file->f_flags | O_NOATIME | FMODE_NONOTIFY;
+	int flags = file->f_flags | OVL_OPEN_FLAGS;
+	int acc_mode = ACC_MODE(flags);
+	int err;
+
+	if (flags & O_APPEND)
+		acc_mode |= MAY_APPEND;
 
 	old_cred = ovl_override_creds(inode->i_sb);
-	realfile = open_with_fake_path(&file->f_path, flags, realinode,
-				       current_cred());
+	err = inode_permission(realinode, MAY_OPEN | acc_mode);
+	if (err) {
+		realfile = ERR_PTR(err);
+	} else if (!inode_owner_or_capable(realinode)) {
+		realfile = ERR_PTR(-EPERM);
+	} else {
+		realfile = open_with_fake_path(&file->f_path, flags, realinode,
+					       current_cred());
+	}
 	revert_creds(old_cred);
 
 	pr_debug("open(%p[%pD2/%c], 0%o) -> (%p, 0%o)\n",
@@ -59,8 +75,7 @@ static int ovl_change_flags(struct file *file, unsigned int flags)
 	struct inode *inode = file_inode(file);
 	int err;
 
-	/* No atime modificaton on underlying */
-	flags |= O_NOATIME | FMODE_NONOTIFY;
+	flags |= OVL_OPEN_FLAGS;
 
 	/* If some flag changed that cannot be changed then something's amiss */
 	if (WARN_ON((file->f_flags ^ flags) & ~OVL_SETFL_MASK))
@@ -113,7 +128,7 @@ static int ovl_real_fdget_meta(const struct file *file, struct fd *real,
 	}
 
 	/* Did the flags change since open? */
-	if (unlikely((file->f_flags ^ real->file->f_flags) & ~O_NOATIME))
+	if (unlikely((file->f_flags ^ real->file->f_flags) & ~OVL_OPEN_FLAGS))
 		return ovl_change_flags(real->file, file->f_flags);
 
 	return 0;
@@ -121,6 +136,13 @@ static int ovl_real_fdget_meta(const struct file *file, struct fd *real,
 
 static int ovl_real_fdget(const struct file *file, struct fd *real)
 {
+	if (d_is_dir(file_dentry(file))) {
+		real->flags = 0;
+		real->file = ovl_dir_real_file(file, false);
+
+		return PTR_ERR_OR_ZERO(real->file);
+	}
+
 	return ovl_real_fdget_meta(file, real, false);
 }
 
@@ -219,9 +241,8 @@ static void ovl_file_accessed(struct file *file)
 	touch_atime(&file->f_path);
 }
 
-static rwf_t ovl_iocb_to_rwf(struct kiocb *iocb)
+static rwf_t ovl_iocb_to_rwf(int ifl)
 {
-	int ifl = iocb->ki_flags;
 	rwf_t flags = 0;
 
 	if (ifl & IOCB_NOWAIT)
@@ -244,6 +265,9 @@ static void ovl_aio_cleanup_handler(struct ovl_aio_req *aio_req)
 	if (iocb->ki_flags & IOCB_WRITE) {
 		struct inode *inode = file_inode(orig_iocb->ki_filp);
 
+		/* Actually acquired in ovl_write_iter() */
+		__sb_writers_acquired(file_inode(iocb->ki_filp)->i_sb,
+				      SB_FREEZE_WRITE);
 		file_end_write(iocb->ki_filp);
 		ovl_copyattr(ovl_inode_real(inode), inode);
 	}
@@ -280,7 +304,7 @@ static ssize_t ovl_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	old_cred = ovl_override_creds(file_inode(file)->i_sb);
 	if (is_sync_kiocb(iocb)) {
 		ret = vfs_iter_read(real.file, iter, &iocb->ki_pos,
-				    ovl_iocb_to_rwf(iocb));
+				    ovl_iocb_to_rwf(iocb->ki_flags));
 	} else {
 		struct ovl_aio_req *aio_req;
 
@@ -314,6 +338,7 @@ static ssize_t ovl_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 	struct fd real;
 	const struct cred *old_cred;
 	ssize_t ret;
+	int ifl = iocb->ki_flags;
 
 	if (!iov_iter_count(iter))
 		return 0;
@@ -329,11 +354,14 @@ static ssize_t ovl_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 	if (ret)
 		goto out_unlock;
 
+	if (!ovl_should_sync(OVL_FS(inode->i_sb)))
+		ifl &= ~(IOCB_DSYNC | IOCB_SYNC);
+
 	old_cred = ovl_override_creds(file_inode(file)->i_sb);
 	if (is_sync_kiocb(iocb)) {
 		file_start_write(real.file);
 		ret = vfs_iter_write(real.file, iter, &iocb->ki_pos,
-				     ovl_iocb_to_rwf(iocb));
+				     ovl_iocb_to_rwf(ifl));
 		file_end_write(real.file);
 		/* Update size */
 		ovl_copyattr(ovl_inode_real(inode), inode);
@@ -346,10 +374,14 @@ static ssize_t ovl_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 			goto out;
 
 		file_start_write(real.file);
+		/* Pacify lockdep, same trick as done in aio_write() */
+		__sb_writers_release(file_inode(real.file)->i_sb,
+				     SB_FREEZE_WRITE);
 		aio_req->fd = real;
 		real.flags = 0;
 		aio_req->orig_iocb = iocb;
 		kiocb_clone(&aio_req->iocb, iocb, real.file);
+		aio_req->iocb.ki_flags = ifl;
 		aio_req->iocb.ki_complete = ovl_aio_rw_complete;
 		ret = vfs_iocb_iter_write(real.file, &aio_req->iocb, iter);
 		if (ret != -EIOCBQUEUED)
@@ -412,6 +444,9 @@ static int ovl_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	struct fd real;
 	const struct cred *old_cred;
 	int ret;
+
+	if (!ovl_should_sync(OVL_FS(file_inode(file)->i_sb)))
+		return 0;
 
 	ret = ovl_real_fdget_meta(file, &real, !datasync);
 	if (ret)
@@ -514,7 +549,9 @@ static long ovl_real_ioctl(struct file *file, unsigned int cmd,
 		return ret;
 
 	old_cred = ovl_override_creds(file_inode(file)->i_sb);
-	ret = vfs_ioctl(real.file, cmd, arg);
+	ret = security_file_ioctl(real.file, cmd, arg);
+	if (!ret)
+		ret = vfs_ioctl(real.file, cmd, arg);
 	revert_creds(old_cred);
 
 	fdput(real);
@@ -522,12 +559,28 @@ static long ovl_real_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+static unsigned int ovl_iflags_to_fsflags(unsigned int iflags)
+{
+	unsigned int flags = 0;
+
+	if (iflags & S_SYNC)
+		flags |= FS_SYNC_FL;
+	if (iflags & S_APPEND)
+		flags |= FS_APPEND_FL;
+	if (iflags & S_IMMUTABLE)
+		flags |= FS_IMMUTABLE_FL;
+	if (iflags & S_NOATIME)
+		flags |= FS_NOATIME_FL;
+
+	return flags;
+}
+
 static long ovl_ioctl_set_flags(struct file *file, unsigned int cmd,
-				unsigned long arg, unsigned int iflags)
+				unsigned long arg, unsigned int flags)
 {
 	long ret;
 	struct inode *inode = file_inode(file);
-	unsigned int old_iflags;
+	unsigned int oldflags;
 
 	if (!inode_owner_or_capable(inode))
 		return -EACCES;
@@ -539,10 +592,9 @@ static long ovl_ioctl_set_flags(struct file *file, unsigned int cmd,
 	inode_lock(inode);
 
 	/* Check the capability before cred override */
-	ret = -EPERM;
-	old_iflags = READ_ONCE(inode->i_flags);
-	if (((iflags ^ old_iflags) & (S_APPEND | S_IMMUTABLE)) &&
-	    !capable(CAP_LINUX_IMMUTABLE))
+	oldflags = ovl_iflags_to_fsflags(READ_ONCE(inode->i_flags));
+	ret = vfs_ioc_setflags_prepare(inode, oldflags, flags);
+	if (ret)
 		goto unlock;
 
 	ret = ovl_maybe_copy_up(file_dentry(file), O_WRONLY);
@@ -561,22 +613,6 @@ unlock:
 
 }
 
-static unsigned int ovl_fsflags_to_iflags(unsigned int flags)
-{
-	unsigned int iflags = 0;
-
-	if (flags & FS_SYNC_FL)
-		iflags |= S_SYNC;
-	if (flags & FS_APPEND_FL)
-		iflags |= S_APPEND;
-	if (flags & FS_IMMUTABLE_FL)
-		iflags |= S_IMMUTABLE;
-	if (flags & FS_NOATIME_FL)
-		iflags |= S_NOATIME;
-
-	return iflags;
-}
-
 static long ovl_ioctl_set_fsflags(struct file *file, unsigned int cmd,
 				  unsigned long arg)
 {
@@ -585,24 +621,23 @@ static long ovl_ioctl_set_fsflags(struct file *file, unsigned int cmd,
 	if (get_user(flags, (int __user *) arg))
 		return -EFAULT;
 
-	return ovl_ioctl_set_flags(file, cmd, arg,
-				   ovl_fsflags_to_iflags(flags));
+	return ovl_ioctl_set_flags(file, cmd, arg, flags);
 }
 
-static unsigned int ovl_fsxflags_to_iflags(unsigned int xflags)
+static unsigned int ovl_fsxflags_to_fsflags(unsigned int xflags)
 {
-	unsigned int iflags = 0;
+	unsigned int flags = 0;
 
 	if (xflags & FS_XFLAG_SYNC)
-		iflags |= S_SYNC;
+		flags |= FS_SYNC_FL;
 	if (xflags & FS_XFLAG_APPEND)
-		iflags |= S_APPEND;
+		flags |= FS_APPEND_FL;
 	if (xflags & FS_XFLAG_IMMUTABLE)
-		iflags |= S_IMMUTABLE;
+		flags |= FS_IMMUTABLE_FL;
 	if (xflags & FS_XFLAG_NOATIME)
-		iflags |= S_NOATIME;
+		flags |= FS_NOATIME_FL;
 
-	return iflags;
+	return flags;
 }
 
 static long ovl_ioctl_set_fsxflags(struct file *file, unsigned int cmd,
@@ -615,10 +650,10 @@ static long ovl_ioctl_set_fsxflags(struct file *file, unsigned int cmd,
 		return -EFAULT;
 
 	return ovl_ioctl_set_flags(file, cmd, arg,
-				   ovl_fsxflags_to_iflags(fa.fsx_xflags));
+				   ovl_fsxflags_to_fsflags(fa.fsx_xflags));
 }
 
-static long ovl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+long ovl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret;
 
@@ -643,8 +678,8 @@ static long ovl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
-static long ovl_compat_ioctl(struct file *file, unsigned int cmd,
-			     unsigned long arg)
+#ifdef CONFIG_COMPAT
+long ovl_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case FS_IOC32_GETFLAGS:
@@ -661,6 +696,7 @@ static long ovl_compat_ioctl(struct file *file, unsigned int cmd,
 
 	return ovl_ioctl(file, cmd, arg);
 }
+#endif
 
 enum ovl_copyop {
 	OVL_COPY,
@@ -762,7 +798,9 @@ const struct file_operations ovl_file_operations = {
 	.fallocate	= ovl_fallocate,
 	.fadvise	= ovl_fadvise,
 	.unlocked_ioctl	= ovl_ioctl,
+#ifdef CONFIG_COMPAT
 	.compat_ioctl	= ovl_compat_ioctl,
+#endif
 	.splice_read    = ovl_splice_read,
 	.splice_write   = ovl_splice_write,
 
