@@ -27,7 +27,6 @@ __mt7603_mcu_msg_send(struct mt7603_dev *dev, struct sk_buff *skb,
 		seq = ++mdev->mcu.msg_seq & 0xf;
 
 	txd = (struct mt7603_mcu_txd *)skb_push(skb, hdrlen);
-	memset(txd, 0, hdrlen);
 
 	txd->len = cpu_to_le16(skb->len);
 	if (cmd == -MCU_CMD_FW_SCATTER)
@@ -63,7 +62,7 @@ mt7603_mcu_msg_send(struct mt76_dev *mdev, int cmd, const void *data,
 	struct sk_buff *skb;
 	int ret, seq;
 
-	skb = mt7603_mcu_msg_alloc(data, len);
+	skb = mt76_mcu_msg_alloc(mdev, data, len);
 	if (!skb)
 		return -ENOMEM;
 
@@ -266,6 +265,7 @@ out:
 int mt7603_mcu_init(struct mt7603_dev *dev)
 {
 	static const struct mt76_mcu_ops mt7603_mcu_ops = {
+		.headroom = sizeof(struct mt7603_mcu_txd),
 		.mcu_send_msg = mt7603_mcu_msg_send,
 		.mcu_restart = mt7603_mcu_restart,
 	};
