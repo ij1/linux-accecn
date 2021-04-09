@@ -43,6 +43,7 @@
 #include <linux/spinlock.h>
 #include <linux/zpool.h>
 #include <linux/magic.h>
+#include <linux/kmemleak.h>
 
 /*
  * NCHUNKS_ORDER determines the internal allocation granularity, effectively
@@ -211,11 +212,12 @@ static inline struct z3fold_buddy_slots *alloc_slots(struct z3fold_pool *pool,
 {
 	struct z3fold_buddy_slots *slots;
 
-	slots = kmem_cache_alloc(pool->c_handle,
+	slots = kmem_cache_zalloc(pool->c_handle,
 				 (gfp & ~(__GFP_HIGHMEM | __GFP_MOVABLE)));
 
 	if (slots) {
-		memset(slots->slot, 0, sizeof(slots->slot));
+		/* It will be freed separately in free_handle(). */
+		kmemleak_not_leak(slots);
 		slots->pool = (unsigned long)pool;
 		rwlock_init(&slots->lock);
 	}
@@ -318,16 +320,16 @@ static inline void free_handle(unsigned long handle)
 	slots = handle_to_slots(handle);
 	write_lock(&slots->lock);
 	*(unsigned long *)handle = 0;
-	write_unlock(&slots->lock);
-	if (zhdr->slots == slots)
+	if (zhdr->slots == slots) {
+		write_unlock(&slots->lock);
 		return; /* simple case, nothing else to do */
+	}
 
 	/* we are freeing a foreign handle if we are here */
 	zhdr->foreign_handles--;
 	is_free = true;
-	read_lock(&slots->lock);
 	if (!test_bit(HANDLES_ORPHANED, &slots->pool)) {
-		read_unlock(&slots->lock);
+		write_unlock(&slots->lock);
 		return;
 	}
 	for (i = 0; i <= BUDDY_MASK; i++) {
@@ -336,7 +338,7 @@ static inline void free_handle(unsigned long handle)
 			break;
 		}
 	}
-	read_unlock(&slots->lock);
+	write_unlock(&slots->lock);
 
 	if (is_free) {
 		struct z3fold_pool *pool = slots_to_pool(slots);
@@ -422,6 +424,7 @@ static struct z3fold_header *init_z3fold_page(struct page *page, bool headless,
 	zhdr->start_middle = 0;
 	zhdr->cpu = -1;
 	zhdr->foreign_handles = 0;
+	zhdr->mapped_count = 0;
 	zhdr->slots = slots;
 	zhdr->pool = pool;
 	INIT_LIST_HEAD(&zhdr->buddy);
