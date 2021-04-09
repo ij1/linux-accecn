@@ -1164,7 +1164,7 @@ mlxsw_sp_router_ip2me_fib_entry_find(struct mlxsw_sp *mlxsw_sp, u32 tb_id,
 		addr_len = 4;
 		addr_prefix_len = 32;
 		break;
-	case MLXSW_SP_L3_PROTO_IPV6: /* fall through */
+	case MLXSW_SP_L3_PROTO_IPV6:
 	default:
 		WARN_ON(1);
 		return NULL;
@@ -1212,7 +1212,7 @@ mlxsw_sp_ipip_entry_find_decap(struct mlxsw_sp *mlxsw_sp,
 		saddr_len = 4;
 		saddr_prefix_len = 32;
 		break;
-	case MLXSW_SP_L3_PROTO_IPV6:
+	default:
 		WARN_ON(1);
 		return NULL;
 	}
@@ -1380,9 +1380,9 @@ static bool mlxsw_sp_netdevice_ipip_can_offload(struct mlxsw_sp *mlxsw_sp,
 static int mlxsw_sp_netdevice_ipip_ol_reg_event(struct mlxsw_sp *mlxsw_sp,
 						struct net_device *ol_dev)
 {
+	enum mlxsw_sp_ipip_type ipipt = MLXSW_SP_IPIP_TYPE_MAX;
 	struct mlxsw_sp_ipip_entry *ipip_entry;
 	enum mlxsw_sp_l3proto ul_proto;
-	enum mlxsw_sp_ipip_type ipipt;
 	union mlxsw_sp_l3addr saddr;
 	u32 ul_tb_id;
 
@@ -1535,13 +1535,17 @@ static void mlxsw_sp_nexthop_rif_update(struct mlxsw_sp *mlxsw_sp,
 					struct mlxsw_sp_rif *rif);
 
 /**
- * Update the offload related to an IPIP entry. This always updates decap, and
- * in addition to that it also:
- * @recreate_loopback: recreates the associated loopback RIF
- * @keep_encap: updates next hops that use the tunnel netdevice. This is only
+ * __mlxsw_sp_ipip_entry_update_tunnel - Update offload related to IPIP entry.
+ * @mlxsw_sp: mlxsw_sp.
+ * @ipip_entry: IPIP entry.
+ * @recreate_loopback: Recreates the associated loopback RIF.
+ * @keep_encap: Updates next hops that use the tunnel netdevice. This is only
  *              relevant when recreate_loopback is true.
- * @update_nexthops: updates next hops, keeping the current loopback RIF. This
+ * @update_nexthops: Updates next hops, keeping the current loopback RIF. This
  *                   is only relevant when recreate_loopback is false.
+ * @extack: extack.
+ *
+ * Return: Non-zero value on failure.
  */
 int __mlxsw_sp_ipip_entry_update_tunnel(struct mlxsw_sp *mlxsw_sp,
 					struct mlxsw_sp_ipip_entry *ipip_entry,
@@ -2995,6 +2999,7 @@ static u32 mlxsw_sp_nexthop_group_hash_obj(const void *data, u32 len, u32 seed)
 		for (i = 0; i < nh_grp->count; i++) {
 			nh = &nh_grp->nexthops[i];
 			val ^= jhash(&nh->ifindex, sizeof(nh->ifindex), seed);
+			val ^= jhash(&nh->gw_addr, sizeof(nh->gw_addr), seed);
 		}
 		return jhash(&val, sizeof(val), seed);
 	default:
@@ -3008,11 +3013,14 @@ mlxsw_sp_nexthop6_group_hash(struct mlxsw_sp_fib6_entry *fib6_entry, u32 seed)
 {
 	unsigned int val = fib6_entry->nrt6;
 	struct mlxsw_sp_rt6 *mlxsw_sp_rt6;
-	struct net_device *dev;
 
 	list_for_each_entry(mlxsw_sp_rt6, &fib6_entry->rt6_list, list) {
-		dev = mlxsw_sp_rt6->rt->fib6_nh->fib_nh_dev;
+		struct fib6_nh *fib6_nh = mlxsw_sp_rt6->rt->fib6_nh;
+		struct net_device *dev = fib6_nh->fib_nh_dev;
+		struct in6_addr *gw = &fib6_nh->fib_nh_gw6;
+
 		val ^= jhash(&dev->ifindex, sizeof(dev->ifindex), seed);
+		val ^= jhash(gw, sizeof(*gw), seed);
 	}
 
 	return jhash(&val, sizeof(val), seed);
@@ -3227,7 +3235,6 @@ mlxsw_sp_nexthop_group_update(struct mlxsw_sp *mlxsw_sp,
 	u32 adj_index = nh_grp->adj_index; /* base */
 	struct mlxsw_sp_nexthop *nh;
 	int i;
-	int err;
 
 	for (i = 0; i < nh_grp->count; i++) {
 		nh = &nh_grp->nexthops[i];
@@ -3238,6 +3245,8 @@ mlxsw_sp_nexthop_group_update(struct mlxsw_sp *mlxsw_sp,
 		}
 
 		if (nh->update || reallocate) {
+			int err = 0;
+
 			switch (nh->type) {
 			case MLXSW_SP_NEXTHOP_TYPE_ETH:
 				err = mlxsw_sp_nexthop_update
@@ -4546,14 +4555,14 @@ mlxsw_sp_fib4_entry_type_set(struct mlxsw_sp *mlxsw_sp,
 			fib_entry->type = MLXSW_SP_FIB_ENTRY_TYPE_NVE_DECAP;
 			return 0;
 		}
-		/* fall through */
+		fallthrough;
 	case RTN_BROADCAST:
 		fib_entry->type = MLXSW_SP_FIB_ENTRY_TYPE_TRAP;
 		return 0;
 	case RTN_BLACKHOLE:
 		fib_entry->type = MLXSW_SP_FIB_ENTRY_TYPE_BLACKHOLE;
 		return 0;
-	case RTN_UNREACHABLE: /* fall through */
+	case RTN_UNREACHABLE:
 	case RTN_PROHIBIT:
 		/* Packets hitting these routes need to be trapped, but
 		 * can do so with a lower priority than packets directed
@@ -4992,13 +5001,6 @@ static void mlxsw_sp_router_fib4_del(struct mlxsw_sp *mlxsw_sp,
 
 static bool mlxsw_sp_fib6_rt_should_ignore(const struct fib6_info *rt)
 {
-	/* Packets with link-local destination IP arriving to the router
-	 * are trapped to the CPU, so no need to program specific routes
-	 * for them.
-	 */
-	if (ipv6_addr_type(&rt->fib6_dst.addr) & IPV6_ADDR_LINKLOCAL)
-		return true;
-
 	/* Multicast routes aren't supported, so ignore them. Neighbour
 	 * Discovery packets are specifically trapped.
 	 */
@@ -5988,7 +5990,7 @@ static void mlxsw_sp_router_fib4_event_work(struct work_struct *work)
 		mlxsw_sp_router_fib4_del(mlxsw_sp, &fib_work->fen_info);
 		fib_info_put(fib_work->fen_info.fi);
 		break;
-	case FIB_EVENT_NH_ADD: /* fall through */
+	case FIB_EVENT_NH_ADD:
 	case FIB_EVENT_NH_DEL:
 		mlxsw_sp_nexthop4_event(mlxsw_sp, fib_work->event,
 					fib_work->fnh_info.fib_nh);
@@ -6048,7 +6050,7 @@ static void mlxsw_sp_router_fibmr_event_work(struct work_struct *work)
 	rtnl_lock();
 	mutex_lock(&mlxsw_sp->router->lock);
 	switch (fib_work->event) {
-	case FIB_EVENT_ENTRY_REPLACE: /* fall through */
+	case FIB_EVENT_ENTRY_REPLACE:
 	case FIB_EVENT_ENTRY_ADD:
 		replace = fib_work->event == FIB_EVENT_ENTRY_REPLACE;
 
@@ -6087,7 +6089,7 @@ static void mlxsw_sp_router_fib4_event(struct mlxsw_sp_fib_event_work *fib_work,
 	struct fib_nh_notifier_info *fnh_info;
 
 	switch (fib_work->event) {
-	case FIB_EVENT_ENTRY_REPLACE: /* fall through */
+	case FIB_EVENT_ENTRY_REPLACE:
 	case FIB_EVENT_ENTRY_DEL:
 		fen_info = container_of(info, struct fib_entry_notifier_info,
 					info);
@@ -6097,7 +6099,7 @@ static void mlxsw_sp_router_fib4_event(struct mlxsw_sp_fib_event_work *fib_work,
 		 */
 		fib_info_hold(fib_work->fen_info.fi);
 		break;
-	case FIB_EVENT_NH_ADD: /* fall through */
+	case FIB_EVENT_NH_ADD:
 	case FIB_EVENT_NH_DEL:
 		fnh_info = container_of(info, struct fib_nh_notifier_info,
 					info);
@@ -6114,8 +6116,8 @@ static int mlxsw_sp_router_fib6_event(struct mlxsw_sp_fib_event_work *fib_work,
 	int err;
 
 	switch (fib_work->event) {
-	case FIB_EVENT_ENTRY_REPLACE: /* fall through */
-	case FIB_EVENT_ENTRY_APPEND: /* fall through */
+	case FIB_EVENT_ENTRY_REPLACE:
+	case FIB_EVENT_ENTRY_APPEND:
 	case FIB_EVENT_ENTRY_DEL:
 		fen6_info = container_of(info, struct fib6_entry_notifier_info,
 					 info);
@@ -6134,13 +6136,13 @@ mlxsw_sp_router_fibmr_event(struct mlxsw_sp_fib_event_work *fib_work,
 			    struct fib_notifier_info *info)
 {
 	switch (fib_work->event) {
-	case FIB_EVENT_ENTRY_REPLACE: /* fall through */
-	case FIB_EVENT_ENTRY_ADD: /* fall through */
+	case FIB_EVENT_ENTRY_REPLACE:
+	case FIB_EVENT_ENTRY_ADD:
 	case FIB_EVENT_ENTRY_DEL:
 		memcpy(&fib_work->men_info, info, sizeof(fib_work->men_info));
 		mr_cache_hold(fib_work->men_info.mfc);
 		break;
-	case FIB_EVENT_VIF_ADD: /* fall through */
+	case FIB_EVENT_VIF_ADD:
 	case FIB_EVENT_VIF_DEL:
 		memcpy(&fib_work->ven_info, info, sizeof(fib_work->ven_info));
 		dev_hold(fib_work->ven_info.dev);
@@ -6213,13 +6215,13 @@ static int mlxsw_sp_router_fib_event(struct notifier_block *nb,
 	router = container_of(nb, struct mlxsw_sp_router, fib_nb);
 
 	switch (event) {
-	case FIB_EVENT_RULE_ADD: /* fall through */
+	case FIB_EVENT_RULE_ADD:
 	case FIB_EVENT_RULE_DEL:
 		err = mlxsw_sp_router_fib_rule_event(event, info,
 						     router->mlxsw_sp);
 		return notifier_from_errno(err);
-	case FIB_EVENT_ENTRY_ADD: /* fall through */
-	case FIB_EVENT_ENTRY_REPLACE: /* fall through */
+	case FIB_EVENT_ENTRY_ADD:
+	case FIB_EVENT_ENTRY_REPLACE:
 	case FIB_EVENT_ENTRY_APPEND:
 		if (router->aborted) {
 			NL_SET_ERR_MSG_MOD(info->extack, "FIB offload was aborted. Not configuring route");
@@ -6251,7 +6253,7 @@ static int mlxsw_sp_router_fib_event(struct notifier_block *nb,
 	}
 
 	fib_work = kzalloc(sizeof(*fib_work), GFP_ATOMIC);
-	if (WARN_ON(!fib_work))
+	if (!fib_work)
 		return NOTIFY_BAD;
 
 	fib_work->mlxsw_sp = router->mlxsw_sp;
@@ -7275,7 +7277,7 @@ int mlxsw_sp_netdevice_router_port_event(struct net_device *dev,
 		goto out;
 
 	switch (event) {
-	case NETDEV_CHANGEMTU: /* fall through */
+	case NETDEV_CHANGEMTU:
 	case NETDEV_CHANGEADDR:
 		err = mlxsw_sp_router_port_change_event(mlxsw_sp, rif);
 		break;
@@ -7349,9 +7351,10 @@ int mlxsw_sp_netdevice_vrf_event(struct net_device *l3_dev, unsigned long event,
 	return err;
 }
 
-static int __mlxsw_sp_rif_macvlan_flush(struct net_device *dev, void *data)
+static int __mlxsw_sp_rif_macvlan_flush(struct net_device *dev,
+					struct netdev_nested_priv *priv)
 {
-	struct mlxsw_sp_rif *rif = data;
+	struct mlxsw_sp_rif *rif = (struct mlxsw_sp_rif *)priv->data;
 
 	if (!netif_is_macvlan(dev))
 		return 0;
@@ -7362,12 +7365,16 @@ static int __mlxsw_sp_rif_macvlan_flush(struct net_device *dev, void *data)
 
 static int mlxsw_sp_rif_macvlan_flush(struct mlxsw_sp_rif *rif)
 {
+	struct netdev_nested_priv priv = {
+		.data = (void *)rif,
+	};
+
 	if (!netif_is_macvlan_port(rif->dev))
 		return 0;
 
 	netdev_warn(rif->dev, "Router interface is deleted. Upper macvlans will not work\n");
 	return netdev_walk_all_upper_dev_rcu(rif->dev,
-					     __mlxsw_sp_rif_macvlan_flush, rif);
+					     __mlxsw_sp_rif_macvlan_flush, &priv);
 }
 
 static void mlxsw_sp_rif_subport_setup(struct mlxsw_sp_rif *rif,
@@ -7471,113 +7478,6 @@ u8 mlxsw_sp_router_port(const struct mlxsw_sp *mlxsw_sp)
 	return mlxsw_core_max_ports(mlxsw_sp->core) + 1;
 }
 
-static int mlxsw_sp_rif_vlan_configure(struct mlxsw_sp_rif *rif)
-{
-	struct mlxsw_sp *mlxsw_sp = rif->mlxsw_sp;
-	u16 vid = mlxsw_sp_fid_8021q_vid(rif->fid);
-	int err;
-
-	err = mlxsw_sp_rif_vlan_fid_op(rif, MLXSW_REG_RITR_VLAN_IF, vid, true);
-	if (err)
-		return err;
-
-	err = mlxsw_sp_fid_flood_set(rif->fid, MLXSW_SP_FLOOD_TYPE_MC,
-				     mlxsw_sp_router_port(mlxsw_sp), true);
-	if (err)
-		goto err_fid_mc_flood_set;
-
-	err = mlxsw_sp_fid_flood_set(rif->fid, MLXSW_SP_FLOOD_TYPE_BC,
-				     mlxsw_sp_router_port(mlxsw_sp), true);
-	if (err)
-		goto err_fid_bc_flood_set;
-
-	err = mlxsw_sp_rif_fdb_op(rif->mlxsw_sp, rif->dev->dev_addr,
-				  mlxsw_sp_fid_index(rif->fid), true);
-	if (err)
-		goto err_rif_fdb_op;
-
-	mlxsw_sp_fid_rif_set(rif->fid, rif);
-	return 0;
-
-err_rif_fdb_op:
-	mlxsw_sp_fid_flood_set(rif->fid, MLXSW_SP_FLOOD_TYPE_BC,
-			       mlxsw_sp_router_port(mlxsw_sp), false);
-err_fid_bc_flood_set:
-	mlxsw_sp_fid_flood_set(rif->fid, MLXSW_SP_FLOOD_TYPE_MC,
-			       mlxsw_sp_router_port(mlxsw_sp), false);
-err_fid_mc_flood_set:
-	mlxsw_sp_rif_vlan_fid_op(rif, MLXSW_REG_RITR_VLAN_IF, vid, false);
-	return err;
-}
-
-static void mlxsw_sp_rif_vlan_deconfigure(struct mlxsw_sp_rif *rif)
-{
-	u16 vid = mlxsw_sp_fid_8021q_vid(rif->fid);
-	struct mlxsw_sp *mlxsw_sp = rif->mlxsw_sp;
-	struct mlxsw_sp_fid *fid = rif->fid;
-
-	mlxsw_sp_fid_rif_set(fid, NULL);
-	mlxsw_sp_rif_fdb_op(rif->mlxsw_sp, rif->dev->dev_addr,
-			    mlxsw_sp_fid_index(fid), false);
-	mlxsw_sp_rif_macvlan_flush(rif);
-	mlxsw_sp_fid_flood_set(rif->fid, MLXSW_SP_FLOOD_TYPE_BC,
-			       mlxsw_sp_router_port(mlxsw_sp), false);
-	mlxsw_sp_fid_flood_set(rif->fid, MLXSW_SP_FLOOD_TYPE_MC,
-			       mlxsw_sp_router_port(mlxsw_sp), false);
-	mlxsw_sp_rif_vlan_fid_op(rif, MLXSW_REG_RITR_VLAN_IF, vid, false);
-}
-
-static struct mlxsw_sp_fid *
-mlxsw_sp_rif_vlan_fid_get(struct mlxsw_sp_rif *rif,
-			  struct netlink_ext_ack *extack)
-{
-	struct net_device *br_dev = rif->dev;
-	u16 vid;
-	int err;
-
-	if (is_vlan_dev(rif->dev)) {
-		vid = vlan_dev_vlan_id(rif->dev);
-		br_dev = vlan_dev_real_dev(rif->dev);
-		if (WARN_ON(!netif_is_bridge_master(br_dev)))
-			return ERR_PTR(-EINVAL);
-	} else {
-		err = br_vlan_get_pvid(rif->dev, &vid);
-		if (err < 0 || !vid) {
-			NL_SET_ERR_MSG_MOD(extack, "Couldn't determine bridge PVID");
-			return ERR_PTR(-EINVAL);
-		}
-	}
-
-	return mlxsw_sp_fid_8021q_get(rif->mlxsw_sp, vid);
-}
-
-static void mlxsw_sp_rif_vlan_fdb_del(struct mlxsw_sp_rif *rif, const char *mac)
-{
-	u16 vid = mlxsw_sp_fid_8021q_vid(rif->fid);
-	struct switchdev_notifier_fdb_info info;
-	struct net_device *br_dev;
-	struct net_device *dev;
-
-	br_dev = is_vlan_dev(rif->dev) ? vlan_dev_real_dev(rif->dev) : rif->dev;
-	dev = br_fdb_find_port(br_dev, mac, vid);
-	if (!dev)
-		return;
-
-	info.addr = mac;
-	info.vid = vid;
-	call_switchdev_notifiers(SWITCHDEV_FDB_DEL_TO_BRIDGE, dev, &info.info,
-				 NULL);
-}
-
-static const struct mlxsw_sp_rif_ops mlxsw_sp_rif_vlan_ops = {
-	.type			= MLXSW_SP_RIF_TYPE_VLAN,
-	.rif_size		= sizeof(struct mlxsw_sp_rif),
-	.configure		= mlxsw_sp_rif_vlan_configure,
-	.deconfigure		= mlxsw_sp_rif_vlan_deconfigure,
-	.fid_get		= mlxsw_sp_rif_vlan_fid_get,
-	.fdb_del		= mlxsw_sp_rif_vlan_fdb_del,
-};
-
 static int mlxsw_sp_rif_fid_configure(struct mlxsw_sp_rif *rif)
 {
 	struct mlxsw_sp *mlxsw_sp = rif->mlxsw_sp;
@@ -7665,6 +7565,48 @@ static const struct mlxsw_sp_rif_ops mlxsw_sp_rif_fid_ops = {
 	.fid_get		= mlxsw_sp_rif_fid_fid_get,
 	.fdb_del		= mlxsw_sp_rif_fid_fdb_del,
 };
+
+static struct mlxsw_sp_fid *
+mlxsw_sp_rif_vlan_fid_get(struct mlxsw_sp_rif *rif,
+			  struct netlink_ext_ack *extack)
+{
+	struct net_device *br_dev;
+	u16 vid;
+	int err;
+
+	if (is_vlan_dev(rif->dev)) {
+		vid = vlan_dev_vlan_id(rif->dev);
+		br_dev = vlan_dev_real_dev(rif->dev);
+		if (WARN_ON(!netif_is_bridge_master(br_dev)))
+			return ERR_PTR(-EINVAL);
+	} else {
+		err = br_vlan_get_pvid(rif->dev, &vid);
+		if (err < 0 || !vid) {
+			NL_SET_ERR_MSG_MOD(extack, "Couldn't determine bridge PVID");
+			return ERR_PTR(-EINVAL);
+		}
+	}
+
+	return mlxsw_sp_fid_8021q_get(rif->mlxsw_sp, vid);
+}
+
+static void mlxsw_sp_rif_vlan_fdb_del(struct mlxsw_sp_rif *rif, const char *mac)
+{
+	u16 vid = mlxsw_sp_fid_8021q_vid(rif->fid);
+	struct switchdev_notifier_fdb_info info;
+	struct net_device *br_dev;
+	struct net_device *dev;
+
+	br_dev = is_vlan_dev(rif->dev) ? vlan_dev_real_dev(rif->dev) : rif->dev;
+	dev = br_fdb_find_port(br_dev, mac, vid);
+	if (!dev)
+		return;
+
+	info.addr = mac;
+	info.vid = vid;
+	call_switchdev_notifiers(SWITCHDEV_FDB_DEL_TO_BRIDGE, dev, &info.info,
+				 NULL);
+}
 
 static const struct mlxsw_sp_rif_ops mlxsw_sp_rif_vlan_emu_ops = {
 	.type			= MLXSW_SP_RIF_TYPE_VLAN,
@@ -8096,7 +8038,6 @@ static int __mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp)
 	bool usp = net->ipv4.sysctl_ip_fwd_update_priority;
 	char rgcr_pl[MLXSW_REG_RGCR_LEN];
 	u64 max_rifs;
-	int err;
 
 	if (!MLXSW_CORE_RES_VALID(mlxsw_sp->core, MAX_RIFS))
 		return -EIO;
@@ -8105,10 +8046,7 @@ static int __mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp)
 	mlxsw_reg_rgcr_pack(rgcr_pl, true, true);
 	mlxsw_reg_rgcr_max_router_interfaces_set(rgcr_pl, max_rifs);
 	mlxsw_reg_rgcr_usp_set(rgcr_pl, usp);
-	err = mlxsw_reg_write(mlxsw_sp->core, MLXSW_REG(rgcr), rgcr_pl);
-	if (err)
-		return err;
-	return 0;
+	return mlxsw_reg_write(mlxsw_sp->core, MLXSW_REG(rgcr), rgcr_pl);
 }
 
 static void __mlxsw_sp_router_fini(struct mlxsw_sp *mlxsw_sp)
@@ -8131,16 +8069,6 @@ int mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp,
 	mutex_init(&router->lock);
 	mlxsw_sp->router = router;
 	router->mlxsw_sp = mlxsw_sp;
-
-	router->inetaddr_nb.notifier_call = mlxsw_sp_inetaddr_event;
-	err = register_inetaddr_notifier(&router->inetaddr_nb);
-	if (err)
-		goto err_register_inetaddr_notifier;
-
-	router->inet6addr_nb.notifier_call = mlxsw_sp_inet6addr_event;
-	err = register_inet6addr_notifier(&router->inet6addr_nb);
-	if (err)
-		goto err_register_inet6addr_notifier;
 
 	INIT_LIST_HEAD(&mlxsw_sp->router->nexthop_neighs_list);
 	err = __mlxsw_sp_router_init(mlxsw_sp);
@@ -8182,12 +8110,6 @@ int mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp,
 	if (err)
 		goto err_neigh_init;
 
-	mlxsw_sp->router->netevent_nb.notifier_call =
-		mlxsw_sp_router_netevent_event;
-	err = register_netevent_notifier(&mlxsw_sp->router->netevent_nb);
-	if (err)
-		goto err_register_netevent_notifier;
-
 	err = mlxsw_sp_mp_hash_init(mlxsw_sp);
 	if (err)
 		goto err_mp_hash_init;
@@ -8195,6 +8117,22 @@ int mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp,
 	err = mlxsw_sp_dscp_init(mlxsw_sp);
 	if (err)
 		goto err_dscp_init;
+
+	router->inetaddr_nb.notifier_call = mlxsw_sp_inetaddr_event;
+	err = register_inetaddr_notifier(&router->inetaddr_nb);
+	if (err)
+		goto err_register_inetaddr_notifier;
+
+	router->inet6addr_nb.notifier_call = mlxsw_sp_inet6addr_event;
+	err = register_inet6addr_notifier(&router->inet6addr_nb);
+	if (err)
+		goto err_register_inet6addr_notifier;
+
+	mlxsw_sp->router->netevent_nb.notifier_call =
+		mlxsw_sp_router_netevent_event;
+	err = register_netevent_notifier(&mlxsw_sp->router->netevent_nb);
+	if (err)
+		goto err_register_netevent_notifier;
 
 	mlxsw_sp->router->fib_nb.notifier_call = mlxsw_sp_router_fib_event;
 	err = register_fib_notifier(mlxsw_sp_net(mlxsw_sp),
@@ -8206,10 +8144,15 @@ int mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp,
 	return 0;
 
 err_register_fib_notifier:
-err_dscp_init:
-err_mp_hash_init:
 	unregister_netevent_notifier(&mlxsw_sp->router->netevent_nb);
 err_register_netevent_notifier:
+	unregister_inet6addr_notifier(&router->inet6addr_nb);
+err_register_inet6addr_notifier:
+	unregister_inetaddr_notifier(&router->inetaddr_nb);
+err_register_inetaddr_notifier:
+	mlxsw_core_flush_owq();
+err_dscp_init:
+err_mp_hash_init:
 	mlxsw_sp_neigh_fini(mlxsw_sp);
 err_neigh_init:
 	mlxsw_sp_vrs_fini(mlxsw_sp);
@@ -8228,10 +8171,6 @@ err_ipips_init:
 err_rifs_init:
 	__mlxsw_sp_router_fini(mlxsw_sp);
 err_router_init:
-	unregister_inet6addr_notifier(&router->inet6addr_nb);
-err_register_inet6addr_notifier:
-	unregister_inetaddr_notifier(&router->inetaddr_nb);
-err_register_inetaddr_notifier:
 	mutex_destroy(&mlxsw_sp->router->lock);
 	kfree(mlxsw_sp->router);
 	return err;
@@ -8242,6 +8181,9 @@ void mlxsw_sp_router_fini(struct mlxsw_sp *mlxsw_sp)
 	unregister_fib_notifier(mlxsw_sp_net(mlxsw_sp),
 				&mlxsw_sp->router->fib_nb);
 	unregister_netevent_notifier(&mlxsw_sp->router->netevent_nb);
+	unregister_inet6addr_notifier(&mlxsw_sp->router->inet6addr_nb);
+	unregister_inetaddr_notifier(&mlxsw_sp->router->inetaddr_nb);
+	mlxsw_core_flush_owq();
 	mlxsw_sp_neigh_fini(mlxsw_sp);
 	mlxsw_sp_vrs_fini(mlxsw_sp);
 	mlxsw_sp_mr_fini(mlxsw_sp);
@@ -8251,8 +8193,6 @@ void mlxsw_sp_router_fini(struct mlxsw_sp *mlxsw_sp)
 	mlxsw_sp_ipips_fini(mlxsw_sp);
 	mlxsw_sp_rifs_fini(mlxsw_sp);
 	__mlxsw_sp_router_fini(mlxsw_sp);
-	unregister_inet6addr_notifier(&mlxsw_sp->router->inet6addr_nb);
-	unregister_inetaddr_notifier(&mlxsw_sp->router->inetaddr_nb);
 	mutex_destroy(&mlxsw_sp->router->lock);
 	kfree(mlxsw_sp->router);
 }
