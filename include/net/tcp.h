@@ -898,11 +898,7 @@ struct tcp_skb_cb {
 			u16	tcp_gso_size;
 		};
 	};
-	__u16		tcp_flags:9,	/* TCP header flags. (tcp[12-13])	*/
-			unused:4,
-			txstamp_ack:1,	/* Record TX timestamp for ack? */
-			eor:1,		/* Is skb MSG_EOR marked? */
-			has_rxtstamp:1;	/* SKB has a RX timestamp	*/
+	__u16		tcp_flags;	/* TCP header flags. (tcp[12-13])	*/
 
 	__u8		sacked;		/* State flags for SACK.	*/
 #define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	*/
@@ -915,6 +911,10 @@ struct tcp_skb_cb {
 				TCPCB_REPAIRED)
 
 	__u8		ip_dsfield;	/* IPv4 tos or IPv6 dsfield	*/
+	__u8		txstamp_ack:1,	/* Record TX timestamp for ack? */
+			eor:1,		/* Is skb MSG_EOR marked? */
+			has_rxtstamp:1,	/* SKB has a RX timestamp	*/
+			unused:5;
 	__u32		ack_seq;	/* Sequence number ACK'd	*/
 	union {
 		struct {
