@@ -141,8 +141,8 @@ static int hns_roce_netdev_event(struct notifier_block *self,
 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
 	struct hns_roce_ib_iboe *iboe = NULL;
 	struct hns_roce_dev *hr_dev = NULL;
-	u8 port = 0;
-	int ret = 0;
+	int ret;
+	u8 port;
 
 	hr_dev = container_of(self, struct hns_roce_dev, iboe.nb);
 	iboe = &hr_dev->iboe;
@@ -233,7 +233,6 @@ static int hns_roce_query_port(struct ib_device *ib_dev, u8 port_num,
 	enum ib_mtu mtu;
 	u8 port;
 
-	assert(port_num > 0);
 	port = port_num - 1;
 
 	/* props being zeroed by the caller, avoid zeroing it here */
@@ -323,6 +322,8 @@ static int hns_roce_alloc_ucontext(struct ib_ucontext *uctx,
 		INIT_LIST_HEAD(&context->page_list);
 		mutex_init(&context->page_mutex);
 	}
+
+	resp.cqe_size = hr_dev->caps.cqe_sz;
 
 	ret = ib_copy_to_udata(udata, &resp, sizeof(resp));
 	if (ret)
@@ -429,7 +430,7 @@ static const struct ib_device_ops hns_roce_dev_ops = {
 	.destroy_ah = hns_roce_destroy_ah,
 	.destroy_cq = hns_roce_destroy_cq,
 	.disassociate_ucontext = hns_roce_disassociate_ucontext,
-	.fill_res_entry = hns_roce_fill_res_entry,
+	.fill_res_cq_entry = hns_roce_fill_res_cq_entry,
 	.get_dma_mr = hns_roce_get_dma_mr,
 	.get_link_layer = hns_roce_get_link_layer,
 	.get_port_immutable = hns_roce_port_immutable,
@@ -455,6 +456,8 @@ static const struct ib_device_ops hns_roce_dev_mr_ops = {
 static const struct ib_device_ops hns_roce_dev_mw_ops = {
 	.alloc_mw = hns_roce_alloc_mw,
 	.dealloc_mw = hns_roce_dealloc_mw,
+
+	INIT_RDMA_OBJ_SIZE(ib_mw, hns_roce_mw, ibmw),
 };
 
 static const struct ib_device_ops hns_roce_dev_frmr_ops = {
@@ -546,7 +549,8 @@ static int hns_roce_register_device(struct hns_roce_dev *hr_dev)
 		if (ret)
 			return ret;
 	}
-	ret = ib_register_device(ib_dev, "hns_%d");
+	dma_set_max_seg_size(dev, UINT_MAX);
+	ret = ib_register_device(ib_dev, "hns_%d", dev);
 	if (ret) {
 		dev_err(dev, "ib_register_device failed!\n");
 		return ret;
@@ -579,37 +583,16 @@ static int hns_roce_init_hem(struct hns_roce_dev *hr_dev)
 	int ret;
 	struct device *dev = hr_dev->dev;
 
-	ret = hns_roce_init_hem_table(hr_dev, &hr_dev->mr_table.mtt_table,
-				      HEM_TYPE_MTT, hr_dev->caps.mtt_entry_sz,
-				      hr_dev->caps.num_mtt_segs, 1);
-	if (ret) {
-		dev_err(dev, "Failed to init MTT context memory, aborting.\n");
-		return ret;
-	}
-
-	if (hns_roce_check_whether_mhop(hr_dev, HEM_TYPE_CQE)) {
-		ret = hns_roce_init_hem_table(hr_dev,
-					      &hr_dev->mr_table.mtt_cqe_table,
-					      HEM_TYPE_CQE,
-					      hr_dev->caps.mtt_entry_sz,
-					      hr_dev->caps.num_cqe_segs, 1);
-		if (ret) {
-			dev_err(dev,
-				"Failed to init CQE context memory, aborting.\n");
-			goto err_unmap_cqe;
-		}
-	}
-
 	ret = hns_roce_init_hem_table(hr_dev, &hr_dev->mr_table.mtpt_table,
 				      HEM_TYPE_MTPT, hr_dev->caps.mtpt_entry_sz,
 				      hr_dev->caps.num_mtpts, 1);
 	if (ret) {
 		dev_err(dev, "Failed to init MTPT context memory, aborting.\n");
-		goto err_unmap_mtt;
+		return ret;
 	}
 
 	ret = hns_roce_init_hem_table(hr_dev, &hr_dev->qp_table.qp_table,
-				      HEM_TYPE_QPC, hr_dev->caps.qpc_entry_sz,
+				      HEM_TYPE_QPC, hr_dev->caps.qpc_sz,
 				      hr_dev->caps.num_qps, 1);
 	if (ret) {
 		dev_err(dev, "Failed to init QP context memory, aborting.\n");
@@ -660,42 +643,16 @@ static int hns_roce_init_hem(struct hns_roce_dev *hr_dev)
 		}
 	}
 
-	if (hr_dev->caps.num_srqwqe_segs) {
-		ret = hns_roce_init_hem_table(hr_dev,
-					     &hr_dev->mr_table.mtt_srqwqe_table,
-					     HEM_TYPE_SRQWQE,
-					     hr_dev->caps.mtt_entry_sz,
-					     hr_dev->caps.num_srqwqe_segs, 1);
-		if (ret) {
-			dev_err(dev,
-				"Failed to init MTT srqwqe memory, aborting.\n");
-			goto err_unmap_srq;
-		}
-	}
-
-	if (hr_dev->caps.num_idx_segs) {
-		ret = hns_roce_init_hem_table(hr_dev,
-					      &hr_dev->mr_table.mtt_idx_table,
-					      HEM_TYPE_IDX,
-					      hr_dev->caps.idx_entry_sz,
-					      hr_dev->caps.num_idx_segs, 1);
-		if (ret) {
-			dev_err(dev,
-				"Failed to init MTT idx memory, aborting.\n");
-			goto err_unmap_srqwqe;
-		}
-	}
-
-	if (hr_dev->caps.sccc_entry_sz) {
+	if (hr_dev->caps.sccc_sz) {
 		ret = hns_roce_init_hem_table(hr_dev,
 					      &hr_dev->qp_table.sccc_table,
 					      HEM_TYPE_SCCC,
-					      hr_dev->caps.sccc_entry_sz,
+					      hr_dev->caps.sccc_sz,
 					      hr_dev->caps.num_qps, 1);
 		if (ret) {
 			dev_err(dev,
 				"Failed to init SCC context memory, aborting.\n");
-			goto err_unmap_idx;
+			goto err_unmap_srq;
 		}
 	}
 
@@ -730,20 +687,9 @@ err_unmap_qpc_timer:
 		hns_roce_cleanup_hem_table(hr_dev, &hr_dev->qpc_timer_table);
 
 err_unmap_ctx:
-	if (hr_dev->caps.sccc_entry_sz)
+	if (hr_dev->caps.sccc_sz)
 		hns_roce_cleanup_hem_table(hr_dev,
 					   &hr_dev->qp_table.sccc_table);
-
-err_unmap_idx:
-	if (hr_dev->caps.num_idx_segs)
-		hns_roce_cleanup_hem_table(hr_dev,
-					   &hr_dev->mr_table.mtt_idx_table);
-
-err_unmap_srqwqe:
-	if (hr_dev->caps.num_srqwqe_segs)
-		hns_roce_cleanup_hem_table(hr_dev,
-					   &hr_dev->mr_table.mtt_srqwqe_table);
-
 err_unmap_srq:
 	if (hr_dev->caps.srqc_entry_sz)
 		hns_roce_cleanup_hem_table(hr_dev, &hr_dev->srq_table.table);
@@ -764,14 +710,6 @@ err_unmap_qp:
 
 err_unmap_dmpt:
 	hns_roce_cleanup_hem_table(hr_dev, &hr_dev->mr_table.mtpt_table);
-
-err_unmap_mtt:
-	if (hns_roce_check_whether_mhop(hr_dev, HEM_TYPE_CQE))
-		hns_roce_cleanup_hem_table(hr_dev,
-					   &hr_dev->mr_table.mtt_cqe_table);
-
-err_unmap_cqe:
-	hns_roce_cleanup_hem_table(hr_dev, &hr_dev->mr_table.mtt_table);
 
 	return ret;
 }

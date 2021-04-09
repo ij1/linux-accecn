@@ -417,7 +417,7 @@ static void emac_timeout(struct net_device *dev, unsigned int txqueue)
 /* Hardware start transmission.
  * Send a packet to media from the upper layer.
  */
-static int emac_start_xmit(struct sk_buff *skb, struct net_device *dev)
+static netdev_tx_t emac_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct emac_board_info *db = netdev_priv(dev);
 	unsigned long channel;
@@ -425,7 +425,7 @@ static int emac_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	channel = db->tx_fifo_stat & 3;
 	if (channel == 3)
-		return 1;
+		return NETDEV_TX_BUSY;
 
 	channel = (channel == 1 ? 1 : 0);
 
@@ -640,13 +640,11 @@ static irqreturn_t emac_interrupt(int irq, void *dev_id)
 	struct net_device *dev = dev_id;
 	struct emac_board_info *db = netdev_priv(dev);
 	int int_status;
-	unsigned long flags;
 	unsigned int reg_val;
 
 	/* A real interrupt coming */
 
-	/* holders of db->lock must always block IRQs */
-	spin_lock_irqsave(&db->lock, flags);
+	spin_lock(&db->lock);
 
 	/* Disable all interrupts */
 	writel(0, db->membase + EMAC_INT_CTL_REG);
@@ -680,7 +678,7 @@ static irqreturn_t emac_interrupt(int irq, void *dev_id)
 		reg_val |= (0xf << 0) | (0x01 << 8);
 		writel(reg_val, db->membase + EMAC_INT_CTL_REG);
 	}
-	spin_unlock_irqrestore(&db->lock, flags);
+	spin_unlock(&db->lock);
 
 	return IRQ_HANDLED;
 }
