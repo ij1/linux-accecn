@@ -37,6 +37,7 @@
 #include <linux/vmalloc.h>
 #include <linux/ratelimit.h>
 #include <net/addrconf.h>
+#include <rdma/ib_cm.h>
 
 #include "rds_single_path.h"
 #include "rds.h"
@@ -513,6 +514,7 @@ static int rds_ib_setup_qp(struct rds_connection *conn)
 	struct ib_qp_init_attr attr;
 	struct ib_cq_init_attr cq_attr = {};
 	struct rds_ib_device *rds_ibdev;
+	unsigned long max_wrs;
 	int ret, fr_queue_space;
 	struct dma_pool *pool;
 
@@ -525,18 +527,23 @@ static int rds_ib_setup_qp(struct rds_connection *conn)
 		return -EOPNOTSUPP;
 
 	/* The fr_queue_space is currently set to 512, to add extra space on
-	 * completion queue and send queue. This extra space is used for FRMR
+	 * completion queue and send queue. This extra space is used for FRWR
 	 * registration and invalidation work requests
 	 */
-	fr_queue_space = (rds_ibdev->use_fastreg ? RDS_IB_DEFAULT_FR_WR : 0);
+	fr_queue_space = RDS_IB_DEFAULT_FR_WR;
 
 	/* add the conn now so that connection establishment has the dev */
 	rds_ib_add_conn(rds_ibdev, conn);
 
-	if (rds_ibdev->max_wrs < ic->i_send_ring.w_nr + 1)
-		rds_ib_ring_resize(&ic->i_send_ring, rds_ibdev->max_wrs - 1);
-	if (rds_ibdev->max_wrs < ic->i_recv_ring.w_nr + 1)
-		rds_ib_ring_resize(&ic->i_recv_ring, rds_ibdev->max_wrs - 1);
+	max_wrs = rds_ibdev->max_wrs < rds_ib_sysctl_max_send_wr + 1 ?
+		rds_ibdev->max_wrs - 1 : rds_ib_sysctl_max_send_wr;
+	if (ic->i_send_ring.w_nr != max_wrs)
+		rds_ib_ring_resize(&ic->i_send_ring, max_wrs);
+
+	max_wrs = rds_ibdev->max_wrs < rds_ib_sysctl_max_recv_wr + 1 ?
+		rds_ibdev->max_wrs - 1 : rds_ib_sysctl_max_recv_wr;
+	if (ic->i_recv_ring.w_nr != max_wrs)
+		rds_ib_ring_resize(&ic->i_recv_ring, max_wrs);
 
 	/* Protection domain and memory range */
 	ic->i_pd = rds_ibdev->pd;
@@ -704,7 +711,7 @@ static u32 rds_ib_protocol_compatible(struct rdma_cm_event *event, bool isv6)
 	 * original size. The only way to tell the difference is by looking at
 	 * the contents, which are initialized to zero.
 	 * If the protocol version fields aren't set, this is a connection attempt
-	 * from an older version. This could could be 3.0 or 2.0 - we can't tell.
+	 * from an older version. This could be 3.0 or 2.0 - we can't tell.
 	 * We really should have changed this for OFED 1.3 :-(
 	 */
 
@@ -921,7 +928,8 @@ out:
 	if (conn)
 		mutex_unlock(&conn->c_cm_lock);
 	if (err)
-		rdma_reject(cm_id, &err, sizeof(int));
+		rdma_reject(cm_id, &err, sizeof(int),
+			    IB_CM_REJ_CONSUMER_DEFINED);
 	return destroy;
 }
 
@@ -948,9 +956,10 @@ int rds_ib_cm_initiate_connect(struct rdma_cm_id *cm_id, bool isv6)
 	rds_ib_cm_fill_conn_param(conn, &conn_param, &dp,
 				  conn->c_proposed_version,
 				  UINT_MAX, UINT_MAX, isv6);
-	ret = rdma_connect(cm_id, &conn_param);
+	ret = rdma_connect_locked(cm_id, &conn_param);
 	if (ret)
-		rds_ib_conn_error(conn, "rdma_connect failed (%d)\n", ret);
+		rds_ib_conn_error(conn, "rdma_connect_locked failed (%d)\n",
+				  ret);
 
 out:
 	/* Beware - returning non-zero tells the rdma_cm to destroy
@@ -1176,8 +1185,9 @@ void rds_ib_conn_path_shutdown(struct rds_conn_path *cp)
 	ic->i_flowctl = 0;
 	atomic_set(&ic->i_credits, 0);
 
-	rds_ib_ring_init(&ic->i_send_ring, rds_ib_sysctl_max_send_wr);
-	rds_ib_ring_init(&ic->i_recv_ring, rds_ib_sysctl_max_recv_wr);
+	/* Re-init rings, but retain sizes. */
+	rds_ib_ring_init(&ic->i_send_ring, ic->i_send_ring.w_nr);
+	rds_ib_ring_init(&ic->i_recv_ring, ic->i_recv_ring.w_nr);
 
 	if (ic->i_ibinc) {
 		rds_inc_put(&ic->i_ibinc->ii_inc);
@@ -1224,8 +1234,8 @@ int rds_ib_conn_alloc(struct rds_connection *conn, gfp_t gfp)
 	 * rds_ib_conn_shutdown() waits for these to be emptied so they
 	 * must be initialized before it can be called.
 	 */
-	rds_ib_ring_init(&ic->i_send_ring, rds_ib_sysctl_max_send_wr);
-	rds_ib_ring_init(&ic->i_recv_ring, rds_ib_sysctl_max_recv_wr);
+	rds_ib_ring_init(&ic->i_send_ring, 0);
+	rds_ib_ring_init(&ic->i_recv_ring, 0);
 
 	ic->conn = conn;
 	conn->c_transport_data = ic;

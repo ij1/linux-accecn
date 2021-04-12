@@ -50,13 +50,15 @@ static int t4_sched_class_fw_cmd(struct port_info *pi,
 	e = &s->tab[p->u.params.class];
 	switch (op) {
 	case SCHED_FW_OP_ADD:
+	case SCHED_FW_OP_DEL:
 		err = t4_sched_params(adap, p->type,
 				      p->u.params.level, p->u.params.mode,
 				      p->u.params.rateunit,
 				      p->u.params.ratemode,
 				      p->u.params.channel, e->idx,
 				      p->u.params.minrate, p->u.params.maxrate,
-				      p->u.params.weight, p->u.params.pktsize);
+				      p->u.params.weight, p->u.params.pktsize,
+				      p->u.params.burstsize);
 		break;
 	default:
 		err = -ENOTSUPP;
@@ -164,6 +166,22 @@ static void *t4_sched_entry_lookup(struct port_info *pi,
 	return found;
 }
 
+struct sched_class *cxgb4_sched_queue_lookup(struct net_device *dev,
+					     struct ch_sched_queue *p)
+{
+	struct port_info *pi = netdev2pinfo(dev);
+	struct sched_queue_entry *qe = NULL;
+	struct adapter *adap = pi->adapter;
+	struct sge_eth_txq *txq;
+
+	if (p->queue < 0 || p->queue >= pi->nqsets)
+		return NULL;
+
+	txq = &adap->sge.ethtxq[pi->first_qset + p->queue];
+	qe = t4_sched_entry_lookup(pi, SCHED_QUEUE, txq->q.cntxt_id);
+	return qe ? &pi->sched_tbl->tab[qe->param.class] : NULL;
+}
+
 static int t4_sched_queue_unbind(struct port_info *pi, struct ch_sched_queue *p)
 {
 	struct sched_queue_entry *qe = NULL;
@@ -188,10 +206,8 @@ static int t4_sched_queue_unbind(struct port_info *pi, struct ch_sched_queue *p)
 		e = &pi->sched_tbl->tab[qe->param.class];
 		list_del(&qe->list);
 		kvfree(qe);
-		if (atomic_dec_and_test(&e->refcnt)) {
-			e->state = SCHED_STATE_UNUSED;
-			memset(&e->info, 0, sizeof(e->info));
-		}
+		if (atomic_dec_and_test(&e->refcnt))
+			cxgb4_sched_class_free(adap->port[pi->port_id], e->idx);
 	}
 	return err;
 }
@@ -261,10 +277,8 @@ static int t4_sched_flowc_unbind(struct port_info *pi, struct ch_sched_flowc *p)
 		e = &pi->sched_tbl->tab[fe->param.class];
 		list_del(&fe->list);
 		kvfree(fe);
-		if (atomic_dec_and_test(&e->refcnt)) {
-			e->state = SCHED_STATE_UNUSED;
-			memset(&e->info, 0, sizeof(e->info));
-		}
+		if (atomic_dec_and_test(&e->refcnt))
+			cxgb4_sched_class_free(adap->port[pi->port_id], e->idx);
 	}
 	return err;
 }
@@ -469,10 +483,7 @@ static struct sched_class *t4_sched_class_lookup(struct port_info *pi,
 	struct sched_class *found = NULL;
 	struct sched_class *e, *end;
 
-	/* Only allow tc to be shared among SCHED_FLOWC types. For
-	 * other types, always allocate a new tc.
-	 */
-	if (!p || p->u.params.mode != SCHED_CLASS_MODE_FLOW) {
+	if (!p) {
 		/* Get any available unused class */
 		end = &s->tab[s->sched_size];
 		for (e = &s->tab[0]; e != end; ++e) {
@@ -514,7 +525,7 @@ static struct sched_class *t4_sched_class_lookup(struct port_info *pi,
 static struct sched_class *t4_sched_class_alloc(struct port_info *pi,
 						struct ch_sched_params *p)
 {
-	struct sched_class *e;
+	struct sched_class *e = NULL;
 	u8 class_id;
 	int err;
 
@@ -529,10 +540,13 @@ static struct sched_class *t4_sched_class_alloc(struct port_info *pi,
 	if (class_id != SCHED_CLS_NONE)
 		return NULL;
 
-	/* See if there's an exisiting class with same
-	 * requested sched params
+	/* See if there's an exisiting class with same requested sched
+	 * params. Classes can only be shared among FLOWC types. For
+	 * other types, always request a new class.
 	 */
-	e = t4_sched_class_lookup(pi, p);
+	if (p->u.params.mode == SCHED_CLASS_MODE_FLOW)
+		e = t4_sched_class_lookup(pi, p);
+
 	if (!e) {
 		struct ch_sched_params np;
 
@@ -584,7 +598,7 @@ struct sched_class *cxgb4_sched_class_alloc(struct net_device *dev,
 /**
  * cxgb4_sched_class_free - free a scheduling class
  * @dev: net_device pointer
- * @e: scheduling class
+ * @classid: scheduling class id to free
  *
  * Frees a scheduling class if there are no users.
  */
@@ -592,10 +606,35 @@ void cxgb4_sched_class_free(struct net_device *dev, u8 classid)
 {
 	struct port_info *pi = netdev2pinfo(dev);
 	struct sched_table *s = pi->sched_tbl;
+	struct ch_sched_params p;
 	struct sched_class *e;
+	u32 speed;
+	int ret;
 
 	e = &s->tab[classid];
-	if (!atomic_read(&e->refcnt)) {
+	if (!atomic_read(&e->refcnt) && e->state != SCHED_STATE_UNUSED) {
+		/* Port based rate limiting needs explicit reset back
+		 * to max rate. But, we'll do explicit reset for all
+		 * types, instead of just port based type, to be on
+		 * the safer side.
+		 */
+		memcpy(&p, &e->info, sizeof(p));
+		/* Always reset mode to 0. Otherwise, FLOWC mode will
+		 * still be enabled even after resetting the traffic
+		 * class.
+		 */
+		p.u.params.mode = 0;
+		p.u.params.minrate = 0;
+		p.u.params.pktsize = 0;
+
+		ret = t4_get_link_params(pi, NULL, &speed, NULL);
+		if (!ret)
+			p.u.params.maxrate = speed * 1000; /* Mbps to Kbps */
+		else
+			p.u.params.maxrate = SCHED_MAX_RATE_KBPS;
+
+		t4_sched_class_fw_cmd(pi, &p, SCHED_FW_OP_DEL);
+
 		e->state = SCHED_STATE_UNUSED;
 		memset(&e->info, 0, sizeof(e->info));
 	}

@@ -37,7 +37,7 @@ void test_pinning(void)
 	struct stat statbuf = {};
 	struct bpf_object *obj;
 	struct bpf_map *map;
-	int err;
+	int err, map_fd;
 	DECLARE_LIBBPF_OPTS(bpf_object_open_opts, opts,
 		.pin_root_path = custpath,
 	);
@@ -163,12 +163,15 @@ void test_pinning(void)
 		goto out;
 	}
 
-	/* swap pin paths of the two maps */
+	/* set pin paths so that nopinmap2 will attempt to reuse the map at
+	 * pinpath (which will fail), but not before pinmap has already been
+	 * reused
+	 */
 	bpf_object__for_each_map(map, obj) {
 		if (!strcmp(bpf_map__name(map), "nopinmap"))
+			err = bpf_map__set_pin_path(map, nopinpath2);
+		else if (!strcmp(bpf_map__name(map), "nopinmap2"))
 			err = bpf_map__set_pin_path(map, pinpath);
-		else if (!strcmp(bpf_map__name(map), "pinmap"))
-			err = bpf_map__set_pin_path(map, NULL);
 		else
 			continue;
 
@@ -179,6 +182,17 @@ void test_pinning(void)
 	/* should fail because of map parameter mismatch */
 	err = bpf_object__load(obj);
 	if (CHECK(err != -EINVAL, "param mismatch load", "err %d errno %d\n", err, errno))
+		goto out;
+
+	/* nopinmap2 should have been pinned and cleaned up again */
+	err = stat(nopinpath2, &statbuf);
+	if (CHECK(!err || errno != ENOENT, "stat nopinpath2",
+		  "err %d errno %d\n", err, errno))
+		goto out;
+
+	/* pinmap should still be there */
+	err = stat(pinpath, &statbuf);
+	if (CHECK(err, "stat pinpath", "err %d errno %d\n", err, errno))
 		goto out;
 
 	bpf_object__close(obj);
@@ -199,6 +213,53 @@ void test_pinning(void)
 	if (CHECK(err, "stat custpinpath", "err %d errno %d\n", err, errno))
 		goto out;
 
+	/* remove the custom pin path to re-test it with reuse fd below */
+	err = unlink(custpinpath);
+	if (CHECK(err, "unlink custpinpath", "err %d errno %d\n", err, errno))
+		goto out;
+
+	err = rmdir(custpath);
+	if (CHECK(err, "rmdir custpindir", "err %d errno %d\n", err, errno))
+		goto out;
+
+	bpf_object__close(obj);
+
+	/* test pinning at custom path with reuse fd */
+	obj = bpf_object__open_file(file, NULL);
+	err = libbpf_get_error(obj);
+	if (CHECK(err, "default open", "err %d errno %d\n", err, errno)) {
+		obj = NULL;
+		goto out;
+	}
+
+	map_fd = bpf_create_map(BPF_MAP_TYPE_ARRAY, sizeof(__u32),
+				sizeof(__u64), 1, 0);
+	if (CHECK(map_fd < 0, "create pinmap manually", "fd %d\n", map_fd))
+		goto out;
+
+	map = bpf_object__find_map_by_name(obj, "pinmap");
+	if (CHECK(!map, "find map", "NULL map"))
+		goto close_map_fd;
+
+	err = bpf_map__reuse_fd(map, map_fd);
+	if (CHECK(err, "reuse pinmap fd", "err %d errno %d\n", err, errno))
+		goto close_map_fd;
+
+	err = bpf_map__set_pin_path(map, custpinpath);
+	if (CHECK(err, "set pin path", "err %d errno %d\n", err, errno))
+		goto close_map_fd;
+
+	err = bpf_object__load(obj);
+	if (CHECK(err, "custom load", "err %d errno %d\n", err, errno))
+		goto close_map_fd;
+
+	/* check that pinmap was pinned at the custom path */
+	err = stat(custpinpath, &statbuf);
+	if (CHECK(err, "stat custpinpath", "err %d errno %d\n", err, errno))
+		goto close_map_fd;
+
+close_map_fd:
+	close(map_fd);
 out:
 	unlink(pinpath);
 	unlink(nopinpath);

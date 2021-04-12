@@ -156,11 +156,10 @@ static const u16 iwl_uhb_nvm_channels[] = {
 	96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144,
 	149, 153, 157, 161, 165, 169, 173, 177, 181,
 	/* 6-7 GHz */
-	189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 233, 237, 241,
-	245, 249, 253, 257, 261, 265, 269, 273, 277, 281, 285, 289, 293, 297,
-	301, 305, 309, 313, 317, 321, 325, 329, 333, 337, 341, 345, 349, 353,
-	357, 361, 365, 369, 373, 377, 381, 385, 389, 393, 397, 401, 405, 409,
-	413, 417, 421
+	1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69,
+	73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113, 117, 121, 125, 129,
+	133, 137, 141, 145, 149, 153, 157, 161, 165, 169, 173, 177, 181, 185,
+	189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 233
 };
 
 #define IWL_NVM_NUM_CHANNELS		ARRAY_SIZE(iwl_nvm_channels)
@@ -223,6 +222,95 @@ enum iwl_nvm_channel_flags {
 	NVM_CHANNEL_80MHZ		= BIT(10),
 	NVM_CHANNEL_160MHZ		= BIT(11),
 	NVM_CHANNEL_DC_HIGH		= BIT(12),
+};
+
+/**
+ * enum iwl_reg_capa_flags - global flags applied for the whole regulatory
+ * domain.
+ * @REG_CAPA_BF_CCD_LOW_BAND: Beam-forming or Cyclic Delay Diversity in the
+ *	2.4Ghz band is allowed.
+ * @REG_CAPA_BF_CCD_HIGH_BAND: Beam-forming or Cyclic Delay Diversity in the
+ *	5Ghz band is allowed.
+ * @REG_CAPA_160MHZ_ALLOWED: 11ac channel with a width of 160Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @REG_CAPA_80MHZ_ALLOWED: 11ac channel with a width of 80Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @REG_CAPA_MCS_8_ALLOWED: 11ac with MCS 8 is allowed.
+ * @REG_CAPA_MCS_9_ALLOWED: 11ac with MCS 9 is allowed.
+ * @REG_CAPA_40MHZ_FORBIDDEN: 11n channel with a width of 40Mhz is forbidden
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @REG_CAPA_DC_HIGH_ENABLED: DC HIGH allowed.
+ * @REG_CAPA_11AX_DISABLED: 11ax is forbidden for this regulatory domain.
+ */
+enum iwl_reg_capa_flags {
+	REG_CAPA_BF_CCD_LOW_BAND	= BIT(0),
+	REG_CAPA_BF_CCD_HIGH_BAND	= BIT(1),
+	REG_CAPA_160MHZ_ALLOWED		= BIT(2),
+	REG_CAPA_80MHZ_ALLOWED		= BIT(3),
+	REG_CAPA_MCS_8_ALLOWED		= BIT(4),
+	REG_CAPA_MCS_9_ALLOWED		= BIT(5),
+	REG_CAPA_40MHZ_FORBIDDEN	= BIT(7),
+	REG_CAPA_DC_HIGH_ENABLED	= BIT(9),
+	REG_CAPA_11AX_DISABLED		= BIT(10),
+};
+
+/**
+ * enum iwl_reg_capa_flags_v2 - global flags applied for the whole regulatory
+ * domain (version 2).
+ * @REG_CAPA_V2_STRADDLE_DISABLED: Straddle channels (144, 142, 138) are
+ *	disabled.
+ * @REG_CAPA_V2_BF_CCD_LOW_BAND: Beam-forming or Cyclic Delay Diversity in the
+ *	2.4Ghz band is allowed.
+ * @REG_CAPA_V2_BF_CCD_HIGH_BAND: Beam-forming or Cyclic Delay Diversity in the
+ *	5Ghz band is allowed.
+ * @REG_CAPA_V2_160MHZ_ALLOWED: 11ac channel with a width of 160Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @REG_CAPA_V2_80MHZ_ALLOWED: 11ac channel with a width of 80Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @REG_CAPA_V2_MCS_8_ALLOWED: 11ac with MCS 8 is allowed.
+ * @REG_CAPA_V2_MCS_9_ALLOWED: 11ac with MCS 9 is allowed.
+ * @REG_CAPA_V2_WEATHER_DISABLED: Weather radar channels (120, 124, 128, 118,
+ *	126, 122) are disabled.
+ * @REG_CAPA_V2_40MHZ_ALLOWED: 11n channel with a width of 40Mhz is allowed
+ *	for this regulatory domain (uvalid only in 5Ghz).
+ * @REG_CAPA_V2_11AX_DISABLED: 11ax is forbidden for this regulatory domain.
+ */
+enum iwl_reg_capa_flags_v2 {
+	REG_CAPA_V2_STRADDLE_DISABLED	= BIT(0),
+	REG_CAPA_V2_BF_CCD_LOW_BAND	= BIT(1),
+	REG_CAPA_V2_BF_CCD_HIGH_BAND	= BIT(2),
+	REG_CAPA_V2_160MHZ_ALLOWED	= BIT(3),
+	REG_CAPA_V2_80MHZ_ALLOWED	= BIT(4),
+	REG_CAPA_V2_MCS_8_ALLOWED	= BIT(5),
+	REG_CAPA_V2_MCS_9_ALLOWED	= BIT(6),
+	REG_CAPA_V2_WEATHER_DISABLED	= BIT(7),
+	REG_CAPA_V2_40MHZ_ALLOWED	= BIT(8),
+	REG_CAPA_V2_11AX_DISABLED	= BIT(13),
+};
+
+/*
+* API v2 for reg_capa_flags is relevant from version 6 and onwards of the
+* MCC update command response.
+*/
+#define REG_CAPA_V2_RESP_VER	6
+
+/**
+ * struct iwl_reg_capa - struct for global regulatory capabilities, Used for
+ * handling the different APIs of reg_capa_flags.
+ *
+ * @allow_40mhz: 11n channel with a width of 40Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @allow_80mhz: 11ac channel with a width of 80Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @allow_160mhz: 11ac channel with a width of 160Mhz is allowed
+ *	for this regulatory domain (valid only in 5Ghz).
+ * @disable_11ax: 11ax is forbidden for this regulatory domain.
+ */
+struct iwl_reg_capa {
+	u16 allow_40mhz;
+	u16 allow_80mhz;
+	u16 allow_160mhz;
+	u16 disable_11ax;
 };
 
 static inline void iwl_nvm_print_channel_flags(struct device *dev, u32 level,
@@ -505,8 +593,7 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
 					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
 				.mac_cap_info[2] =
-					IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP |
-					IEEE80211_HE_MAC_CAP2_ACK_EN,
+					IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP,
 				.mac_cap_info[3] =
 					IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
 					IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
@@ -590,8 +677,7 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
 					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
 				.mac_cap_info[2] =
-					IEEE80211_HE_MAC_CAP2_BSR |
-					IEEE80211_HE_MAC_CAP2_ACK_EN,
+					IEEE80211_HE_MAC_CAP2_BSR,
 				.mac_cap_info[3] =
 					IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
 					IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
@@ -657,7 +743,9 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 	},
 };
 
-static void iwl_init_he_hw_capab(struct ieee80211_supported_band *sband,
+static void iwl_init_he_hw_capab(struct iwl_trans *trans,
+				 struct iwl_nvm_data *data,
+				 struct ieee80211_supported_band *sband,
 				 u8 tx_chains, u8 rx_chains)
 {
 	sband->iftype_data = iwl_he_capa;
@@ -701,7 +789,7 @@ static void iwl_init_sbands(struct iwl_trans *trans,
 			     tx_chains, rx_chains);
 
 	if (data->sku_cap_11ax_enable && !iwlwifi_mod_params.disable_11ax)
-		iwl_init_he_hw_capab(sband, tx_chains, rx_chains);
+		iwl_init_he_hw_capab(trans, data, sband, tx_chains, rx_chains);
 
 	sband = &data->bands[NL80211_BAND_5GHZ];
 	sband->band = NL80211_BAND_5GHZ;
@@ -716,7 +804,7 @@ static void iwl_init_sbands(struct iwl_trans *trans,
 				      tx_chains, rx_chains);
 
 	if (data->sku_cap_11ax_enable && !iwlwifi_mod_params.disable_11ax)
-		iwl_init_he_hw_capab(sband, tx_chains, rx_chains);
+		iwl_init_he_hw_capab(trans, data, sband, tx_chains, rx_chains);
 
 	if (n_channels != n_used)
 		IWL_ERR_DEV(dev, "NVM: used only %d of %d channels\n",
@@ -802,12 +890,8 @@ static void iwl_flip_hw_address(__le32 mac_addr0, __le32 mac_addr1, u8 *dest)
 static void iwl_set_hw_address_from_csr(struct iwl_trans *trans,
 					struct iwl_nvm_data *data)
 {
-	__le32 mac_addr0 =
-		cpu_to_le32(iwl_read32(trans,
-				       trans->trans_cfg->csr->mac_addr0_strap));
-	__le32 mac_addr1 =
-		cpu_to_le32(iwl_read32(trans,
-				       trans->trans_cfg->csr->mac_addr1_strap));
+	__le32 mac_addr0 = cpu_to_le32(iwl_read32(trans, CSR_MAC_ADDR0_STRAP));
+	__le32 mac_addr1 = cpu_to_le32(iwl_read32(trans, CSR_MAC_ADDR1_STRAP));
 
 	iwl_flip_hw_address(mac_addr0, mac_addr1, data->hw_addr);
 	/*
@@ -817,10 +901,8 @@ static void iwl_set_hw_address_from_csr(struct iwl_trans *trans,
 	if (is_valid_ether_addr(data->hw_addr))
 		return;
 
-	mac_addr0 = cpu_to_le32(iwl_read32(trans,
-					trans->trans_cfg->csr->mac_addr0_otp));
-	mac_addr1 = cpu_to_le32(iwl_read32(trans,
-					trans->trans_cfg->csr->mac_addr1_otp));
+	mac_addr0 = cpu_to_le32(iwl_read32(trans, CSR_MAC_ADDR0_OTP));
+	mac_addr1 = cpu_to_le32(iwl_read32(trans, CSR_MAC_ADDR1_OTP));
 
 	iwl_flip_hw_address(mac_addr0, mac_addr1, data->hw_addr);
 }
@@ -940,10 +1022,11 @@ iwl_nvm_no_wide_in_5ghz(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 struct iwl_nvm_data *
 iwl_parse_nvm_data(struct iwl_trans *trans, const struct iwl_cfg *cfg,
+		   const struct iwl_fw *fw,
 		   const __be16 *nvm_hw, const __le16 *nvm_sw,
 		   const __le16 *nvm_calib, const __le16 *regulatory,
 		   const __le16 *mac_override, const __le16 *phy_sku,
-		   u8 tx_chains, u8 rx_chains, bool lar_fw_supported)
+		   u8 tx_chains, u8 rx_chains)
 {
 	struct iwl_nvm_data *data;
 	bool lar_enabled;
@@ -1023,7 +1106,8 @@ iwl_parse_nvm_data(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		return NULL;
 	}
 
-	if (lar_fw_supported && lar_enabled)
+	if (lar_enabled &&
+	    fw_has_capa(&fw->ucode_capa, IWL_UCODE_TLV_CAPA_LAR_SUPPORT))
 		sbands_flags |= IWL_NVM_SBANDS_FLAGS_LAR;
 
 	if (iwl_nvm_no_wide_in_5ghz(trans, cfg, nvm_hw))
@@ -1039,6 +1123,7 @@ IWL_EXPORT_SYMBOL(iwl_parse_nvm_data);
 
 static u32 iwl_nvm_get_regdom_bw_flags(const u16 *nvm_chan,
 				       int ch_idx, u16 nvm_flags,
+				       struct iwl_reg_capa reg_capa,
 				       const struct iwl_cfg *cfg)
 {
 	u32 flags = NL80211_RRF_NO_HT40;
@@ -1077,13 +1162,47 @@ static u32 iwl_nvm_get_regdom_bw_flags(const u16 *nvm_chan,
 	    (flags & NL80211_RRF_NO_IR))
 		flags |= NL80211_RRF_GO_CONCURRENT;
 
+	/*
+	 * reg_capa is per regulatory domain so apply it for every channel
+	 */
+	if (ch_idx >= NUM_2GHZ_CHANNELS) {
+		if (!reg_capa.allow_40mhz)
+			flags |= NL80211_RRF_NO_HT40;
+
+		if (!reg_capa.allow_80mhz)
+			flags |= NL80211_RRF_NO_80MHZ;
+
+		if (!reg_capa.allow_160mhz)
+			flags |= NL80211_RRF_NO_160MHZ;
+	}
+	if (reg_capa.disable_11ax)
+		flags |= NL80211_RRF_NO_HE;
+
 	return flags;
+}
+
+static struct iwl_reg_capa iwl_get_reg_capa(u16 flags, u8 resp_ver)
+{
+	struct iwl_reg_capa reg_capa;
+
+	if (resp_ver >= REG_CAPA_V2_RESP_VER) {
+		reg_capa.allow_40mhz = flags & REG_CAPA_V2_40MHZ_ALLOWED;
+		reg_capa.allow_80mhz = flags & REG_CAPA_V2_80MHZ_ALLOWED;
+		reg_capa.allow_160mhz = flags & REG_CAPA_V2_160MHZ_ALLOWED;
+		reg_capa.disable_11ax = flags & REG_CAPA_V2_11AX_DISABLED;
+	} else {
+		reg_capa.allow_40mhz = !(flags & REG_CAPA_40MHZ_FORBIDDEN);
+		reg_capa.allow_80mhz = flags & REG_CAPA_80MHZ_ALLOWED;
+		reg_capa.allow_160mhz = flags & REG_CAPA_160MHZ_ALLOWED;
+		reg_capa.disable_11ax = flags & REG_CAPA_11AX_DISABLED;
+	}
+	return reg_capa;
 }
 
 struct ieee80211_regdomain *
 iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 		       int num_of_ch, __le32 *channels, u16 fw_mcc,
-		       u16 geo_info)
+		       u16 geo_info, u16 cap, u8 resp_ver)
 {
 	int ch_idx;
 	u16 ch_flags;
@@ -1096,6 +1215,7 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	int valid_rules = 0;
 	bool new_rule;
 	int max_num_ch;
+	struct iwl_reg_capa reg_capa;
 
 	if (cfg->uhb_supported) {
 		max_num_ch = IWL_NVM_NUM_CHANNELS_UHB;
@@ -1126,10 +1246,12 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	regd->alpha2[0] = fw_mcc >> 8;
 	regd->alpha2[1] = fw_mcc & 0xff;
 
+	/* parse regulatory capability flags */
+	reg_capa = iwl_get_reg_capa(cap, resp_ver);
+
 	for (ch_idx = 0; ch_idx < num_of_ch; ch_idx++) {
 		ch_flags = (u16)__le32_to_cpup(channels + ch_idx);
-		band = (ch_idx < NUM_2GHZ_CHANNELS) ?
-		       NL80211_BAND_2GHZ : NL80211_BAND_5GHZ;
+		band = iwl_nl80211_band_from_channel_idx(ch_idx);
 		center_freq = ieee80211_channel_to_frequency(nvm_chan[ch_idx],
 							     band);
 		new_rule = false;
@@ -1141,7 +1263,8 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 		}
 
 		reg_rule_flags = iwl_nvm_get_regdom_bw_flags(nvm_chan, ch_idx,
-							     ch_flags, cfg);
+							     ch_flags, reg_capa,
+							     cfg);
 
 		/* we can't continue the same rule */
 		if (ch_idx == 0 || prev_reg_rule_flags != reg_rule_flags ||
@@ -1406,9 +1529,6 @@ struct iwl_nvm_data *iwl_get_nvm(struct iwl_trans *trans,
 		.id = WIDE_ID(REGULATORY_AND_NVM_GROUP, NVM_GET_INFO)
 	};
 	int  ret;
-	bool lar_fw_supported = !iwlwifi_mod_params.lar_disable &&
-				fw_has_capa(&fw->ucode_capa,
-					    IWL_UCODE_TLV_CAPA_LAR_SUPPORT);
 	bool empty_otp;
 	u32 mac_flags;
 	u32 sbands_flags = 0;
@@ -1486,7 +1606,9 @@ struct iwl_nvm_data *iwl_get_nvm(struct iwl_trans *trans,
 	nvm->valid_tx_ant = (u8)le32_to_cpu(rsp->phy_sku.tx_chains);
 	nvm->valid_rx_ant = (u8)le32_to_cpu(rsp->phy_sku.rx_chains);
 
-	if (le32_to_cpu(rsp->regulatory.lar_enabled) && lar_fw_supported) {
+	if (le32_to_cpu(rsp->regulatory.lar_enabled) &&
+	    fw_has_capa(&fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_LAR_SUPPORT)) {
 		nvm->lar_enabled = true;
 		sbands_flags |= IWL_NVM_SBANDS_FLAGS_LAR;
 	}

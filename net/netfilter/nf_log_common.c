@@ -83,8 +83,10 @@ int nf_log_dump_tcp_header(struct nf_log_buf *m, const struct sk_buff *skb,
 	nf_log_buf_add(m, "WINDOW=%u ", ntohs(th->window));
 	/* Max length: 9 "RES=0x3C " */
 	nf_log_buf_add(m, "RES=0x%02x ", (u_int8_t)(ntohl(tcp_flag_word(th) &
-				(TCP_RESERVED_BITS | TCP_FLAG_AE)) >> 22));
-	/* Max length: 32 "CWR ECE URG ACK PSH RST SYN FIN " */
+					    TCP_RESERVED_BITS) >> 22));
+	/* Max length: 35 "AE CWR ECE URG ACK PSH RST SYN FIN " */
+	if (th->ae)
+		nf_log_buf_add(m, "AE ");
 	if (th->cwr)
 		nf_log_buf_add(m, "CWR ");
 	if (th->ece)
@@ -170,6 +172,18 @@ nf_log_dump_packet_common(struct nf_log_buf *m, u_int8_t pf,
 #endif
 }
 EXPORT_SYMBOL_GPL(nf_log_dump_packet_common);
+
+void nf_log_dump_vlan(struct nf_log_buf *m, const struct sk_buff *skb)
+{
+	u16 vid;
+
+	if (!skb_vlan_tag_present(skb))
+		return;
+
+	vid = skb_vlan_tag_get(skb);
+	nf_log_buf_add(m, "VPROTO=%04x VID=%u ", ntohs(skb->vlan_proto), vid);
+}
+EXPORT_SYMBOL_GPL(nf_log_dump_vlan);
 
 /* bridge and netdev logging families share this code. */
 void nf_log_l2packet(struct net *net, u_int8_t pf,
