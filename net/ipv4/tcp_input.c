@@ -3731,7 +3731,7 @@ static void tcp_xmit_recovery(struct sock *sk, int rexmit)
 
 /* Returns the number of packets newly acked or sacked by the current ACK */
 static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
-			       u32 ecn_count)
+			       u32 ecn_count, int flag)
 {
 	const struct net *net = sock_net(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -3740,7 +3740,7 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered,
 	delivered = tp->delivered - prior_delivered;
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
 
-	if (ecn_count) {
+	if (flag & FLAG_ECE) {
 		if (tcp_ecn_mode_rfc3168(tp))
 			ecn_count = delivered;
 		NET_ADD_STATS(net, LINUX_MIB_TCPDELIVEREDCE, ecn_count);
@@ -3894,7 +3894,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	if ((flag & FLAG_FORWARD_PROGRESS) || !(flag & FLAG_NOT_DUP))
 		sk_dst_confirm(sk);
 
-	delivered = tcp_newly_delivered(sk, delivered, ecn_count);
+	delivered = tcp_newly_delivered(sk, delivered, ecn_count, flag);
 
 	lost = tp->lost - lost;			/* freshly marked lost */
 	rs.is_ack_delayed = !!(flag & FLAG_ACK_MAYBE_DELAYED);
@@ -3911,7 +3911,7 @@ no_queue:
 	if (flag & FLAG_DSACKING_ACK) {
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
-		tcp_newly_delivered(sk, delivered, ecn_count);
+		tcp_newly_delivered(sk, delivered, ecn_count, flag);
 	}
 	/* If this ack opens up a zero window, clear backoff.  It was
 	 * being used to time the probes, and is probably far higher than
@@ -3932,7 +3932,7 @@ old_ack:
 						&sack_state);
 		tcp_fastretrans_alert(sk, prior_snd_una, num_dupack, &flag,
 				      &rexmit);
-		tcp_newly_delivered(sk, delivered, ecn_count);
+		tcp_newly_delivered(sk, delivered, ecn_count, flag);
 		tcp_xmit_recovery(sk, rexmit);
 	}
 
