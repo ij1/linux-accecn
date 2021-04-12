@@ -1,0 +1,7 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] Add ece_delta to rate_sample
+
+Include echoed CE count into rate_sample.
+
+Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
