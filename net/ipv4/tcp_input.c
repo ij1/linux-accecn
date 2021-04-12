@@ -398,11 +398,11 @@ static void tcp_ecn_rcv_syn(struct tcp_sock *tp, const struct tcphdr *th)
 		tcp_ecn_mode_set(tp, TCP_ECN_DISABLED);
 }
 
-static u32 tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *th)
+static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr *th)
 {
 	if (th->ece && !th->syn && tcp_ecn_mode_rfc3168(tp))
-		return 1;
-	return 0;
+		return true;
+	return false;
 }
 
 /* Returns the ECN CE delta */
@@ -3836,8 +3836,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		if (TCP_SKB_CB(skb)->sacked)
 			flag |= tcp_sacktag_write_queue(sk, skb, prior_snd_una,
 							&sack_state);
-		ecn_count = tcp_ecn_rcv_ecn_echo(tp, tcp_hdr(skb));
-		if (ecn_count > 0)
+		if (tcp_ecn_rcv_ecn_echo(tp, tcp_hdr(skb)))
 			flag |= FLAG_ECE;
 
 		if (sack_state.sack_delivered)
