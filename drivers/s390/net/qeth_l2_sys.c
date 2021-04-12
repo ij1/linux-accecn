@@ -18,9 +18,10 @@ static ssize_t qeth_bridge_port_role_state_show(struct device *dev,
 	int rc = 0;
 	char *word;
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		return sprintf(buf, "n/a (VNIC characteristics)\n");
 
+	mutex_lock(&card->sbp_lock);
 	if (qeth_card_hw_is_reachable(card) &&
 					card->options.sbp.supported_funcs)
 		rc = qeth_bridgeport_query_ports(card,
@@ -54,6 +55,7 @@ static ssize_t qeth_bridge_port_role_state_show(struct device *dev,
 		else
 			rc = sprintf(buf, "%s\n", word);
 	}
+	mutex_unlock(&card->sbp_lock);
 
 	return rc;
 }
@@ -63,7 +65,7 @@ static ssize_t qeth_bridge_port_role_show(struct device *dev,
 {
 	struct qeth_card *card = dev_get_drvdata(dev);
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		return sprintf(buf, "n/a (VNIC characteristics)\n");
 
 	return qeth_bridge_port_role_state_show(dev, attr, buf, 0);
@@ -86,8 +88,9 @@ static ssize_t qeth_bridge_port_role_store(struct device *dev,
 		return -EINVAL;
 
 	mutex_lock(&card->conf_mutex);
+	mutex_lock(&card->sbp_lock);
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		rc = -EBUSY;
 	else if (card->options.sbp.reflect_promisc)
 		/* Forbid direct manipulation */
@@ -99,6 +102,7 @@ static ssize_t qeth_bridge_port_role_store(struct device *dev,
 	} else
 		card->options.sbp.role = role;
 
+	mutex_unlock(&card->sbp_lock);
 	mutex_unlock(&card->conf_mutex);
 
 	return rc ? rc : count;
@@ -112,7 +116,7 @@ static ssize_t qeth_bridge_port_state_show(struct device *dev,
 {
 	struct qeth_card *card = dev_get_drvdata(dev);
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		return sprintf(buf, "n/a (VNIC characteristics)\n");
 
 	return qeth_bridge_port_role_state_show(dev, attr, buf, 1);
@@ -127,7 +131,7 @@ static ssize_t qeth_bridgeport_hostnotification_show(struct device *dev,
 	struct qeth_card *card = dev_get_drvdata(dev);
 	int enabled;
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		return sprintf(buf, "n/a (VNIC characteristics)\n");
 
 	enabled = card->options.sbp.hostnotification;
@@ -147,16 +151,19 @@ static ssize_t qeth_bridgeport_hostnotification_store(struct device *dev,
 		return rc;
 
 	mutex_lock(&card->conf_mutex);
+	mutex_lock(&card->sbp_lock);
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		rc = -EBUSY;
 	else if (qeth_card_hw_is_reachable(card)) {
 		rc = qeth_bridgeport_an_set(card, enable);
+		/* sbp_lock ensures ordering vs notifications-stopped events */
 		if (!rc)
 			card->options.sbp.hostnotification = enable;
 	} else
 		card->options.sbp.hostnotification = enable;
 
+	mutex_unlock(&card->sbp_lock);
 	mutex_unlock(&card->conf_mutex);
 
 	return rc ? rc : count;
@@ -172,7 +179,7 @@ static ssize_t qeth_bridgeport_reflect_show(struct device *dev,
 	struct qeth_card *card = dev_get_drvdata(dev);
 	char *state;
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		return sprintf(buf, "n/a (VNIC characteristics)\n");
 
 	if (card->options.sbp.reflect_promisc) {
@@ -206,8 +213,9 @@ static ssize_t qeth_bridgeport_reflect_store(struct device *dev,
 		return -EINVAL;
 
 	mutex_lock(&card->conf_mutex);
+	mutex_lock(&card->sbp_lock);
 
-	if (qeth_l2_vnicc_is_in_use(card))
+	if (!qeth_bridgeport_allowed(card))
 		rc = -EBUSY;
 	else if (card->options.sbp.role != QETH_SBP_ROLE_NONE)
 		rc = -EPERM;
@@ -217,6 +225,7 @@ static ssize_t qeth_bridgeport_reflect_store(struct device *dev,
 		rc = 0;
 	}
 
+	mutex_unlock(&card->sbp_lock);
 	mutex_unlock(&card->conf_mutex);
 
 	return rc ? rc : count;
@@ -237,35 +246,6 @@ static struct attribute *qeth_l2_bridgeport_attrs[] = {
 static struct attribute_group qeth_l2_bridgeport_attr_group = {
 	.attrs = qeth_l2_bridgeport_attrs,
 };
-
-/**
- * qeth_l2_setup_bridgeport_attrs() - set/restore attrs when turning online.
- * @card:			      qeth_card structure pointer
- *
- * Note: this function is called with conf_mutex held by the caller
- */
-void qeth_l2_setup_bridgeport_attrs(struct qeth_card *card)
-{
-	int rc;
-
-	if (!card)
-		return;
-	if (!card->options.sbp.supported_funcs)
-		return;
-	if (card->options.sbp.role != QETH_SBP_ROLE_NONE) {
-		/* Conditional to avoid spurious error messages */
-		qeth_bridgeport_setrole(card, card->options.sbp.role);
-		/* Let the callback function refresh the stored role value. */
-		qeth_bridgeport_query_ports(card,
-			&card->options.sbp.role, NULL);
-	}
-	if (card->options.sbp.hostnotification) {
-		rc = qeth_bridgeport_an_set(card, 1);
-		if (rc)
-			card->options.sbp.hostnotification = 0;
-	} else
-		qeth_bridgeport_an_set(card, 0);
-}
 
 /* VNIC CHARS support */
 

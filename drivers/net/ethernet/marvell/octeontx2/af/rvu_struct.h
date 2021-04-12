@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0
- * Marvell OcteonTx2 RVU Admin Function driver
+/* SPDX-License-Identifier: GPL-2.0 */
+/*  Marvell OcteonTx2 RVU Admin Function driver
  *
  * Copyright (C) 2018 Marvell International Ltd.
  *
@@ -10,6 +10,9 @@
 
 #ifndef RVU_STRUCT_H
 #define RVU_STRUCT_H
+
+/* RVU Block revision IDs */
+#define RVU_BLK_RVUM_REVID		0x01
 
 /* RVU Block Address Enumeration */
 enum rvu_block_addr_e {

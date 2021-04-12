@@ -14,11 +14,18 @@
 static void ionic_watchdog_cb(struct timer_list *t)
 {
 	struct ionic *ionic = from_timer(ionic, t, watchdog_timer);
+	int hb;
 
 	mod_timer(&ionic->watchdog_timer,
 		  round_jiffies(jiffies + ionic->watchdog_period));
 
-	ionic_heartbeat_check(ionic);
+	if (!ionic->lif)
+		return;
+
+	hb = ionic_heartbeat_check(ionic);
+
+	if (hb >= 0)
+		ionic_link_status_check_request(ionic->lif, false);
 }
 
 void ionic_init_devinfo(struct ionic *ionic)
@@ -82,6 +89,7 @@ int ionic_dev_setup(struct ionic *ionic)
 		return -EFAULT;
 	}
 
+	idev->last_fw_status = 0xff;
 	timer_setup(&ionic->watchdog_timer, ionic_watchdog_cb, 0);
 	ionic->watchdog_period = IONIC_WATCHDOG_SECS * HZ;
 	mod_timer(&ionic->watchdog_timer,
@@ -93,17 +101,12 @@ int ionic_dev_setup(struct ionic *ionic)
 	return 0;
 }
 
-void ionic_dev_teardown(struct ionic *ionic)
-{
-	del_timer_sync(&ionic->watchdog_timer);
-}
-
 /* Devcmd Interface */
 int ionic_heartbeat_check(struct ionic *ionic)
 {
 	struct ionic_dev *idev = &ionic->idev;
 	unsigned long hb_time;
-	u32 fw_status;
+	u8 fw_status;
 	u32 hb;
 
 	/* wait a little more than one second before testing again */
@@ -111,9 +114,47 @@ int ionic_heartbeat_check(struct ionic *ionic)
 	if (time_before(hb_time, (idev->last_hb_time + ionic->watchdog_period)))
 		return 0;
 
-	/* firmware is useful only if fw_status is non-zero */
-	fw_status = ioread32(&idev->dev_info_regs->fw_status);
-	if (!fw_status)
+	/* firmware is useful only if the running bit is set and
+	 * fw_status != 0xff (bad PCI read)
+	 */
+	fw_status = ioread8(&idev->dev_info_regs->fw_status);
+	if (fw_status != 0xff)
+		fw_status &= IONIC_FW_STS_F_RUNNING;  /* use only the run bit */
+
+	/* is this a transition? */
+	if (fw_status != idev->last_fw_status &&
+	    idev->last_fw_status != 0xff) {
+		struct ionic_lif *lif = ionic->lif;
+		bool trigger = false;
+
+		if (!fw_status || fw_status == 0xff) {
+			dev_info(ionic->dev, "FW stopped %u\n", fw_status);
+			if (lif && !test_bit(IONIC_LIF_F_FW_RESET, lif->state))
+				trigger = true;
+		} else {
+			dev_info(ionic->dev, "FW running %u\n", fw_status);
+			if (lif && test_bit(IONIC_LIF_F_FW_RESET, lif->state))
+				trigger = true;
+		}
+
+		if (trigger) {
+			struct ionic_deferred_work *work;
+
+			work = kzalloc(sizeof(*work), GFP_ATOMIC);
+			if (!work) {
+				dev_err(ionic->dev, "%s OOM\n", __func__);
+			} else {
+				work->type = IONIC_DW_TYPE_LIF_RESET;
+				if (fw_status & IONIC_FW_STS_F_RUNNING &&
+				    fw_status != 0xff)
+					work->fw_status = 1;
+				ionic_lif_deferred_enqueue(&lif->deferred, work);
+			}
+		}
+	}
+	idev->last_fw_status = fw_status;
+
+	if (!fw_status || fw_status == 0xff)
 		return -ENXIO;
 
 	/* early FW has no heartbeat, else FW will return non-zero */
@@ -286,7 +327,78 @@ void ionic_dev_cmd_port_pause(struct ionic_dev *idev, u8 pause_type)
 	ionic_dev_cmd_go(idev, &cmd);
 }
 
+/* VF commands */
+int ionic_set_vf_config(struct ionic *ionic, int vf, u8 attr, u8 *data)
+{
+	union ionic_dev_cmd cmd = {
+		.vf_setattr.opcode = IONIC_CMD_VF_SETATTR,
+		.vf_setattr.attr = attr,
+		.vf_setattr.vf_index = cpu_to_le16(vf),
+	};
+	int err;
+
+	switch (attr) {
+	case IONIC_VF_ATTR_SPOOFCHK:
+		cmd.vf_setattr.spoofchk = *data;
+		dev_dbg(ionic->dev, "%s: vf %d spoof %d\n",
+			__func__, vf, *data);
+		break;
+	case IONIC_VF_ATTR_TRUST:
+		cmd.vf_setattr.trust = *data;
+		dev_dbg(ionic->dev, "%s: vf %d trust %d\n",
+			__func__, vf, *data);
+		break;
+	case IONIC_VF_ATTR_LINKSTATE:
+		cmd.vf_setattr.linkstate = *data;
+		dev_dbg(ionic->dev, "%s: vf %d linkstate %d\n",
+			__func__, vf, *data);
+		break;
+	case IONIC_VF_ATTR_MAC:
+		ether_addr_copy(cmd.vf_setattr.macaddr, data);
+		dev_dbg(ionic->dev, "%s: vf %d macaddr %pM\n",
+			__func__, vf, data);
+		break;
+	case IONIC_VF_ATTR_VLAN:
+		cmd.vf_setattr.vlanid = cpu_to_le16(*(u16 *)data);
+		dev_dbg(ionic->dev, "%s: vf %d vlan %d\n",
+			__func__, vf, *(u16 *)data);
+		break;
+	case IONIC_VF_ATTR_RATE:
+		cmd.vf_setattr.maxrate = cpu_to_le32(*(u32 *)data);
+		dev_dbg(ionic->dev, "%s: vf %d maxrate %d\n",
+			__func__, vf, *(u32 *)data);
+		break;
+	case IONIC_VF_ATTR_STATSADDR:
+		cmd.vf_setattr.stats_pa = cpu_to_le64(*(u64 *)data);
+		dev_dbg(ionic->dev, "%s: vf %d stats_pa 0x%08llx\n",
+			__func__, vf, *(u64 *)data);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	mutex_lock(&ionic->dev_cmd_lock);
+	ionic_dev_cmd_go(&ionic->idev, &cmd);
+	err = ionic_dev_cmd_wait(ionic, DEVCMD_TIMEOUT);
+	mutex_unlock(&ionic->dev_cmd_lock);
+
+	return err;
+}
+
 /* LIF commands */
+void ionic_dev_cmd_queue_identify(struct ionic_dev *idev,
+				  u16 lif_type, u8 qtype, u8 qver)
+{
+	union ionic_dev_cmd cmd = {
+		.q_identify.opcode = IONIC_CMD_Q_IDENTIFY,
+		.q_identify.lif_type = cpu_to_le16(lif_type),
+		.q_identify.type = qtype,
+		.q_identify.ver = qver,
+	};
+
+	ionic_dev_cmd_go(idev, &cmd);
+}
+
 void ionic_dev_cmd_lif_identify(struct ionic_dev *idev, u8 type, u8 ver)
 {
 	union ionic_dev_cmd cmd = {
@@ -330,6 +442,7 @@ void ionic_dev_cmd_adminq_init(struct ionic_dev *idev, struct ionic_qcq *qcq,
 		.q_init.opcode = IONIC_CMD_Q_INIT,
 		.q_init.lif_index = cpu_to_le16(lif_index),
 		.q_init.type = q->type,
+		.q_init.ver = qcq->q.lif->qtype_info[q->type].version,
 		.q_init.index = cpu_to_le32(q->index),
 		.q_init.flags = cpu_to_le16(IONIC_QINIT_F_IRQ |
 					    IONIC_QINIT_F_ENA),
@@ -352,9 +465,7 @@ int ionic_cq_init(struct ionic_lif *lif, struct ionic_cq *cq,
 		  struct ionic_intr_info *intr,
 		  unsigned int num_descs, size_t desc_size)
 {
-	struct ionic_cq_info *cur;
 	unsigned int ring_size;
-	unsigned int i;
 
 	if (desc_size == 0 || !is_power_of_2(num_descs))
 		return -EINVAL;
@@ -367,21 +478,8 @@ int ionic_cq_init(struct ionic_lif *lif, struct ionic_cq *cq,
 	cq->bound_intr = intr;
 	cq->num_descs = num_descs;
 	cq->desc_size = desc_size;
-	cq->tail = cq->info;
+	cq->tail_idx = 0;
 	cq->done_color = 1;
-
-	cur = cq->info;
-
-	for (i = 0; i < num_descs; i++) {
-		if (i + 1 == num_descs) {
-			cur->next = cq->info;
-			cur->last = true;
-		} else {
-			cur->next = cur + 1;
-		}
-		cur->index = i;
-		cur++;
-	}
 
 	return 0;
 }
@@ -407,15 +505,18 @@ unsigned int ionic_cq_service(struct ionic_cq *cq, unsigned int work_to_do,
 			      ionic_cq_cb cb, ionic_cq_done_cb done_cb,
 			      void *done_arg)
 {
+	struct ionic_cq_info *cq_info;
 	unsigned int work_done = 0;
 
 	if (work_to_do == 0)
 		return 0;
 
-	while (cb(cq, cq->tail)) {
-		if (cq->tail->last)
+	cq_info = &cq->info[cq->tail_idx];
+	while (cb(cq, cq_info)) {
+		if (cq->tail_idx == cq->num_descs - 1)
 			cq->done_color = !cq->done_color;
-		cq->tail = cq->tail->next;
+		cq->tail_idx = (cq->tail_idx + 1) & (cq->num_descs - 1);
+		cq_info = &cq->info[cq->tail_idx];
 		DEBUG_STATS_CQE_CNT(cq);
 
 		if (++work_done >= work_to_do)
@@ -433,9 +534,7 @@ int ionic_q_init(struct ionic_lif *lif, struct ionic_dev *idev,
 		 unsigned int num_descs, size_t desc_size,
 		 size_t sg_desc_size, unsigned int pid)
 {
-	struct ionic_desc_info *cur;
 	unsigned int ring_size;
-	unsigned int i;
 
 	if (desc_size == 0 || !is_power_of_2(num_descs))
 		return -EINVAL;
@@ -450,23 +549,11 @@ int ionic_q_init(struct ionic_lif *lif, struct ionic_dev *idev,
 	q->num_descs = num_descs;
 	q->desc_size = desc_size;
 	q->sg_desc_size = sg_desc_size;
-	q->tail = q->info;
-	q->head = q->tail;
+	q->tail_idx = 0;
+	q->head_idx = 0;
 	q->pid = pid;
 
 	snprintf(q->name, sizeof(q->name), "L%d-%s%u", lif->index, name, index);
-
-	cur = q->info;
-
-	for (i = 0; i < num_descs; i++) {
-		if (i + 1 == num_descs)
-			cur->next = q->info;
-		else
-			cur->next = cur + 1;
-		cur->index = i;
-		cur->left = num_descs - i;
-		cur++;
-	}
 
 	return 0;
 }
@@ -499,19 +586,22 @@ void ionic_q_post(struct ionic_queue *q, bool ring_doorbell, ionic_desc_cb cb,
 		  void *cb_arg)
 {
 	struct device *dev = q->lif->ionic->dev;
+	struct ionic_desc_info *desc_info;
 	struct ionic_lif *lif = q->lif;
 
-	q->head->cb = cb;
-	q->head->cb_arg = cb_arg;
-	q->head = q->head->next;
+	desc_info = &q->info[q->head_idx];
+	desc_info->cb = cb;
+	desc_info->cb_arg = cb_arg;
+
+	q->head_idx = (q->head_idx + 1) & (q->num_descs - 1);
 
 	dev_dbg(dev, "lif=%d qname=%s qid=%d qtype=%d p_index=%d ringdb=%d\n",
 		q->lif->index, q->name, q->hw_type, q->hw_index,
-		q->head->index, ring_doorbell);
+		q->head_idx, ring_doorbell);
 
 	if (ring_doorbell)
 		ionic_dbell_ring(lif->kern_dbpage, q->hw_type,
-				 q->dbval | q->head->index);
+				 q->dbval | q->head_idx);
 }
 
 static bool ionic_q_is_posted(struct ionic_queue *q, unsigned int pos)
@@ -519,8 +609,8 @@ static bool ionic_q_is_posted(struct ionic_queue *q, unsigned int pos)
 	unsigned int mask, tail, head;
 
 	mask = q->num_descs - 1;
-	tail = q->tail->index;
-	head = q->head->index;
+	tail = q->tail_idx;
+	head = q->head_idx;
 
 	return ((pos - tail) & mask) < ((head - tail) & mask);
 }
@@ -531,20 +621,22 @@ void ionic_q_service(struct ionic_queue *q, struct ionic_cq_info *cq_info,
 	struct ionic_desc_info *desc_info;
 	ionic_desc_cb cb;
 	void *cb_arg;
+	u16 index;
 
 	/* check for empty queue */
-	if (q->tail->index == q->head->index)
+	if (q->tail_idx == q->head_idx)
 		return;
 
 	/* stop index must be for a descriptor that is not yet completed */
 	if (unlikely(!ionic_q_is_posted(q, stop_index)))
 		dev_err(q->lif->ionic->dev,
 			"ionic stop is not posted %s stop %u tail %u head %u\n",
-			q->name, stop_index, q->tail->index, q->head->index);
+			q->name, stop_index, q->tail_idx, q->head_idx);
 
 	do {
-		desc_info = q->tail;
-		q->tail = desc_info->next;
+		desc_info = &q->info[q->tail_idx];
+		index = q->tail_idx;
+		q->tail_idx = (q->tail_idx + 1) & (q->num_descs - 1);
 
 		cb = desc_info->cb;
 		cb_arg = desc_info->cb_arg;
@@ -554,5 +646,5 @@ void ionic_q_service(struct ionic_queue *q, struct ionic_cq_info *cq_info,
 
 		if (cb)
 			cb(q, desc_info, cq_info, cb_arg);
-	} while (desc_info->index != stop_index);
+	} while (index != stop_index);
 }
