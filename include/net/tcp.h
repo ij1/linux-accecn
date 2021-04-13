@@ -225,6 +225,15 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCP_ACCECN_MAXSIZE		(TCPOLEN_EXP_ACCECN_BASE + \
 					 TCPOLEN_ACCECN_PERCOUNTER * \
 					 TCP_ACCECN_NUMCOUNTERS)
+#define TCP_ACCECN_BEACON_FREQ_SHIFT	2 /* Send option at least 2^2 times per RTT */
+
+/* tp->saw_accecn_opt states, empty seen & orderbit are overloaded */
+#define TCP_ACCECN_OPT_EMPTY_SEEN	0x1
+#define TCP_ACCECN_OPT_ORDERBIT		0x1
+#define TCP_ACCECN_OPT_COUNTER_SEEN	0x2
+#define TCP_ACCECN_OPT_SEEN		(TCP_ACCECN_OPT_COUNTER_SEEN | \
+					 TCP_ACCECN_OPT_EMPTY_SEEN)
+#define TCP_ACCECN_OPT_FAIL		0x4
 
 /* Flags in tp->nonagle */
 #define TCP_NAGLE_OFF		1	/* Nagle's algo is disabled */
@@ -382,6 +391,7 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_DEMAND_CWR	0x4
 #define	TCP_ECN_SEEN		0x8
 #define TCP_ECN_MODE_ACCECN	0x10
+#define TCP_ECN_ECT_1		0x20
 
 #define TCP_ECN_DISABLED	0
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
@@ -443,6 +453,7 @@ static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
 void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 			  u8 syn_ect_snt);
+u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset);
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len);
 
@@ -884,6 +895,7 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
  */
 #define TCP_ACCECN_CEP_INIT_OFFSET 5
 #define TCP_ACCECN_E1B_INIT_OFFSET 0
+#define TCP_ACCECN_E1B_FIRST_INIT_OFFSET 0x800001
 #define TCP_ACCECN_E0B_INIT_OFFSET 1
 #define TCP_ACCECN_CEB_INIT_OFFSET 0
 
@@ -905,6 +917,7 @@ static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 	__tcp_accecn_init_bytes_counters(tp->received_ecn_bytes);
 	__tcp_accecn_init_bytes_counters(tp->delivered_ecn_bytes);
 	tp->accecn_minlen = 0;
+	tp->accecn_opt_demand = 0;
 	tp->estimate_ecnfield = 0;
 }
 
@@ -1120,8 +1133,10 @@ enum tcp_ca_ack_event_flags {
 #define TCP_CONG_NEEDS_ECN	0x2
 /* Require successfully negotiated AccECN capability */
 #define TCP_CONG_NEEDS_ACCECN	0x4
+/* Use ECT(1) instead of ECT(0) while the CA is uninitialized */
+#define TCP_CONG_WANTS_ECT_1	0x6
 #define TCP_CONG_MASK	(TCP_CONG_NON_RESTRICTED | TCP_CONG_NEEDS_ECN | \
-			 TCP_CONG_NEEDS_ACCECN)
+			 TCP_CONG_NEEDS_ACCECN | TCP_CONG_WANTS_ECT_1)
 
 union tcp_cc_info;
 
@@ -2510,6 +2525,11 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 		return tcp_clock_ns() + (u64)delay * NSEC_PER_USEC;
 	}
 	return 0;
+}
+
+static inline bool tcp_ca_wants_ect_1(const struct sock *sk)
+{
+	return inet_csk(sk)->icsk_ca_ops->flags & TCP_CONG_WANTS_ECT_1;
 }
 
 #endif	/* _TCP_H */
