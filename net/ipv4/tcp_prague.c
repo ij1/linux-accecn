@@ -83,7 +83,6 @@
 
 #define pr_fmt(fmt) "TCP-Prague " fmt
 
-
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <net/tcp.h>
