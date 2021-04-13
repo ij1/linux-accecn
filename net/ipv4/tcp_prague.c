@@ -308,7 +308,7 @@ static void prague_update_pacing_rate(struct sock *sk)
 		rate = div64_u64(rate, tp->srtt_us);
 	rate *= max_inflight;
 	rate = min_t(u64, rate, sk->sk_max_pacing_rate);
-	/* TODO(otilmans) rewrite the max_gso_burst hook to bytes to avoid this
+	/* TODO(otilmans) rewrite the tso_segs hook to bytes to avoid this
 	 * division. It will somehow need to be able to take hdr sizes into
 	 * account */
 	burst = div_u64(rate, tcp_mss_to_mtu(sk, tp->mss_cache));
