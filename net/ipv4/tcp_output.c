@@ -898,8 +898,21 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 		opts->num_ecn_bytes--;
 		size -= TCPOLEN_ACCECN_PERCOUNTER;
 	}
-	if (opts->num_ecn_bytes < required)
+
+	if (opts->num_ecn_bytes < required) {
+		if (opts->num_sack_blocks > 2) {
+			/* Try to fit the option by removing one SACK block */
+			opts->num_sack_blocks--;
+			size = tcp_options_fit_accecn(opts, required,
+						      remaining + TCPOLEN_SACK_PERBLOCK,
+						      max_combine_saving);
+			if (opts->options & OPTION_ACCECN)
+				return size - TCPOLEN_SACK_PERBLOCK;
+
+			opts->num_sack_blocks++;
+		}
 		return 0;
+	}
 
 	opts->options |= OPTION_ACCECN;
 	return size;
@@ -2285,6 +2298,23 @@ static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
 	return !after(end_seq, tcp_wnd_end(tp));
 }
 
+/* Runaway ACE deficit possible? */
+static bool tcp_accecn_deficit_runaway_test(const struct tcp_sock *tp,
+					    int cwnd_quota)
+{
+	return (tcp_accecn_ace_deficit(tp) >= 2 * TCP_ACCECN_ACE_MAX_DELTA) &&
+	       (cwnd_quota > TCP_ACCECN_ACE_MAX_DELTA - 1);
+}
+
+static u32 tcp_accecn_gso_limit(struct tcp_sock *tp,
+				const struct sk_buff *skb, int cwnd_quota)
+{
+	if (unlikely(tcp_accecn_deficit_runaway_test(tp, cwnd_quota)))
+		return TCP_ACCECN_ACE_MAX_DELTA - 1;
+
+	return 0;
+}
+
 /* Trim TSO SKB to LEN bytes, put the remaining data into a new packet
  * which is put after SKB on the list.  It is very much like
  * tcp_fragment() except that it may make several kinds of assumptions
@@ -2784,6 +2814,8 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	int cwnd_quota;
 	int result;
 	bool is_cwnd_limited = false, is_rwnd_limited = false;
+	/* AccECN limit will be lifted below if not needed */
+	bool accecn_gso_limit = tcp_ecn_mode_accecn(tp);
 	u32 max_segs;
 
 	sent_pkts = 0;
@@ -2837,7 +2869,16 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						      nonagle : TCP_NAGLE_PUSH))))
 				break;
 		} else {
-			if (!push_one &&
+			if (accecn_gso_limit) {
+				u32 limit = tcp_accecn_gso_limit(tp, skb,
+								 cwnd_quota);
+				if (limit > 0)
+					cwnd_quota = limit;
+				else
+					accecn_gso_limit = false;
+			}
+
+			if (!push_one && !accecn_gso_limit &&
 			    tcp_tso_should_defer(sk, skb, &is_cwnd_limited,
 						 &is_rwnd_limited, max_segs))
 				break;
