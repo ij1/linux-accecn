@@ -1,0 +1,9 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: Optionally pace IW
+
+Added the net.ipv4.tcp_pace_iw sysctl; when enabled (1)
+and if the congestion control sets a pacing rate on the
+socket, the IW will paced.
+
+Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
