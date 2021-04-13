@@ -1,0 +1,25 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: Add the TCP Prague congestion control module
+
+TCP Prague is a variant of DCTCP aimed to be used over the public
+Internet. As such, it implements a couple of safety requirements and
+uses the ECT(1) ECN codepoint, as defined in the L4S experiment.
+
+This base version enhances DCTCP by:
+- Requesting the use of ECT(1) for all packets.
+- Supporting various RTT independence modes
+- Updating the EWMA to support low marking probabilities
+- Improved the accuracy of the cwnd manipulations, notably preserving
+  remainders
+- Switching to unsaturated marking during additive increase
+- Controlling pacing/GSO sizing
+
+See:
+https://tools.ietf.org/html/draft-ietf-tsvwg-ecn-l4s-id-09#page-23
+https://tools.ietf.org/html/draft-ietf-tsvwg-l4s-arch-05
+https://arxiv.org/abs/1904.07605
+
+Signed-off-by: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
+Cc: Bob Briscoe <research@bobbriscoe.net>
+Cc: Koen De Schepper <koen.de_schepper@nokia-bell-labs.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
