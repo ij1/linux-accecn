@@ -501,9 +501,12 @@ static u32 prague_ssthresh(struct sock *sk)
 	return max_t(u32, tp->snd_cwnd, tp->snd_ssthresh);
 }
 
-static u32 prague_max_tso_seg(struct sock *sk)
+static u32 prague_tso_seg(struct sock *sk, unsigned int mss_now)
 {
-	return prague_ca(sk)->max_tso_burst;
+	u32 tso_segs = tcp_tso_autosize(sk, mss_now,
+					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+
+	return min_t(u32, tso_segs, prague_ca(sk)->max_tso_burst);
 }
 
 static size_t prague_get_info(struct sock *sk, u32 ext, int *attr,
@@ -670,7 +673,7 @@ static struct tcp_congestion_ops prague __read_mostly = {
 	.undo_cwnd	= prague_cwnd_undo,
 	.set_state	= prague_state,
 	.get_info	= prague_get_info,
-	.max_gso_segs	= prague_max_tso_seg,
+	.tso_segs	= prague_tso_seg,
 	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_NEEDS_ACCECN |
 		TCP_CONG_WANTS_ECT_1 | TCP_CONG_NON_RESTRICTED,
 	.owner		= THIS_MODULE,
