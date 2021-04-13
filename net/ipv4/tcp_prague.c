@@ -177,7 +177,7 @@ struct prague {
 	u32 round;		/* Round count since last slow-start exit */
 	u32 rtt_transition_delay;
 	u32 rtt_target;		/* RTT scaling target */
-	u8 saw_ce:1,		/* Is there an AQM on the path? */
+	u8  saw_ce:1,		/* Is there an AQM on the path? */
 	    rtt_indep:3;	/* RTT independence mode */
 };
 
@@ -652,7 +652,7 @@ static void prague_cong_control(struct sock *sk, const struct rate_sample *rs)
 {
 	prague_update_cwnd(sk, rs);
 	if (prague_should_update_ewma(sk))
-		    prague_update_alpha(sk);
+		prague_update_alpha(sk);
 	prague_update_pacing_rate(sk);
 }
 
