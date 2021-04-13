@@ -315,7 +315,7 @@ static void tcp_ecn_send_synack(struct sock *sk, struct sk_buff *skb)
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ECE;
 	else if (tcp_ca_needs_ecn(sk) ||
 		 tcp_bpf_ca_needs_ecn(sk))
-		INET_ECN_xmit(sk);
+		__INET_ECN_xmit(sk, tcp_ca_wants_ect_1(sk));
 
 	if (tp->ecn_flags & TCP_ECN_MODE_ACCECN) {
 		TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_ACE;
@@ -352,7 +352,7 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 
 	if (use_ecn) {
 		if (tcp_ca_needs_ecn(sk) || bpf_needs_ecn)
-			INET_ECN_xmit(sk);
+			__INET_ECN_xmit(sk, tcp_ca_wants_ect_1(sk));
 
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_ECE | TCPHDR_CWR;
 		if (use_accecn) {
@@ -422,7 +422,8 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 		return;
 
 	if (!tp->ecn_fail)
-		INET_ECN_xmit(sk);
+		/* The CCA could change the ECT codepoint on the fly, reset it*/
+		__INET_ECN_xmit(sk, tp->ecn_flags & TCP_ECN_ECT_1);
 	if (tcp_ecn_mode_accecn(tp)) {
 		tcp_accecn_set_ace(tp, skb, th);
 		skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ACCECN;
@@ -730,8 +731,12 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 				leftover_size = 1;
 			}
 		}
-		if (tp != NULL)
+		if (tp != NULL) {
 			tp->accecn_minlen = 0;
+			tp->accecn_opt_tstamp = tp->tcp_mstamp;
+			if (tp->accecn_opt_demand)
+				tp->accecn_opt_demand--;
+		}
 	}
 	if (unlikely(OPTION_SACK_ADVERTISE & options)) {
 		*ptr++ = htonl((leftover_bytes << 16) |
@@ -981,6 +986,7 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 	/* Simultaneous open SYN/ACK needs AccECN option but not SYN */
 	if (unlikely((TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ACK) &&
 		     tcp_ecn_mode_accecn(tp) &&
+		     inet_csk(sk)->icsk_retransmits < 2 &&
 		     !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT) &&
 		     (remaining >= TCPOLEN_EXP_ACCECN_BASE))) {
 		opts->ecn_bytes = synack_ecn_bytes;
@@ -1059,7 +1065,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 
 	smc_set_option_cond(tcp_sk(sk), ireq, opts, &remaining);
 
-	if (treq->accecn_ok &&
+	if (treq->accecn_ok && req->num_timeout < 1 &&
 	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT) &&
 	    (remaining >= TCPOLEN_EXP_ACCECN_BASE)) {
 		opts->ecn_bytes = synack_ecn_bytes;
@@ -1138,11 +1144,17 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	}
 
 	if (tcp_ecn_mode_accecn(tp) &&
+	    (tp->saw_accecn_opt & TCP_ACCECN_OPT_SEEN) &&
 	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT)) {
-		opts->ecn_bytes = tp->received_ecn_bytes;
-		size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
-					       MAX_TCP_OPTION_SPACE - size,
-					       opts->num_sack_blocks > 0 ? 2 : 0);
+		if (tp->accecn_opt_demand ||
+		    (tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
+		     (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT)))) {
+			opts->ecn_bytes = tp->received_ecn_bytes;
+			size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
+						       MAX_TCP_OPTION_SPACE - size,
+						       opts->num_sack_blocks > 0 ?
+						       2 : 0);
+		}
 	}
 
 	if (unlikely(BPF_SOCK_OPS_TEST_FLAG(tp,
