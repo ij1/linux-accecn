@@ -193,8 +193,9 @@ static struct tcp_congestion_ops prague_reno;
 
 static void __prague_connection_id(struct sock *sk, char *str, size_t len)
 {
-	u16 dport = ntohs(inet_sk(sk)->inet_dport),
-	    sport = ntohs(inet_sk(sk)->inet_sport);
+	u16 dport = ntohs(inet_sk(sk)->inet_dport);
+	u16 sport = ntohs(inet_sk(sk)->inet_sport);
+
 	if (sk->sk_family == AF_INET)
 		snprintf(str, len, "%pI4:%u-%pI4:%u", &sk->sk_rcv_saddr, sport,
 			&sk->sk_daddr, dport);
