@@ -902,6 +902,12 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 	return size;
 }
 
+static bool tcp_accecn_option_beacon_check(const struct tcp_sock *tp)
+{
+	return tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
+	       (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT));
+}
+
 /* Compute TCP options for SYN packets. This is not the final
  * network wire format yet.
  */
@@ -1144,8 +1150,7 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	    (tp->saw_accecn_opt & TCP_ACCECN_OPT_SEEN)) {
 		if (sock_net(sk)->ipv4.sysctl_tcp_ecn_option >= 2 ||
 		    tp->accecn_opt_demand ||
-		    (tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
-		     (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT)))) {
+		    tcp_accecn_option_beacon_check(tp)) {
 			opts->ecn_bytes = tp->received_ecn_bytes;
 			size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
 						       MAX_TCP_OPTION_SPACE - size,
