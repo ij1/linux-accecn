@@ -190,7 +190,8 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 /* Magic number to be after the option value for sharing TCP
  * experimental options. See draft-ietf-tcpm-experimental-options-00.txt
  */
-#define TCPOPT_ACCECN_MAGIC	0xACCE
+#define TCPOPT_ACCECN0_MAGIC	0xACC0
+#define TCPOPT_ACCECN1_MAGIC	0xACC1
 #define TCPOPT_FASTOPEN_MAGIC	0xF989
 #define TCPOPT_SMC_MAGIC	0xE2D4C3D9
 
@@ -1252,6 +1253,7 @@ static inline void tcp_ca_event(struct sock *sk, const enum tcp_ca_event event)
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
 	if (icsk->icsk_ca_ops->cwnd_event)
+
 		icsk->icsk_ca_ops->cwnd_event(sk, event);
 }
 
