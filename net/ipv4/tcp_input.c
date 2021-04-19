@@ -545,11 +545,9 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
 	optlen = ptr[1];
 	if (ptr[0] == TCPOPT_EXP) {
-		__be16 magic;
 		optlen -= 2;
 		ptr += 2;
-		magic = get_unaligned_be16(ptr);
-		order = magic == TCPOPT_ACCECN1_MAGIC;
+		order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
 	} else {
 		/* Only experimental option currently available */
 		WARN_ON_ONCE(1);
