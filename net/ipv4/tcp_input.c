@@ -643,7 +643,7 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts < TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
-	if ((sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_UNSAFE_CEP))
+	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_unsafe_cep)
 		return delta;
 
 	safe_delta = delivered_pkts - ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
@@ -6993,8 +6993,7 @@ static void tcp_ecn_create_request(struct request_sock *req,
 	u32 ecn_ok_dst;
 
 	if (tcp_accecn_syn_requested(th) &&
-	    (((net->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) >= 3) ||
-	     tcp_ca_needs_accecn(listen_sk))) {
+	    (net->ipv4.sysctl_tcp_ecn >= 3 || tcp_ca_needs_accecn(listen_sk))) {
 		inet_rsk(req)->ecn_ok = 1;
 		tcp_rsk(req)->accecn_ok = 1;
 		tcp_rsk(req)->syn_ect_rcv =
@@ -7007,7 +7006,7 @@ static void tcp_ecn_create_request(struct request_sock *req,
 
 	ect = !INET_ECN_is_not_ect(TCP_SKB_CB(skb)->ip_dsfield);
 	ecn_ok_dst = dst_feature(dst, DST_FEATURE_ECN_MASK);
-	ecn_ok = (net->ipv4.sysctl_tcp_ecn & TCP_ECN_ENABLE_MASK) || ecn_ok_dst;
+	ecn_ok = net->ipv4.sysctl_tcp_ecn || ecn_ok_dst;
 
 	if (((!ect || th->res1 || th->ae) && ecn_ok) ||
 	    tcp_ca_needs_ecn(listen_sk) ||
