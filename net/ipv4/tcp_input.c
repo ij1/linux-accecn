@@ -488,6 +488,30 @@ static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr 
 	return false;
 }
 
+/* Maps IP ECN field ECT/CE bits to AccECN option field #nr */
+static unsigned int tcp_ecnfield_to_accecn_optfield(u8 ecnfield)
+{
+	unsigned int opt;
+
+	opt = (ecnfield - 2) & INET_ECN_MASK;
+	/* Shift+XOR for 11 -> 10 */
+	opt = (opt ^ (opt >> 1)) + 1;
+
+	return opt;
+}
+
+/* Maps AccECN option field #nr to IP ECN field ECT/CE bits */
+static unsigned int tcp_accecn_optfield_to_ecnfield(unsigned int optfield, bool order)
+{
+	u8 tmp;
+
+	optfield = order ? 2 - optfield : optfield;
+	tmp = optfield + 2;
+
+	return (tmp + (tmp >> 2)) & INET_ECN_MASK;
+}
+
+
 /* Handles AccECN option ECT and CE 24-bit byte counters update into
  * the u32 value in tcp_sock. As we're processing TCP options, it is
  * safe to access from - 1.
@@ -505,10 +529,6 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	return (s32)delta;
 }
 
-static u8 accecn_opt_ecnfield[3] = {
-	INET_ECN_ECT_0, INET_ECN_CE, INET_ECN_ECT_1,
-};
-
 /* Returns true if the byte counters can be used */
 static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
@@ -518,8 +538,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	bool first_changed = false;
 	unsigned int optlen;
 	unsigned char *ptr;
-	bool res;
-	int i;
+	bool order, res;
+	unsigned int i;
 
 	if (tp->saw_accecn_opt == TCP_ACCECN_OPT_FAIL)
 		return false;
@@ -543,11 +563,10 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
-	optlen = ptr[1];
-	if (ptr[0] == TCPOPT_EXP) {
-		optlen -= 2;
-		ptr += 2;
-	}
+	optlen = ptr[1] - 2;
+	WARN_ON_ONCE(ptr[0] != TCPOPT_EXP);
+	ptr += 2;
+	order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
 	ptr += 2;
 
 	if (tp->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN)
@@ -557,13 +576,9 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	res = !!tp->estimate_ecnfield;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			u8 orderbit = tp->saw_accecn_opt & TCP_ACCECN_OPT_ORDERBIT;
-			int idx = orderbit ? i : 2 - i;
-			u8 ecnfield = accecn_opt_ecnfield[idx];
-			u32 init_offset = i ? 0 :
-					      !orderbit ?
-					      TCP_ACCECN_E0B_INIT_OFFSET :
-					      TCP_ACCECN_E1B_FIRST_INIT_OFFSET;
+			u8 ecnfield = tcp_accecn_optfield_to_ecnfield(i, order);
+			u32 init_offset = ecnfield == INET_ECN_ECT_0 ?
+					  TCP_ACCECN_E0B_INIT_OFFSET : 0;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
@@ -4355,15 +4370,15 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
-				if (opsize >= TCPOLEN_EXP_ACCECN_BASE &&
-				    get_unaligned_be16(ptr) ==
-				    TCPOPT_ACCECN_MAGIC)
-					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
-
+				if (opsize >= TCPOLEN_EXP_ACCECN_BASE) {
+					__be16 magic = get_unaligned_be16(ptr);
+					if (magic == TCPOPT_ACCECN0_MAGIC ||
+					    magic == TCPOPT_ACCECN1_MAGIC)
+						opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */
-				else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
+				} else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
 					 get_unaligned_be16(ptr) ==
 					 TCPOPT_FASTOPEN_MAGIC) {
 					tcp_parse_fastopen_option(opsize -
@@ -5869,18 +5884,6 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
-/* Maps ECT/CE bits to minimum length of AccECN option */
-static unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
-{
-	unsigned int opt;
-
-	opt = (ecnfield - 2) & INET_ECN_MASK;
-	/* Shift+XOR for 11 -> 10 */
-	opt = (opt ^ (opt >> 1)) + 1;
-
-	return opt;
-}
-
 /* Updates Accurate ECN received counters from the received IP ECN field */
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len)
@@ -5897,7 +5900,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
 		if (payload_len > 0) {
-			u8 minlen = tcp_ecn_field_to_accecn_len(ecnfield);
+			u8 minlen = tcp_ecnfield_to_accecn_optfield(ecnfield);
 			u32 oldbytes = tp->received_ecn_bytes[ecnfield - 1];
 
 			tp->received_ecn_bytes[ecnfield - 1] += payload_len;
