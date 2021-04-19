@@ -497,8 +497,20 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	return (s32)delta;
 }
 
-/* Maps AccECN option field #nr to IP ECN field value */
-static unsigned int tcp_ecn_optfield_to_ecnfield(unsigned int optfield, bool order)
+/* Maps IP ECN field ECT/CE bits to AccECN option field #nr */
+static unsigned int tcp_ecnfield_to_accecn_optfield(u8 ecnfield)
+{
+	unsigned int opt;
+
+	opt = (ecnfield - 2) & INET_ECN_MASK;
+	/* Shift+XOR for 11 -> 10 */
+	opt = (opt ^ (opt >> 1)) + 1;
+
+	return opt;
+}
+
+/* Maps AccECN option field #nr to IP ECN field ECT/CE bits */
+static unsigned int tcp_accecn_optfield_to_ecnfield(unsigned int optfield, bool order)
 {
 	u8 tmp;
 
@@ -547,7 +559,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	res = !!tp->estimate_ecnfield;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			u8 ecnfield = tcp_ecn_optfield_to_ecnfield(i, order);
+			u8 ecnfield = tcp_accecn_optfield_to_ecnfield(i, order);
 			u32 init_offset = ecnfield == INET_ECN_ECT_0 ?
 					  TCP_ACCECN_E0B_INIT_OFFSET : 0;
 			s32 delta;
@@ -5825,18 +5837,6 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 	}
 }
 
-/* Maps ECT/CE bits to minimum length of AccECN option */
-static unsigned int tcp_ecn_field_to_accecn_len(u8 ecnfield)
-{
-	unsigned int opt;
-
-	opt = (ecnfield - 2) & INET_ECN_MASK;
-	/* Shift+XOR for 11 -> 10 */
-	opt = (opt ^ (opt >> 1)) + 1;
-
-	return opt;
-}
-
 /* Updates Accurate ECN received counters from the received IP ECN field */
 void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 			       u32 payload_len)
@@ -5852,7 +5852,7 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb,
 		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 
 		if (payload_len > 0) {
-			u8 minlen = tcp_ecn_field_to_accecn_len(ecnfield);
+			u8 minlen = tcp_ecnfield_to_accecn_optfield(ecnfield);
 			tp->received_ecn_bytes[ecnfield - 1] += payload_len;
 			tp->accecn_minlen = max_t(u8, tp->accecn_minlen, minlen);
 		}
