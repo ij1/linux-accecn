@@ -496,24 +496,27 @@ static void smc_check_reset_syn_req(struct tcp_sock *oldtp,
 u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 {
 	unsigned char *ptr = skb_transport_header(skb) + opt_offset;
-	unsigned int optlen = ptr[1];
+	unsigned int optlen = ptr[1] - 2;
+	bool order;
 
-	if (ptr[0] == TCPOPT_EXP) {
-		optlen -= 2;
-		ptr += 2;
-	}
+	WARN_ON_ONCE(ptr[0] != TCPOPT_EXP);
+	ptr += 2;
+	order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
 	ptr += 2;
 
 	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-		u32 first_field = get_unaligned_be32(ptr - 1) & 0xFFFFFFU;
-		u8 orderbit = first_field >> 23;
-		/* Detect option zeroing. Check the first byte counter value,
+		if (order) {
+			if (optlen < TCPOLEN_ACCECN_PERCOUNTER * 3)
+				return TCP_ACCECN_OPT_COUNTER_SEEN;
+			ptr += TCPOLEN_ACCECN_PERCOUNTER * 2;
+		}
+		/* Detect option zeroing. Check the e0b counter value,
 		 * if present, it must be != 0.
 		 */
-		if (!first_field)
+		if (!(get_unaligned_be32(ptr - 1) & 0xFFFFFFU))
 			return TCP_ACCECN_OPT_FAIL;
 
-		return TCP_ACCECN_OPT_COUNTER_SEEN + orderbit;
+		return TCP_ACCECN_OPT_COUNTER_SEEN;
 	}
 
 	return TCP_ACCECN_OPT_EMPTY_SEEN;
