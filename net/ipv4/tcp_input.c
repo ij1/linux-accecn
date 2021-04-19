@@ -480,23 +480,6 @@ static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr 
 	return false;
 }
 
-/* Handles AccECN option ECT and CE 24-bit byte counters update into
- * the u32 value in tcp_sock. As we're processing TCP options, it is
- * safe to access from - 1.
- */
-static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
-{
-	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
-	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
-
-	/* If delta has the highest bit set (24th bit) indicating negative,
-	 * sign extend to correct an estimation error in the ecn_bytes
-	 */
-	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
-	*cnt += delta;
-	return (s32)delta;
-}
-
 /* Maps IP ECN field ECT/CE bits to AccECN option field #nr */
 static unsigned int tcp_ecnfield_to_accecn_optfield(u8 ecnfield)
 {
@@ -518,6 +501,24 @@ static unsigned int tcp_accecn_optfield_to_ecnfield(unsigned int optfield, bool 
 	tmp = optfield + 2;
 
 	return (tmp + (tmp >> 2)) & INET_ECN_MASK;
+}
+
+
+/* Handles AccECN option ECT and CE 24-bit byte counters update into
+ * the u32 value in tcp_sock. As we're processing TCP options, it is
+ * safe to access from - 1.
+ */
+static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
+{
+	u32 truncated = (get_unaligned_be32(from - 1) - init_offset) & 0xFFFFFFU;
+	u32 delta = (truncated - *cnt) & 0xFFFFFFU;
+
+	/* If delta has the highest bit set (24th bit) indicating negative,
+	 * sign extend to correct an estimation error in the ecn_bytes
+	 */
+	delta = delta & 0x800000 ? delta | 0xFF000000 : delta;
+	*cnt += delta;
+	return (s32)delta;
 }
 
 /* Returns true if the byte counters can be used */
