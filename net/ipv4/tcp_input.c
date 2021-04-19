@@ -497,6 +497,7 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	return (s32)delta;
 }
 
+/* According to "Order 0", Order 1 is reversed */
 static u8 accecn_opt_ecnfield[3] = {
 	INET_ECN_ECT_0, INET_ECN_CE, INET_ECN_ECT_1,
 };
@@ -510,7 +511,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	bool first_changed = false;
 	unsigned int optlen;
 	unsigned char *ptr;
-	bool res;
+	bool orderbit, res;
 	int i;
 
 	if (tp->rx_opt.accecn < 0) {
@@ -525,16 +526,25 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
 	optlen = ptr[1];
 	if (ptr[0] == TCPOPT_EXP) {
+		__be16 magic;
 		optlen -= 2;
 		ptr += 2;
+		magic = get_unaligned_be16(ptr);
+		orderbit = magic == TCPOPT_ACCECN1_MAGIC;
+	} else {
+		/* Only experimental option currently available */
+		WARN_ON_ONCE(1);
+		return false;
 	}
 	ptr += 2;
 
 	res = !!tp->estimate_ecnfield;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			u8 ecnfield = accecn_opt_ecnfield[i];
-			u32 init_offset = i ? 0 : TCP_ACCECN_E0B_INIT_OFFSET;
+			int idx = orderbit ? i : 2 - i;
+			u8 ecnfield = accecn_opt_ecnfield[idx];
+			u32 init_offset = ecnfield == INET_ECN_ECT_0 ?
+					  TCP_ACCECN_E0B_INIT_OFFSET : 0;
 			s32 delta;
 
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
@@ -4296,14 +4306,15 @@ void tcp_parse_options(const struct net *net,
 				break;
 
 			case TCPOPT_EXP:
-				if (opsize >= TCPOLEN_EXP_ACCECN_BASE &&
-				    get_unaligned_be16(ptr) ==
-				    TCPOPT_ACCECN_MAGIC)
-					opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
+				if (opsize >= TCPOLEN_EXP_ACCECN_BASE) {
+					__be16 magic = get_unaligned_be16(ptr);
+					if (magic == TCPOPT_ACCECN0_MAGIC ||
+					    magic == TCPOPT_ACCECN1_MAGIC)
+						opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
 				/* Fast Open option shares code 254 using a
 				 * 16 bits magic number.
 				 */
-				else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
+				} else if (opsize >= TCPOLEN_EXP_FASTOPEN_BASE &&
 					 get_unaligned_be16(ptr) ==
 					 TCPOPT_FASTOPEN_MAGIC) {
 					tcp_parse_fastopen_option(opsize -
