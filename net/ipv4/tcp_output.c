@@ -711,7 +711,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			 opts->num_ecn_bytes * TCPOLEN_ACCECN_PERCOUNTER;
 
 		*ptr++ = htonl((TCPOPT_EXP << 24) | (len << 16) |
-			       TCPOPT_ACCECN_MAGIC);
+			       TCPOPT_ACCECN0_MAGIC);
 		if (opts->num_ecn_bytes > 0) {
 			*ptr++ = htonl((e0b << 8) |
 				       (opts->num_ecn_bytes > 1 ?
@@ -1146,7 +1146,7 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 
 	if (tcp_ecn_mode_accecn(tp) &&
 	    sock_net(sk)->ipv4.sysctl_tcp_ecn_option &&
-	    (tp->saw_accecn_opt & TCP_ACCECN_OPT_SEEN)) {
+	    (tp->saw_accecn_opt && tp->saw_accecn_opt != TCP_ACCECN_OPT_FAIL)) {
 		if (sock_net(sk)->ipv4.sysctl_tcp_ecn_option >= 2 ||
 		    tp->accecn_opt_demand ||
 		    tcp_accecn_option_beacon_check(tp)) {
