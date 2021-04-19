@@ -1146,7 +1146,8 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 		}
 	}
 
-	if (tcp_ecn_mode_accecn(tp) && sock_net(sk)->ipv4.sysctl_tcp_ecn_option) {
+	if (tcp_ecn_mode_accecn(tp) &&
+	    sock_net(sk)->ipv4.sysctl_tcp_ecn_option) {
 		opts->ecn_bytes = tp->received_ecn_bytes;
 		size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
 					       MAX_TCP_OPTION_SPACE - size,
