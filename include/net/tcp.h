@@ -388,6 +388,7 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_DEMAND_CWR	0x4
 #define	TCP_ECN_SEEN		0x8
 #define TCP_ECN_MODE_ACCECN	0x10
+#define TCP_ECN_ECT_1		0x20
 
 #define TCP_ECN_DISABLED	0
 #define TCP_ECN_MODE_PENDING	(TCP_ECN_MODE_RFC3168|TCP_ECN_MODE_ACCECN)
@@ -1130,8 +1131,10 @@ enum tcp_ca_ack_event_flags {
 #define TCP_CONG_NEEDS_ECN	0x2
 /* Require successfully negotiated AccECN capability */
 #define TCP_CONG_NEEDS_ACCECN	0x4
+/* Use ECT(1) instead of ECT(0) while the CA is uninitialized */
+#define TCP_CONG_WANTS_ECT_1	0x6
 #define TCP_CONG_MASK	(TCP_CONG_NON_RESTRICTED | TCP_CONG_NEEDS_ECN | \
-			 TCP_CONG_NEEDS_ACCECN)
+			 TCP_CONG_NEEDS_ACCECN | TCP_CONG_WANTS_ECT_1)
 
 union tcp_cc_info;
 
@@ -1250,6 +1253,11 @@ static inline bool tcp_ca_needs_accecn(const struct sock *sk)
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
 	return icsk->icsk_ca_ops->flags & TCP_CONG_NEEDS_ACCECN;
+}
+
+static inline bool tcp_ca_wants_ect_1(const struct sock *sk)
+{
+	return inet_csk(sk)->icsk_ca_ops->flags & TCP_CONG_WANTS_ECT_1;
 }
 
 static inline void tcp_set_ca_state(struct sock *sk, const u8 ca_state)
