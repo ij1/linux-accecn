@@ -228,13 +228,10 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 					 TCP_ACCECN_NUMCOUNTERS)
 #define TCP_ACCECN_BEACON_FREQ_SHIFT	2 /* Send option at least 2^2 times per RTT */
 
-/* tp->saw_accecn_opt states, empty seen & orderbit are overloaded */
+/* tp->saw_accecn_opt states */
 #define TCP_ACCECN_OPT_EMPTY_SEEN	0x1
-#define TCP_ACCECN_OPT_ORDERBIT		0x1
 #define TCP_ACCECN_OPT_COUNTER_SEEN	0x2
-#define TCP_ACCECN_OPT_SEEN		(TCP_ACCECN_OPT_COUNTER_SEEN | \
-					 TCP_ACCECN_OPT_EMPTY_SEEN)
-#define TCP_ACCECN_OPT_FAIL		0x4
+#define TCP_ACCECN_OPT_FAIL		0x3
 
 /* Flags in tp->nonagle */
 #define TCP_NAGLE_OFF		1	/* Nagle's algo is disabled */
@@ -892,7 +889,6 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
  */
 #define TCP_ACCECN_CEP_INIT_OFFSET 5
 #define TCP_ACCECN_E1B_INIT_OFFSET 0
-#define TCP_ACCECN_E1B_FIRST_INIT_OFFSET 0x800001
 #define TCP_ACCECN_E0B_INIT_OFFSET 1
 #define TCP_ACCECN_CEB_INIT_OFFSET 0
 
