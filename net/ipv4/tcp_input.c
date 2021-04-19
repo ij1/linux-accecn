@@ -530,9 +530,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	bool first_changed = false;
 	unsigned int optlen;
 	unsigned char *ptr;
-	bool order = false;	/* = false quiets non-existing non-exp option path */
+	bool order, res;
 	unsigned int i;
-	bool res;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield) {
