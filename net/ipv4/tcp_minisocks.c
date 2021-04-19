@@ -496,14 +496,12 @@ static void smc_check_reset_syn_req(struct tcp_sock *oldtp,
 u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 {
 	unsigned char *ptr = skb_transport_header(skb) + opt_offset;
-	unsigned int optlen = ptr[1];
-	bool order = false;	/* = false quiets non-existing non-exp option path */
+	unsigned int optlen = ptr[1] - 2;
+	bool order;
 
-	if (ptr[0] == TCPOPT_EXP) {
-		optlen -= 2;
-		ptr += 2;
-		order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
-	}
+	WARN_ON_ONCE(ptr[0] != TCPOPT_EXP);
+	ptr += 2;
+	order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
 	ptr += 2;
 
 	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
