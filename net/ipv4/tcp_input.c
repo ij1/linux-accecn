@@ -530,8 +530,9 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	bool first_changed = false;
 	unsigned int optlen;
 	unsigned char *ptr;
-	bool order, res;
+	bool order = false;	/* = false quiets non-existing non-exp option path */
 	unsigned int i;
+	bool res;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield) {
@@ -543,16 +544,10 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	}
 
 	ptr = skb_transport_header(skb) + tp->rx_opt.accecn;
-	optlen = ptr[1];
-	if (ptr[0] == TCPOPT_EXP) {
-		optlen -= 2;
-		ptr += 2;
-		order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
-	} else {
-		/* Only experimental option currently available */
-		WARN_ON_ONCE(1);
-		return false;
-	}
+	optlen = ptr[1] - 2;
+	WARN_ON_ONCE(ptr[0] != TCPOPT_EXP);
+	ptr += 2;
+	order = get_unaligned_be16(ptr) == TCPOPT_ACCECN1_MAGIC;
 	ptr += 2;
 
 	res = !!tp->estimate_ecnfield;
