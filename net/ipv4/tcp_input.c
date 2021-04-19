@@ -497,10 +497,16 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 	return (s32)delta;
 }
 
-/* According to "Order 0", Order 1 is reversed */
-static u8 accecn_opt_ecnfield[3] = {
-	INET_ECN_ECT_0, INET_ECN_CE, INET_ECN_ECT_1,
-};
+/* Maps AccECN option field #nr to IP ECN field value */
+static unsigned int tcp_ecn_optfield_to_ecnfield(unsigned int optfield, bool order)
+{
+	u8 tmp;
+
+	optfield = order ? 2 - optfield : optfield;
+	tmp = optfield + 2;
+
+	return (tmp + (tmp >> 2)) & INET_ECN_MASK;
+}
 
 /* Returns true if the byte counters can be used */
 static bool tcp_accecn_process_option(struct tcp_sock *tp,
@@ -511,8 +517,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	bool first_changed = false;
 	unsigned int optlen;
 	unsigned char *ptr;
-	bool orderbit, res;
-	int i;
+	bool order, res;
+	unsigned int i;
 
 	if (tp->rx_opt.accecn < 0) {
 		if (tp->estimate_ecnfield) {
@@ -530,7 +536,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 		optlen -= 2;
 		ptr += 2;
 		magic = get_unaligned_be16(ptr);
-		orderbit = magic == TCPOPT_ACCECN1_MAGIC;
+		order = magic == TCPOPT_ACCECN1_MAGIC;
 	} else {
 		/* Only experimental option currently available */
 		WARN_ON_ONCE(1);
@@ -541,8 +547,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	res = !!tp->estimate_ecnfield;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
-			int idx = orderbit ? i : 2 - i;
-			u8 ecnfield = accecn_opt_ecnfield[idx];
+			u8 ecnfield = tcp_ecn_optfield_to_ecnfield(i, order);
 			u32 init_offset = ecnfield == INET_ECN_ECT_0 ?
 					  TCP_ACCECN_E0B_INIT_OFFSET : 0;
 			s32 delta;
