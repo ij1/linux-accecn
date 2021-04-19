@@ -97,6 +97,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 	bool paws_reject = false;
 
 	tmp_opt.saw_tstamp = 0;
+	tmp_opt.accecn = -1;
 	if (th->doff > (sizeof(*th) >> 2) && tcptw->tw_ts_recent_stamp) {
 		tcp_parse_options(twsk_net(tw), skb, &tmp_opt, 0, NULL);
 
@@ -437,6 +438,7 @@ static void tcp_ecn_openreq_child(struct sock *sk,
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_snt = treq->syn_ect_snt;
 		tcp_accecn_third_ack(sk, skb, treq->syn_ect_snt);
+		tp->saw_accecn_opt = treq->saw_accecn_opt;
 		tp->prev_ecnfield = treq->syn_ect_rcv;
 		tp->accecn_opt_demand = 1;
 		tcp_ecn_received_counters(sk, skb, skb->len - th->doff * 4);
@@ -489,6 +491,32 @@ static void smc_check_reset_syn_req(struct tcp_sock *oldtp,
 			newtp->syn_smc = 0;
 	}
 #endif
+}
+
+u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
+{
+	unsigned char *ptr = skb_transport_header(skb) + opt_offset;
+	unsigned int optlen = ptr[1];
+
+	if (ptr[0] == TCPOPT_EXP) {
+		optlen -= 2;
+		ptr += 2;
+	}
+	ptr += 2;
+
+	if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
+		u32 first_field = get_unaligned_be32(ptr - 1) & 0xFFFFFFU;
+		u8 orderbit = first_field >> 23;
+		/* Detect option zeroing. Check the first byte counter value,
+		 * if present, it must be != 0.
+		 */
+		if (!first_field)
+			return TCP_ACCECN_OPT_FAIL;
+
+		return TCP_ACCECN_OPT_COUNTER_SEEN + orderbit;
+	}
+
+	return TCP_ACCECN_OPT_EMPTY_SEEN;
 }
 
 /* This is not only more efficient than what we used to do, it eliminates
@@ -792,6 +820,10 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	 */
 	if (!(flg & TCP_FLAG_ACK))
 		return NULL;
+
+	if (tcp_rsk(req)->accecn_ok && tmp_opt.accecn >= 0 &&
+	    tcp_rsk(req)->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN)
+		tcp_rsk(req)->saw_accecn_opt = tcp_accecn_option_init(skb, tmp_opt.accecn);
 
 	/* For Fast Open no more processing is needed (sk is the
 	 * child socket).
