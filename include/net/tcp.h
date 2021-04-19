@@ -383,11 +383,6 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 	}
 }
 
-/* sysctl_tcp_ecn value */
-#define TCP_ECN_ENABLE_MASK	0x7
-#define TCP_ACCECN_NO_OPT	0x100
-#define TCP_ACCECN_UNSAFE_CEP	0x200
-
 #define	TCP_ECN_MODE_RFC3168	0x1
 #define	TCP_ECN_QUEUE_CWR	0x2
 #define	TCP_ECN_DEMAND_CWR	0x4
@@ -1258,6 +1253,11 @@ static inline bool tcp_ca_needs_accecn(const struct sock *sk)
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
 	return icsk->icsk_ca_ops->flags & TCP_CONG_NEEDS_ACCECN;
+}
+
+static inline bool tcp_ca_wants_ect_1(const struct sock *sk)
+{
+	return inet_csk(sk)->icsk_ca_ops->flags & TCP_CONG_WANTS_ECT_1;
 }
 
 static inline void tcp_set_ca_state(struct sock *sk, const u8 ca_state)
@@ -2532,11 +2532,6 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 		return tcp_clock_ns() + (u64)delay * NSEC_PER_USEC;
 	}
 	return 0;
-}
-
-static inline bool tcp_ca_wants_ect_1(const struct sock *sk)
-{
-	return inet_csk(sk)->icsk_ca_ops->flags & TCP_CONG_WANTS_ECT_1;
 }
 
 #endif	/* _TCP_H */
