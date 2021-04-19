@@ -332,13 +332,10 @@ static void tcp_ecn_send_syn(struct sock *sk, struct sk_buff *skb)
 	bool bpf_needs_ecn = tcp_bpf_ca_needs_ecn(sk);
 	bool use_ecn, use_accecn;
 
-	use_accecn = ((sock_net(sk)->ipv4.sysctl_tcp_ecn &
-		       TCP_ECN_ENABLE_MASK) == 5) ||
+	use_accecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 5 ||
 		     tcp_ca_needs_accecn(sk);
-	use_ecn = ((sock_net(sk)->ipv4.sysctl_tcp_ecn &
-		    TCP_ECN_ENABLE_MASK) == 1) ||
-		  ((sock_net(sk)->ipv4.sysctl_tcp_ecn &
-		    TCP_ECN_ENABLE_MASK) == 3) ||
+	use_ecn = sock_net(sk)->ipv4.sysctl_tcp_ecn == 1 ||
+		  sock_net(sk)->ipv4.sysctl_tcp_ecn == 3 ||
 		  tcp_ca_needs_ecn(sk) || bpf_needs_ecn || use_accecn;
 
 	if (!use_ecn) {
@@ -984,7 +981,7 @@ static unsigned int tcp_syn_options(struct sock *sk, struct sk_buff *skb,
 	/* Simultaneous open SYN/ACK needs AccECN option but not SYN */
 	if (unlikely((TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ACK) &&
 		     tcp_ecn_mode_accecn(tp) &&
-		     !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT) &&
+		     sock_net(sk)->ipv4.sysctl_tcp_ecn_option &&
 		     (remaining >= TCPOLEN_EXP_ACCECN_BASE))) {
 		opts->ecn_bytes = synack_ecn_bytes;
 		remaining -= tcp_options_fit_accecn(opts, 0, remaining,
@@ -1063,7 +1060,7 @@ static unsigned int tcp_synack_options(const struct sock *sk,
 	smc_set_option_cond(tcp_sk(sk), ireq, opts, &remaining);
 
 	if (treq->accecn_ok &&
-	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT) &&
+	    sock_net(sk)->ipv4.sysctl_tcp_ecn_option &&
 	    (remaining >= TCPOLEN_EXP_ACCECN_BASE)) {
 		opts->ecn_bytes = synack_ecn_bytes;
 		remaining -= tcp_options_fit_accecn(opts, 0, remaining,
@@ -1140,8 +1137,9 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 		}
 	}
 
-	if (tcp_ecn_mode_accecn(tp) && tp->accecn_opt_demand &&
-	    !(sock_net(sk)->ipv4.sysctl_tcp_ecn & TCP_ACCECN_NO_OPT)) {
+	if (tcp_ecn_mode_accecn(tp) &&
+	    sock_net(sk)->ipv4.sysctl_tcp_ecn_option &&
+	    (sock_net(sk)->ipv4.sysctl_tcp_ecn_option >= 2 || tp->accecn_opt_demand)) {
 		opts->ecn_bytes = tp->received_ecn_bytes;
 		size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
 					       MAX_TCP_OPTION_SPACE - size,
