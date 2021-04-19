@@ -711,7 +711,7 @@ static void tcp_options_write(__be32 *ptr, struct tcp_sock *tp,
 			 opts->num_ecn_bytes * TCPOLEN_ACCECN_PERCOUNTER;
 
 		*ptr++ = htonl((TCPOPT_EXP << 24) | (len << 16) |
-			       TCPOPT_ACCECN_MAGIC);
+			       TCPOPT_ACCECN0_MAGIC);
 		if (opts->num_ecn_bytes > 0) {
 			*ptr++ = htonl((e0b << 8) |
 				       (opts->num_ecn_bytes > 1 ?
