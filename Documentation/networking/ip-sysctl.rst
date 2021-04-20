@@ -344,21 +344,20 @@ tcp_ecn - INTEGER
 	of ECN feedback that both peers support is chosen by the ECN
 	negotiation (Accurate ECN, ECN, or no ECN).
 
-	Possible values are:
+	The highest negotiated variant for incoming connection requests
+	and the highest variant requested by outgoing connection
+	attempts:
 
-	= ===============================================================
-	0 Disable ECN.  Neither initiate nor accept ECN.
-	1 Enable ECN when requested by incoming connections and also
-	  request ECN on outgoing connection attempts.
-	2 Enable ECN when requested by incoming connections but do not
-	  request ECN on outgoing connections.
-	3 Enable ECN or AccECN when requested by incoming connections and
-	  request ECN on outgoing connection attempts.
-	4 Enable ECN or AccECN when requested by incoming connections but
-	  do not request ECN on outgoing connections.
-	5 Enable AccECN when requested by incoming connections and also
-	  request AccECN on outgoing connection attempts.
-	= ===============================================================
+	= ==================== ====================
+	  Incoming connections Outgoing connections
+	= ==================== ====================
+	0 No ECN               No ECN
+	1 ECN                  ECN
+	2 ECN                  No ECN
+	3 AccECN               ECN
+	4 AccECN               No ECN
+	5 AccECN               AccECN
+	= ==================== ====================
 
 	Default: 2
 
