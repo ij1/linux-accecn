@@ -576,6 +576,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			}
 
 			optlen -= TCPOLEN_ACCECN_PERCOUNTER;
+			ptr += TCPOLEN_ACCECN_PERCOUNTER;
 		}
 	}
 	if (ambiguous_ecn_bytes_incr)
