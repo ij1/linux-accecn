@@ -346,21 +346,40 @@ tcp_ecn - INTEGER
 
 	Possible values are:
 
-	=========== ===========================================================
-		  0 Disable ECN.  Neither initiate nor accept ECN.
-		  1 Enable ECN when requested by incoming connections and
-		    also request ECN on outgoing connection attempts.
-		  2 Enable ECN when requested by incoming connections
-		    but do not request ECN on outgoing connections.
-		  3 Enable ECN or AccECN when requested by incoming connections
-		    and request ECN on outgoing connection attempts.
-		  4 Enable ECN or AccECN when requested by incoming connections
-		    but do not request ECN on outgoing connections.
-		  5 Enable AccECN when requested by incoming connections and
-		    also request AccECN on outgoing connection attempts.
-	0x103-0x105 Same as 3-5 but suppress sending Accurate ECN TCP option.
-	=========== ===========================================================
+	= ===============================================================
+	0 Disable ECN.  Neither initiate nor accept ECN.
+	1 Enable ECN when requested by incoming connections and also
+	  request ECN on outgoing connection attempts.
+	2 Enable ECN when requested by incoming connections but do not
+	  request ECN on outgoing connections.
+	3 Enable ECN or AccECN when requested by incoming connections and
+	  request ECN on outgoing connection attempts.
+	4 Enable ECN or AccECN when requested by incoming connections but
+	  do not request ECN on outgoing connections.
+	5 Enable AccECN when requested by incoming connections and also
+	  request AccECN on outgoing connection attempts.
+	= ===============================================================
+
 	Default: 2
+
+tcp_ecn_option - INTEGER
+	Control Accurate ECN (AccECN) option sending when AccECN has been
+	successfully negotiated during handshake. Send logic inhibits
+	sending AccECN options regarless of this setting when no AccECN
+	option has been seen for the reverse direction.
+
+	Possible values are:
+
+	= ============================================================
+	0 Never send AccECN option. This also disables sending AccECN
+	  option in SYN/ACK during handshake.
+	1 Send AccECN option sparingly according to the rules outlined
+	  in draft-ietf-tcpm-accurate-ecn.
+	2 Send AccECN option on every packet whenever it fits into TCP
+	  option space.
+	= ============================================================
+
+	Default: 1
 
 tcp_ecn_fallback - BOOLEAN
 	If the kernel detects that ECN connection misbehaves, enable fall
