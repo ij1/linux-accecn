@@ -2,8 +2,12 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: sack option handling improvements
 
 1) Don't early return when sack doesn't fit. AccECN code will be
-placed after this fragment so no early returns please.
+   placed after this fragment so no early returns please.
 
-2) Make sure opts->num_sack_blocks is always initialized.
+2) Make sure opts->num_sack_blocks is not left undefined. E.g.,
+   tcp_current_mss() does not memset its opts struct to zero.
+   AccECN code checks if SACK option is present and may even
+   alter it to make room for AccECN option when many SACK blocks
+   are present. Thus, num_sack_blocks needs to be always valid.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
