@@ -1156,6 +1156,8 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 			size += TCPOLEN_SACK_BASE_ALIGNED +
 				opts->num_sack_blocks * TCPOLEN_SACK_PERBLOCK;
 		}
+	} else {
+		opts->num_sack_blocks = 0;
 	}
 
 	if (tcp_ecn_mode_accecn(tp) &&
