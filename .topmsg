@@ -1,7 +1,9 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: don't early return when sack doesn't fit
+Subject: [PATCH] tcp: sack option handling improvements
 
-AccECN code will be placed after this fragment so no early
-returns please.
+1) Don't early return when sack doesn't fit. AccECN code will be
+placed after this fragment so no early returns please.
+
+2) Make sure opts->num_sack_blocks is always initialized.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
