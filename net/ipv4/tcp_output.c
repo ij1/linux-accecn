@@ -901,8 +901,10 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 	return size;
 }
 
-static bool tcp_accecn_option_beacon_check(const struct tcp_sock *tp)
+static bool tcp_accecn_option_beacon_check(const struct sock *sk)
 {
+	const struct tcp_sock *tp = tcp_sk(sk);
+
 	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_option_beacon)
 		return false;
 
@@ -1154,7 +1156,7 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	    (tp->saw_accecn_opt && tp->saw_accecn_opt != TCP_ACCECN_OPT_FAIL)) {
 		if (sock_net(sk)->ipv4.sysctl_tcp_ecn_option >= 2 ||
 		    tp->accecn_opt_demand ||
-		    tcp_accecn_option_beacon_check(tp)) {
+		    tcp_accecn_option_beacon_check(sk)) {
 			opts->ecn_bytes = tp->received_ecn_bytes;
 			size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
 						       MAX_TCP_OPTION_SPACE - size,
