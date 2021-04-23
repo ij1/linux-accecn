@@ -1,7 +1,0 @@
-From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: AccECN option beacon
-
-AccECN requires option to be sent a few times per RTT even
-if nothing in the ECN state requires it.
-
-Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
