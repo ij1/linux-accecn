@@ -298,8 +298,8 @@ static void prague_update_pacing_rate(struct sock *sk)
 	int mtu;
 
 	mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
-	// Must also set tcp_ecn=512+256 to disable the safer heuristic and the
-	// option...
+	// Must also set tcp_ecn_option=0 and tcp_ecn_unsafe_cep=1
+	// to disable the option and safer heuristic...
 	max_inflight = max(tp->snd_cwnd, tcp_packets_in_flight(tp));
 
 	rate = (u64)((u64)USEC_PER_SEC << 3) * mtu;
