@@ -7,3 +7,4 @@ accecn/gso-cep-deficit-limit
 accecn/option-sack-reduction
 accecn/option-snd-ctrl
 accecn/gro-cwr-optimization
+accecn/option-beacon-ctrl
