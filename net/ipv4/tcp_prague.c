@@ -796,7 +796,7 @@ static u64 prague_rate_scaled_ai_ack_increase(struct sock *sk, u32 rtt)
 	if (rtt >= target)
 		return prague_unscaled_ai_ack_increase(sk);
 	/* Scale increase to:
-	 * - Grow by 1MMS/target RTT
+	 * - Grow by 1MSS/target RTT
 	 * - Take into account the rate ratio of doing cwnd += 1MSS
 	 *
 	 * Overflows if e2e RTT is > 100ms, hence the cap
