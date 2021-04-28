@@ -92,8 +92,8 @@ struct tcp_options_received {
 		smc_ok : 1,	/* SMC seen on SYN packet		*/
 		snd_wscale : 4,	/* Window scaling received from sender	*/
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
-	u8	saw_unknown:1,	/* Received unknown option		*/
-		accecn:6,	/* AccECN index in header, 0=no options */
+	u8	accecn:6,	/* AccECN index in header, 0=no options */
+		saw_unknown:1,	/* Received unknown option		*/
 		unused:1;
 	u8	num_sacks;	/* Number of SACK blocks		*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
