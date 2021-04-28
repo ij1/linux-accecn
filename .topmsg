@@ -6,6 +6,4 @@ and ACE field that overloads the definition of AE, CWR, and
 ECE flags. As tcp_flags was previously only 1 byte, the
 byte-order stuff needs to be added to it's handling.
 
-Reorganize the bitfields to not enlarge the structure.
-
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
