@@ -4,7 +4,7 @@ Subject: [PATCH] tcp: AccECN core
 This change implements Accurate ECN without negotiation and
 AccECN Option (that will be added by later changes). Based on
 AccECN specifications:
-  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
+  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-14.txt
 
 Accurate ECN allows feeding back the number of CE (congestion
 experienced) marks accurately to the sender in contrast to
