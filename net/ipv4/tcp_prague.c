@@ -449,8 +449,8 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 	acked = rs->acked_sacked;
 	if (rs->ece_delta) {
 		if (rs->ece_delta > acked)
-			LOG(sk, "Received %u marks for %lld acks",
-			    rs->ece_delta, acked);
+			LOG(sk, "Received %u marks for %lld acks at %u",
+			    rs->ece_delta, acked, tp->snd_una);
 		ca->saw_ce = 1;
 		acked -= rs->ece_delta;
 	}
