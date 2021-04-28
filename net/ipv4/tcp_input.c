@@ -544,7 +544,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	if (tp->saw_accecn_opt == TCP_ACCECN_OPT_FAIL)
 		return false;
 
-	if (tp->rx_opt.accecn < 0) {
+	if (!tp->rx_opt.accecn) {
 		if (!tp->saw_accecn_opt) {
 			/* Too late to enable after this point due to
 			 * potential counter wraps
@@ -4405,12 +4405,12 @@ static bool tcp_fast_parse_options(const struct net *net,
 	 */
 	if (th->doff == (sizeof(*th) / 4)) {
 		tp->rx_opt.saw_tstamp = 0;
-		tp->rx_opt.accecn = -1;
+		tp->rx_opt.accecn = 0;
 		return false;
 	} else if (tp->rx_opt.tstamp_ok &&
 		   th->doff == ((sizeof(*th) + TCPOLEN_TSTAMP_ALIGNED) / 4)) {
 		if (tcp_parse_aligned_timestamp(tp, th)) {
-			tp->rx_opt.accecn = -1;
+			tp->rx_opt.accecn = 0;
 			return true;
 		}
 	}
