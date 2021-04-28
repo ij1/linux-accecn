@@ -2793,7 +2793,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	tcp_mstamp_refresh(tp);
 
 	/* AccECN option beacon depends on mstamp, it may change mss */
-	if (tcp_ecn_mode_accecn(tp) && tcp_accecn_option_beacon_check(tp))
+	if (tcp_ecn_mode_accecn(tp) && tcp_accecn_option_beacon_check(sk))
 		mss_now = tcp_current_mss(sk);
 
 	if (!push_one) {
