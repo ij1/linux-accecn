@@ -97,7 +97,6 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 	bool paws_reject = false;
 
 	tmp_opt.saw_tstamp = 0;
-	tmp_opt.accecn = -1;
 	if (th->doff > (sizeof(*th) >> 2) && tcptw->tw_ts_recent_stamp) {
 		tcp_parse_options(twsk_net(tw), skb, &tmp_opt, 0, NULL);
 
@@ -824,7 +823,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (!(flg & TCP_FLAG_ACK))
 		return NULL;
 
-	if (tcp_rsk(req)->accecn_ok && tmp_opt.accecn >= 0 &&
+	if (tcp_rsk(req)->accecn_ok && tmp_opt.accecn &&
 	    tcp_rsk(req)->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN)
 		tcp_rsk(req)->saw_accecn_opt = tcp_accecn_option_init(skb, tmp_opt.accecn);
 
