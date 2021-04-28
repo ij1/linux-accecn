@@ -533,7 +533,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	bool order, res;
 	unsigned int i;
 
-	if (tp->rx_opt.accecn == 0) {
+	if (!tp->rx_opt.accecn) {
 		if (tp->estimate_ecnfield) {
 			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
 				delivered_bytes;
