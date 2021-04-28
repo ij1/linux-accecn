@@ -2,7 +2,7 @@ From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] tcp: AccECN negotiation
 
 Accurate ECN negotiation parts based on the specification:
-  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-11.txt
+  https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-14.txt
 
 Accurate ECN is negotiated using ECE, CWR and AE flags in the
 TCP header. TCP falls back into using RFC3168 ECN if one of the
