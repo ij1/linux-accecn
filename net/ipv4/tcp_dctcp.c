@@ -214,7 +214,6 @@ static u32 dctcp_cwnd_undo(struct sock *sk)
 }
 
 static struct tcp_congestion_ops dctcp __read_mostly = {
-	.flags		= TCP_CONG_WANTS_CE_EVENTS,
 	.init		= dctcp_init,
 	.in_ack_event   = dctcp_update_alpha,
 	.cwnd_event	= dctcp_cwnd_event,
@@ -223,7 +222,7 @@ static struct tcp_congestion_ops dctcp __read_mostly = {
 	.undo_cwnd	= dctcp_cwnd_undo,
 	.set_state	= dctcp_state,
 	.get_info	= dctcp_get_info,
-	.flags		= TCP_CONG_NEEDS_ECN,
+	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_WANTS_CE_EVENTS,
 	.owner		= THIS_MODULE,
 	.name		= "dctcp",
 };
