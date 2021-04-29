@@ -87,6 +87,7 @@ static void dctcp_init(struct sock *sk)
 
 		ca->loss_cwnd = 0;
 		ca->ce_state = 0;
+		tp->ecn_flags |= TCP_ECN_ECT_1;
 
 		dctcp_reset(tp, ca);
 		return;
