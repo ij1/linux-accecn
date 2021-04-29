@@ -7,8 +7,7 @@ context of the L4S experiment.
 Namely:
 - The dualQ coupled AQM (see branch sch_dualpi2, as well as the
 [iproute2 repository](https://github.com/L4STeam/iproute2)
-- An implementation of Accurate ECN (see branch AccECN-tcphdr)
-- Various enhancements to DCTCP
+- An implementation of Accurate ECN (see branch AccECN-full)
 - The base implementation of TCP Prague (see branch tcp_prague)
 
 # Installation (debian derivatives)
@@ -96,7 +95,7 @@ heavyly virtualized settings, as scheduling becomes less reliable.
 ```bash
 sysctl -w net.ipv4.tcp_congestion_control=prague
 # Enable Accurate ECN
-sysctl -w net.ipv4.tcp_ecn=3
+sysctl -w net.ipv4.tcp_ecn=5
 ```
 
 Note that, at the moment, Accurate ECN **must** be enabled on both ends of a
