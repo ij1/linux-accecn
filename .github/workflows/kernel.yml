@@ -23,6 +23,7 @@ jobs:
         scripts/config --disable DEBUG_INFO \
                        --module CONFIG_TCP_CONG_PRAGUE \
                        --module CONFIG_TCP_CONG_BBR \
+                       --module CONFIG_TCP_CONG_BBR2 \
                        --module CONFIG_TCP_CONG_DCTCP \
                        --module CONFIG_NET_IPIP \
                        --module CONFIG_NET_CLS_U32 \
