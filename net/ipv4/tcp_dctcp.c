@@ -74,7 +74,7 @@ static void dctcp_reset(const struct tcp_sock *tp, struct dctcp *ca)
 
 static void dctcp_init(struct sock *sk)
 {
-	const struct tcp_sock *tp = tcp_sk(sk);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (tcp_ecn_mode_any(tp) ||
 	    (sk->sk_state == TCP_LISTEN ||
