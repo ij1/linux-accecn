@@ -1,0 +1,7 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] BBR2: Enable ECN processing for all connections
+
+By default BBR2 has ECN handling off and an RTT upper-bound
+when ECN can be used.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
