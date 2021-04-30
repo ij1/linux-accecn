@@ -657,6 +657,9 @@ static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 		tcp_count_delivered_ce(tcp_sk(sk), delta);
 		*flag |= FLAG_ECE;
 		rs->ece_delta = delta;
+		/* Recalculate header predictor */
+		if (tp->pred_flags)
+			tcp_fast_path_on(tp);
 	}
 }
 
