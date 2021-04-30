@@ -628,9 +628,10 @@ static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 {
 	u32 delta = __tcp_accecn_process(sk, skb, delivered_pkts,
 					 delivered_bytes, flag);
+	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (delta > 0) {
-		tcp_count_delivered_ce(tcp_sk(sk), delta);
+		tcp_count_delivered_ce(tp, delta);
 		*flag |= FLAG_ECE;
 		rs->ece_delta = delta;
 		/* Recalculate header predictor */
