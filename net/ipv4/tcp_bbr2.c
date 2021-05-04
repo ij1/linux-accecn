@@ -2471,6 +2471,8 @@ static void bbr2_init(struct sock *sk)
 	bbr->alpha_last_delivered_ce = 0;
 
 	tp->fast_ack_mode = min_t(u32, 0x2U, bbr_fast_ack_mode);
+	if (tcp_ecn_mode_accecn(tp))
+		tp->ecn_flags |= TCP_ECN_ECT_1;
 }
 
 /* Core TCP stack informs us that the given skb was just marked lost. */
@@ -2629,7 +2631,8 @@ static void bbr2_set_state(struct sock *sk, u8 new_state)
 }
 
 static struct tcp_congestion_ops tcp_bbr2_cong_ops __read_mostly = {
-	.flags		= TCP_CONG_NON_RESTRICTED | TCP_CONG_WANTS_CE_EVENTS,
+	.flags		= TCP_CONG_NON_RESTRICTED | TCP_CONG_WANTS_CE_EVENTS |
+			  TCP_CONG_WANTS_ECT_1,
 	.name		= "bbr2",
 	.owner		= THIS_MODULE,
 	.init		= bbr2_init,
