@@ -63,6 +63,10 @@ static unsigned int dctcp_alpha_on_init __read_mostly = DCTCP_MAX_ALPHA;
 module_param(dctcp_alpha_on_init, uint, 0644);
 MODULE_PARM_DESC(dctcp_alpha_on_init, "parameter for initial alpha value");
 
+static unsigned int dctcp_max_tso_segs __read_mostly = 1;
+module_param(dctcp_max_tso_segs, uint, 0644);
+MODULE_PARM_DESC(dctcp_max_tso_segs, "maximum TSO/GSO segments");
+
 static struct tcp_congestion_ops dctcp_reno;
 
 static void dctcp_reset(const struct tcp_sock *tp, struct dctcp *ca)
@@ -207,6 +211,17 @@ static size_t dctcp_get_info(struct sock *sk, u32 ext, int *attr,
 	return 0;
 }
 
+static u32 dctcp_tso_segs(struct sock *sk, unsigned int mss_now)
+{
+	u32 tso_segs = tcp_tso_autosize(sk, mss_now,
+					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+
+	if (!dctcp_max_tso_segs)
+		return tso_segs;
+
+	return min_t(u32, tso_segs, dctcp_max_tso_segs);
+}
+
 static u32 dctcp_cwnd_undo(struct sock *sk)
 {
 	const struct dctcp *ca = inet_csk_ca(sk);
@@ -221,6 +236,7 @@ static struct tcp_congestion_ops dctcp __read_mostly = {
 	.ssthresh	= dctcp_ssthresh,
 	.cong_avoid	= tcp_reno_cong_avoid,
 	.undo_cwnd	= dctcp_cwnd_undo,
+	.tso_segs	= dctcp_tso_segs,
 	.set_state	= dctcp_state,
 	.get_info	= dctcp_get_info,
 	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_WANTS_CE_EVENTS,
