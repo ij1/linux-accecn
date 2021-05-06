@@ -67,6 +67,10 @@ static unsigned int dctcp_max_tso_segs __read_mostly = 1;
 module_param(dctcp_max_tso_segs, uint, 0644);
 MODULE_PARM_DESC(dctcp_max_tso_segs, "maximum TSO/GSO segments");
 
+static unsigned int dctcp_pacing __read_mostly = 1;
+module_param(dctcp_pacing, uint, 0644);
+MODULE_PARM_DESC(dctcp_pacing, "use pacing during sending");
+
 static struct tcp_congestion_ops dctcp_reno;
 
 static void dctcp_reset(const struct tcp_sock *tp, struct dctcp *ca)
@@ -95,6 +99,10 @@ static void dctcp_init(struct sock *sk)
 		tp->ecn_flags |= TCP_ECN_ECT_1;
 
 		dctcp_reset(tp, ca);
+
+		if (dctcp_pacing)
+			cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
+
 		return;
 	}
 
