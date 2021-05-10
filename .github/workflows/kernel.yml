@@ -21,6 +21,7 @@ jobs:
       run: |
         cp /usr/src/linux-headers-5.8.0-50-generic/.config .
         scripts/config --disable DEBUG_INFO \
+                       --set-str SYSTEM_TRUSTED_KEYS "" \
                        --module CONFIG_TCP_CONG_PRAGUE \
                        --module CONFIG_TCP_CONG_BBR \
                        --module CONFIG_TCP_CONG_BBR2 \
