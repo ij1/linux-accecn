@@ -1,0 +1,15 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] dctcp: increase alpha precision
+
+The alpha decay precision is lower bounded by shifting right
+by dctcp_shift_g (4 by default). That is, if alpha is less than
+2^dctcp_shift_g, alpha is set to zero by this:
+  alpha -= min_not_zero(alpha, alpha >> dctcp_shift_g);
+This creates quite high low-cut off threshold (0.0156) which
+causes non-continuous response affecting convergence when
+the DCTCP flow oscillates between low alpha and zero alpha.
+
+Changing DCTCP_ALPHA_SHIFT requires expanding some of the
+temporal variables to u64 to avoid overflows during computation.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
