@@ -1137,15 +1137,15 @@ enum tcp_ca_ack_event_flags {
 #define TCP_CONG_NEEDS_ECN	0x2
 /* Require successfully negotiated AccECN capability */
 #define TCP_CONG_NEEDS_ACCECN	0x4
-/* Use ECT(1) instead of ECT(0) while the CA is uninitialized */
-#define TCP_CONG_WANTS_ECT_1	0x6
 /* Wants notification of CE events (CA_EVENT_ECN_IS_CE, CA_EVENT_ECN_NO_CE). */
 #define TCP_CONG_WANTS_CE_EVENTS	0x8
 #define TCP_CONG_MASK	(TCP_CONG_NON_RESTRICTED | \
 			 TCP_CONG_NEEDS_ECN | \
 			 TCP_CONG_NEEDS_ACCECN | \
-			 TCP_CONG_WANTS_ECT_1 | \
 			 TCP_CONG_WANTS_CE_EVENTS)
+
+/* Use ECT(1) instead of ECT(0) while the CA is uninitialized */
+#define TCP_CONG_WANTS_ECT_1	0x6
 
 union tcp_cc_info;
 
