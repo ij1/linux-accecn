@@ -615,7 +615,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 
 /* Returns the ECN CE delta */
 static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
-				u32 delivered_pkts, u32 delivered_bytes, int *flag)
+				u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
 	u32 old_ceb = tcp_sk(sk)->delivered_ecn_bytes[INET_ECN_CE - 1];
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -624,10 +624,10 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	u32 corrected_ace;
 
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
-	if (!(*flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
+	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
 
-	opt_deltas_valid = tcp_accecn_process_option(tp, skb, delivered_bytes, *flag);
+	opt_deltas_valid = tcp_accecn_process_option(tp, skb, delivered_bytes, flag);
 
 	if (delivered_pkts) {
 		if (!tp->pkts_acked_ewma) {
@@ -642,14 +642,14 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		}
 	}
 
-	if (!(*flag & FLAG_SLOWPATH)) {
+	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
 		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 			return 0;
 	}
 
 	/* ACE field is not available during handshake */
-	if (*flag & FLAG_SYN_ACKED)
+	if (flag & FLAG_SYN_ACKED)
 		return 0;
 
 	if (tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_ACE_MAX_DELTA)
@@ -683,7 +683,7 @@ static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 			       u32 delivered_pkts, u32 delivered_bytes, int *flag)
 {
 	u32 delta = __tcp_accecn_process(sk, skb, delivered_pkts,
-					 delivered_bytes, flag);
+					 delivered_bytes, *flag);
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (delta > 0) {
