@@ -1,0 +1,9 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] dctcp: overflow fix
+
+In the worst-case, alpha is 1<<10, leaving only 22 bits for
+snd_cwnd until the multiplication overflows. In practice, alpha
+tends to be less than its maximum value when the window is
+large but it's still better to be safe against the overflow.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
