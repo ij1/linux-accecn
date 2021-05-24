@@ -1,0 +1,4 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] dctcp: define DCTCP_ALPHA_SHIFT instead of using literal
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
