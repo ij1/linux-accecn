@@ -534,6 +534,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
 				      u32 delivered_bytes, int flag)
 {
+	u8 estimate_ecnfield = tp->estimate_ecnfield;
 	bool ambiguous_ecn_bytes_incr = false;
 	bool first_changed = false;
 	unsigned int optlen;
@@ -554,9 +555,8 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			return false;
 		}
 
-		if (tp->estimate_ecnfield) {
-			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] +=
-				delivered_bytes;
+		if (estimate_ecnfield) {
+			tp->delivered_ecn_bytes[estimate_ecnfield - 1] += delivered_bytes;
 			return true;
 		}
 		return false;
@@ -573,7 +573,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 		tp->saw_accecn_opt = tcp_accecn_option_init(skb,
 							    tp->rx_opt.accecn);
 
-	res = !!tp->estimate_ecnfield;
+	res = !!estimate_ecnfield;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
 			u8 ecnfield = tcp_accecn_optfield_to_ecnfield(i, order);
@@ -588,7 +588,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 					res = false;
 					ambiguous_ecn_bytes_incr = true;
 				}
-				if (ecnfield != tp->estimate_ecnfield) {
+				if (ecnfield != estimate_ecnfield) {
 					if (!first_changed) {
 						tp->estimate_ecnfield = ecnfield;
 						first_changed = true;
