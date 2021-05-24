@@ -10,8 +10,7 @@ that are added by a later change.
 Based on specification:
   https://tools.ietf.org/id/draft-ietf-tcpm-accurate-ecn-14.txt
 (Some features of the spec will be added in the later changes
-rather than in this one, most importantly, the field order
-bit in the highest bit of the first byte counter).
+rather than in this one).
 
 A full-length AccECN option is always attempted but if it does
 not fit, the minimum length is selected based on the counters
