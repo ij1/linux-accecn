@@ -354,9 +354,9 @@ tcp_ecn - INTEGER
 	0 No ECN               No ECN
 	1 ECN                  ECN
 	2 ECN                  No ECN
-	3 AccECN               ECN
-	4 AccECN               No ECN
-	5 AccECN               AccECN
+	3 AccECN               AccECN
+	4 AccECN               ECN
+	5 AccECN               No ECN
 	= ==================== ====================
 
 	Default: 2
