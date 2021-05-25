@@ -364,8 +364,7 @@ static void tcp_accecn_set_ace(struct tcphdr *th, struct tcp_sock *tp)
 {
 	u32 wire_ace;
 
-	tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
-				    TCP_ACCECN_ACE_MAX_DELTA);
+	tp->received_ce_tx += tcp_accecn_ace_deficit(tp);
 	wire_ace = tp->received_ce_tx + TCP_ACCECN_CEP_INIT_OFFSET;
 	th->ece = !!(wire_ace & 0x1);
 	th->cwr = !!(wire_ace & 0x2);
