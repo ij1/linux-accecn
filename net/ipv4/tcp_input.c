@@ -451,8 +451,10 @@ static void tcp_ecn_rcv_synack(struct sock *sk, const struct tcphdr *th,
 		tcp_ecn_mode_set(tp, TCP_ECN_MODE_ACCECN);
 		tp->syn_ect_rcv = ip_dsfield & INET_ECN_MASK;
 		if (tcp_accecn_validate_syn_feedback(sk, ace, tp->syn_ect_snt) &&
-		    INET_ECN_is_ce(ip_dsfield))
+		    INET_ECN_is_ce(ip_dsfield)) {
 			tp->received_ce++;
+			tp->received_ce_pending++;
+		}
 		break;
 	}
 }
@@ -502,7 +504,7 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	if (flag & FLAG_SYN_ACKED)
 		return 0;
 
-	if (tcp_accecn_ace_deficit(tp) >= TCP_ACCECN_ACE_MAX_DELTA)
+	if (tp->received_ce_pending >= TCP_ACCECN_ACE_MAX_DELTA)
 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
@@ -5716,10 +5718,12 @@ void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (!INET_ECN_is_not_ect(ecnfield)) {
+		u32 pcount = is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 		tp->ecn_flags |= TCP_ECN_SEEN;
 
 		/* ACE counter tracks *all* segments including pure acks */
-		tp->received_ce += is_ce * max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+		tp->received_ce += pcount;
+		tp->received_ce_pending = max(tp->received_ce_pending + pcount, 0xffU);
 	}
 }
 
