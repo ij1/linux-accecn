@@ -3,7 +3,6 @@ accecn/no-safer-cep
 accecn/option-ceb-heuristic
 accecn/tcp-info
 accecn/documentation
-accecn/gso-cep-deficit-limit
 accecn/option-sack-reduction
 accecn/option-snd-ctrl
 accecn/gro-cwr-optimization
