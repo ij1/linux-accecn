@@ -104,11 +104,11 @@ static u32 dctcp_ssthresh(struct sock *sk)
 {
 	struct dctcp *ca = inet_csk_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
+	u32 decr;
 
 	ca->loss_cwnd = tp->snd_cwnd;
-	return max(tp->snd_cwnd -
-	           (u32)(((u64)tp->snd_cwnd * ca->dctcp_alpha) >> (DCTCP_ALPHA_SHIFT + 1U)),
-	           2U);
+	decr = ((u64)tp->snd_cwnd * ca->dctcp_alpha) >> (DCTCP_ALPHA_SHIFT + 1U);
+	return max(tp->snd_cwnd - decr, 2U);
 }
 
 static void dctcp_update_alpha(struct sock *sk, u32 flags)
