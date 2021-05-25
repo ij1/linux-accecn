@@ -410,11 +410,6 @@ static inline u8 tcp_accecn_ace(const struct tcphdr *th)
 	return (th->ae << 2) | (th->cwr << 1) | th->ece;
 }
 
-static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
-{
-	return tp->received_ce - tp->received_ce_tx;
-}
-
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
 	TCP_TW_RST = 1,
@@ -854,7 +849,7 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 {
 	tp->received_ce = 0;
-	tp->received_ce_tx = 0;
+	tp->received_ce_pending = 0;
 }
 
 /* This is what the send packet queuing engine uses to pass
