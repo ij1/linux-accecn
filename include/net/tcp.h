@@ -438,11 +438,6 @@ static inline int tcp_accecn_extract_syn_ect(u8 ace)
 	return INET_ECN_NOT_ECT;
 }
 
-static inline u32 tcp_accecn_ace_deficit(const struct tcp_sock *tp)
-{
-	return tp->received_ce - tp->received_ce_tx;
-}
-
 bool tcp_accecn_validate_syn_feedback(struct sock *sk, u8 ace, u8 sent_ect);
 void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 			  u8 syn_ect_snt);
@@ -905,7 +900,7 @@ static inline void __tcp_accecn_init_bytes_counters(int *counter_array)
 static inline void tcp_accecn_init_counters(struct tcp_sock *tp)
 {
 	tp->received_ce = 0;
-	tp->received_ce_tx = 0;
+	tp->received_ce_pending = 0;
 	__tcp_accecn_init_bytes_counters(tp->received_ecn_bytes);
 	__tcp_accecn_init_bytes_counters(tp->delivered_ecn_bytes);
 	tp->accecn_minlen = 0;
