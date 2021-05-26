@@ -721,8 +721,8 @@ static void prague_release(struct sock *sk)
 		/* We forced the use of ECN, but failed to negotiate it */
 		INET_ECN_dontxmit(sk);
 
-	LOG(sk, "Released [delivered_ce=%u,received_ce=%u,received_ce_tx: %u]",
-	    tp->delivered_ce, tp->received_ce, tp->received_ce_tx);
+	LOG(sk, "Released [delivered_ce=%u,received_ce=%u]",
+	    tp->delivered_ce, tp->received_ce);
 }
 
 static void prague_init(struct sock *sk)
