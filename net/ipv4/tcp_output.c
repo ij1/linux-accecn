@@ -398,12 +398,11 @@ static void tcp_accecn_set_ace(struct tcp_sock *tp, struct sk_buff *skb,
 	 * case show up in tcp_flags.
 	 */
 	if (likely(!(TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ACE))) {
-		tp->received_ce_tx += min_t(u32, tcp_accecn_ace_deficit(tp),
-					    TCP_ACCECN_ACE_MAX_DELTA);
-		wire_ace = tp->received_ce_tx + TCP_ACCECN_CEP_INIT_OFFSET;
+		wire_ace = tp->received_ce + TCP_ACCECN_CEP_INIT_OFFSET;
 		th->ece = !!(wire_ace & 0x1);
 		th->cwr = !!(wire_ace & 0x2);
 		th->ae = !!(wire_ace & 0x4);
+		tp->received_ce_pending = 0;
 	}
 }
 
