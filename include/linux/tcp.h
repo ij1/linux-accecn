@@ -302,8 +302,8 @@ struct tcp_sock {
 	u32	delivered_ce;	/* Like the above but only ECE marked packets */
 	u32	delivered_ecn_bytes[3];
 	u32	received_ce;	/* Like the above but for received CE marked packets */
-	u32	received_ce_tx; /* Like the above but max transmitted value */
 	u32	received_ecn_bytes[3];
+	u8	received_ce_pending; /* Not yet transmitted cnt of received_ce */
 	u8	accecn_minlen:2,/* Minimum length of AccECN option sent */
 		estimate_ecnfield:2;/* ECN field for AccECN delivered estimates */
 	u32	lost;		/* Total data packets lost incl. rexmits */
