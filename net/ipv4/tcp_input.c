@@ -655,13 +655,13 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if ((delivered_pkts >= (TCP_ACCECN_CEP_ACE_MASK + 1) * 2) &&
 		    (tcp_is_sack(tp) ||
 		     ((1 << inet_csk(sk)->icsk_ca_state) & (TCPF_CA_Open|TCPF_CA_CWR)))) {
-			u32 est_cep;
+			u32 est_d_cep;
 
 			if (delivered_bytes <= d_ceb)
 				return safe_delta;
 
-			est_cep = DIV_ROUND_UP_ULL((u64)d_ceb * delivered_pkts, delivered_bytes);
-			return min(safe_delta, delta + (est_cep & ~TCP_ACCECN_CEP_ACE_MASK));
+			est_d_cep = DIV_ROUND_UP_ULL((u64)d_ceb * delivered_pkts, delivered_bytes);
+			return min(safe_delta, delta + (est_d_cep & ~TCP_ACCECN_CEP_ACE_MASK));
 		}
 
 		if (d_ceb > delta * tp->mss_cache)
