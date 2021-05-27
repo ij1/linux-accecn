@@ -1,0 +1,13 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: AccECN ACE field multi-wrap heuristic
+
+Armed with ceb delta from option, delivered bytes, and
+delivered packets it is possible to estimate how many times
+ACE field wrapped.
+
+This calculation is necessary only if more than one wrap
+is possible. Without SACK, delivered bytes and packets are
+not always trustworthy in which case TCP falls back to the
+simpler no-or-all wraps ceb algorithm.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
