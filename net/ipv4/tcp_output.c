@@ -2391,7 +2391,7 @@ static bool tcp_tso_should_defer(struct sock *sk, struct sk_buff *skb,
 	int win_divisor;
 	s64 delta;
 
-	if (icsk->icsk_ca_state >= TCP_CA_Recovery)
+	if (icsk->icsk_ca_state >= TCP_CA_CWR)
 		goto send_now;
 
 	/* Avoid bursty behavior by allowing defer
