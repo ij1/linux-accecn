@@ -4,4 +4,5 @@ Subject: [PATCH] tcp: prevent TSO deferring interfering with PRR
 When PRR requests some packets to be sent, TSO may decide to
 defer instead. This leads to missed xmit opportunities.
 
+Reported-by: Joakim Misund <joakim.misund@gmail.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
