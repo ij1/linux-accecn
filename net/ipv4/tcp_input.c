@@ -5644,7 +5644,7 @@ static void tcp_ecn_received_counters(struct sock *sk, const struct sk_buff *skb
 
 		/* ACE counter tracks *all* segments including pure acks */
 		tp->received_ce += pcount;
-		tp->received_ce_pending = max(tp->received_ce_pending + pcount, 0xffU);
+		tp->received_ce_pending = max(tp->received_ce_pending + pcount, 0xfU);
 	}
 }
 
