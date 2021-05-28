@@ -1,0 +1,9 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: Add classic ECN detection into prague
+
+Updates Prague to detect and fallback to RFC3168 AQMs to compete
+fairly with classic CCs while maintaining scalable behaviour on
+otherwise L4S-AQMs.
+
+Signed-off-by: Asad Sajjad Ahmed <asadsa@ifi.uio.no>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
