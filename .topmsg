@@ -1,21 +1,24 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: allow max(prr_delivered - prr_out, ...) in CA_CWR during PRR
+Subject: [PATCH] tcp: allow PRR to use max(prr_delivered - prr_out, ...) in CA_CWR
 
-If cwnd quota PRR allows in the else branch is not used immediately,
-it cannot be taken advantage after the next ACK arrives. This burst
-limitation for sndcnt was introduced in 3759824da (tcp: PRR uses CRB
-mode by default and SS mode conditionally) to combat rexmit losses.
-The change seems to focus on loss recovery cases.
+In PRR's else branch (tcp_cwnd_reduction()) sndcnt is limited by
+newly_acked_sacked. If this cwnd quota PRR allows is not used
+immediately, it cannot be taken advantage after the next ACK arrives
+because newly_acked_sacked it recalculated based on the incoming
+ACK. This burst limitation for sndcnt was introduced in 3759824da
+(tcp: PRR uses CRB mode by default and SS mode conditionally)
+to combat rexmit losses. The change seems to focus on loss recovery
+cases.
 
 In general, one common reason for not sending immediately is TSO that
 may decide to defer. TSO deferring is not allowed during CA_Recovery.
-PRR, however, is also used during CWR which leads to missed xmit
-opportunities.
+PRR, however, is also used during CWR. This disparity makes TCP in
+CA_CWR much more likely to miss xmit opportunities.
 
 To keep TSO working normally during CA_CWR, make the sndcnt burst
 limit to impact only CA_Recovery by taking again advantage of
-  max(prr_delivered - prr_out, newly_acked_sacked)
-in CA_CWR state. As lost retransmissions are not an issue in
+  max(tp->prr_delivered - tp->prr_out, newly_acked_sacked)
+when in CA_CWR state. As lost retransmissions are not an issue in
 CA_CWR state, it should not reintroduce the problem 3759824da
 tried to fix.
 
