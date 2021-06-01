@@ -1,8 +1,23 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: prevent TSO deferring interfering with PRR
+Subject: [PATCH] tcp: allow max(prr_delivered - prr_out, ...) in CA_CWR during PRR
 
-When PRR requests some packets to be sent, TSO may decide to
-defer instead. This leads to missed xmit opportunities.
+If cwnd quota PRR allows in the else branch is not used immediately,
+it cannot be taken advantage after the next ACK arrives. This burst
+limitation for sndcnt was introduced in 3759824da (tcp: PRR uses CRB
+mode by default and SS mode conditionally) to combat rexmit losses.
+The change seems to focus on loss recovery cases.
+
+In general, one common reason for not sending immediately is TSO that
+may decide to defer. TSO deferring is not allowed during CA_Recovery.
+PRR, however, is also used during CWR which leads to missed xmit
+opportunities.
+
+To keep TSO working normally during CA_CWR, make the sndcnt burst
+limit to impact only CA_Recovery by taking again advantage of
+  max(prr_delivered - prr_out, newly_acked_sacked)
+in CA_CWR state. As lost retransmissions are not an issue in
+CA_CWR state, it should not reintroduce the problem 3759824da
+tried to fix.
 
 Reported-by: Joakim Misund <joakim.misund@gmail.com>
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
