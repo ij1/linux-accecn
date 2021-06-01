@@ -2911,7 +2911,7 @@ void tcp_cwnd_reduction(struct sock *sk, int newly_acked_sacked, int flag)
 		sndcnt = div_u64(dividend, tp->prior_cwnd) - tp->prr_out;
 	} else if (((flag & (FLAG_RETRANS_DATA_ACKED | FLAG_LOST_RETRANS)) ==
 		    FLAG_RETRANS_DATA_ACKED) ||
-		   (icsk->icsk_ca_state >= TCP_CA_CWR)) {
+		   (icsk->icsk_ca_state == TCP_CA_CWR)) {
 		sndcnt = min_t(int, delta,
 			       max_t(int, tp->prr_delivered - tp->prr_out,
 				     newly_acked_sacked) + 1);
