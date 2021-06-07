@@ -24,6 +24,7 @@ inline int paced_chirping_active(struct paced_chirping *pc)
 	return pc && pc->state;
 }
 EXPORT_SYMBOL(paced_chirping_active);
+
 static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	/* The minimum queueing delay over a chirp is a hot candidate. */
@@ -272,8 +273,6 @@ u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
 }
 EXPORT_SYMBOL(paced_chirping_new_chirp);
 
-/********************************************************************************/
-
 /* Returns the inter-arrival time between the ack that acked this packet and the ack
  * that acked the previous packet. If the same ack acked multiple packets this will
  * (currently) return 0 for the packets after the first.
@@ -340,6 +339,7 @@ static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct pace
 	}
 	return queue_delay_us;
 }
+
 /* Assume in flight stays fairly constant, alright? */
 static inline u32 get_per_packet_ewma_shift(struct tcp_sock *tp)
 {
@@ -352,6 +352,7 @@ void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 
 	EWMA(pc->recv_gap_ad, difference, ewma_shift);
 	EWMA(pc->recv_gap_estimate_ns, recv_gap, ewma_shift);
 }
+
 /******************** Chirp analysis function ********************/
 u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, struct cc_chirp *c, struct sk_buff *skb)
 {
@@ -554,7 +555,6 @@ u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, stru
 	}
 	return 0;
 }
-/********************************************************************************/
 
 /******************** Controller/Algorithm functions ********************/
 /* Reactive:  Estimates that are overly conservative unless continuous utilization
@@ -570,6 +570,7 @@ static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
 	do_div(interval, delivered);
 	return interval;
 }
+
 /* Proactive: Estimates that are based on service rate measured over (usually)
  *            a fraction of the round-trip time. Needs transient congestion. */
 static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct cc_chirp *c)
@@ -861,8 +862,6 @@ void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct
 
 }
 EXPORT_SYMBOL(paced_chirping_pkt_acked);
-
-/********************************************************************************/
 
 /* This function is called only once per acknowledgement */
 void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs)
