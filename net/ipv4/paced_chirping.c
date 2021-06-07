@@ -29,15 +29,18 @@ static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, 
 	/* The minimum queueing delay over a chirp is a hot candidate. */
 	return c->min_queueing_delay_us == UINT_MAX ? 0 : c->min_queueing_delay_us;
 }
+
 static u32 paced_chirping_get_smoothed_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc)
 {
 	/* The minimum queueing delay over a chirp is a hot candidate. */
 	return tp->srtt_us ? (tp->srtt_us>>3) - tcp_min_rtt(tp) : 0;
 }
+
 static u32 paced_chirping_get_smoothed_rtt_us(struct tcp_sock *tp, struct paced_chirping *pc)
 {
 	return tp->srtt_us>>3;
 }
+
 static struct cc_chirp* get_chirp_struct(struct paced_chirping *pc)
 {
 	return &pc->cur_chirp;
@@ -144,6 +147,7 @@ u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigne
 	return tcp_tso_autosize(sk, mss_now,
 				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 }
+
 u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 				      struct paced_chirping *pc,
 				      u32 N,
@@ -220,6 +224,7 @@ u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	tp->snd_cwnd = tcp_packets_in_flight(tp) + (N<<1);
 	return 0;
 }
+
 static bool enough_data_for_chirp(struct sock *sk, struct tcp_sock *tp, int N)
 {
 	return READ_ONCE(tp->write_seq) - tp->snd_nxt >= tp->mss_cache * N;
@@ -232,6 +237,7 @@ static u32 paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
 {
 	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
 }
+
 u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -257,6 +263,7 @@ u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
 	}
 	return paced_chirping_schedule_new_chirp(sk, pc, N, avg_gap_of_chirp, pc->gap_avg_load_ns, geometry);
 }
+
 u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
 {
 	if (!pc || !paced_chirping_active(pc))
@@ -298,6 +305,7 @@ u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_bu
 
 	return (unlikely(recv_gap_us == ULONG_MAX)) ? ULONG_MAX : recv_gap_us * 1000;
 }
+
 u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
 {
 	struct skb_shared_info* info = skb_shinfo(skb);
@@ -306,6 +314,7 @@ u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
 	pc->send_timestamp_location = info->pacing_location;
 	return send_gap;
 }
+
 static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
 {
 	s64 rtt_us;
@@ -336,6 +345,7 @@ static inline u32 get_per_packet_ewma_shift(struct tcp_sock *tp)
 {
 	return max(4U, (u32)ilog2(tcp_packets_in_flight(tp) + 2)); /* Should be at least 16 pkts */
 }
+
 void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 recv_gap)
 {
 	s64 difference = (s64)recv_gap - (s64)pc->recv_gap_estimate_ns;
@@ -571,12 +581,14 @@ static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct
 	do_div(interval, delivered);
 	return interval;
 }
+
 static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u32 reactive_service_time_ns = paced_chirping_get_reactive_service_time(tp);
 	u32 reactive_recv_gap_estimate_ns = pc->recv_gap_estimate_ns;
 	return min_t(u32, reactive_service_time_ns, reactive_recv_gap_estimate_ns);
 }
+
 static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
@@ -597,6 +609,7 @@ static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp
 	  }*/
 	return 0;
 }
+
 static u32 paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u32 qdelay_us = paced_chirping_get_smoothed_queueing_delay_us(tp, pc);
@@ -605,6 +618,7 @@ static u32 paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced
 	}
 	return 0;
 }
+
 void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
 {
 	s32 difference = (s32)estimate - (s32)pc->gap_avg_ns;
@@ -612,6 +626,7 @@ void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma
 	EWMA(pc->gap_avg_ad, difference, ewma_shift);
 	EWMA(pc->gap_avg_ns, estimate, ewma_shift);
 }
+
 void update_gap_load_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
 {
 	if (estimate < pc->gap_avg_load_ns)
@@ -657,18 +672,21 @@ void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 
 	pc->geometry = min_t(u32, max_t(u32, relative_difference, lower_threshold), 2U << PC_G_G_SHIFT);
 }
+
 static inline void update_load_window(struct tcp_sock *tp, struct paced_chirping *pc)
 {
 	u64 window = paced_chirping_get_smoothed_rtt_us(tp, pc) * 1000;
 	do_div(window, max(1U, pc->gap_avg_load_ns));
 	pc->load_window = min_t(u32, window, tp->snd_cwnd_clamp);
 }
+
 static u32 get_per_chirp_ewma_shift(struct tcp_sock *tp, u32 chirp_size)
 {
 	/* EWMA shift depends on fraction of packets over RTT in this chirp. */
 	s32 shift = (s32)ilog2(tcp_packets_in_flight(tp) + 1) - (s32)ilog2(chirp_size);
 	return max(1, shift); /* Should be at least 2 chirps */
 }
+
 void paced_chirping_reset_chirp(struct cc_chirp *c)
 {
 	c->gap_total = 0;
@@ -692,6 +710,7 @@ void paced_chirping_reset_chirp(struct cc_chirp *c)
 
 	c->min_queueing_delay_us = UINT_MAX;
 }
+
 static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb)
 {
 	struct paced_chirping_ext *pc_ext;
@@ -885,6 +904,7 @@ static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tc
 
 	pc->gap_avg_ns = min_t(u32, pc->gap_avg_ns, paced_chirping_maximum_initial_gap);
 }
+
 void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
 			      struct paced_chirping *pc)
 {
@@ -903,6 +923,7 @@ void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
 	pc->N = paced_chirping_prob_size;
 	paced_chirping_reset_chirp(get_chirp_struct(pc));
 }
+
 struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
