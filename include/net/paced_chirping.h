@@ -7,7 +7,7 @@
 
 enum {
 	UNUSED,
-	INTERAL_PACING,
+	INTERNAL_PACING,
 	FQ_PACING
 };
 

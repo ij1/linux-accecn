@@ -1415,7 +1415,7 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 					pc_ext->scheduled_gap = len_ns;
 				}
 				if (info) {
-					info->pacing_location  = INTERAL_PACING;
+					info->pacing_location  = INTERNAL_PACING;
 					info->pacing_timestamp = ktime_get_ns();
 				}
 

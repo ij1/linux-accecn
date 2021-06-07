@@ -797,7 +797,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 			paced_chirping_exit(sk, pc, PC_EXIT_ESTIMATE_CONVERGENCE);
 		}
 
-		if ((!pc->send_timestamp_location || pc->send_timestamp_location == INTERAL_PACING)
+		if ((!pc->send_timestamp_location || pc->send_timestamp_location == INTERNAL_PACING)
 		    && pc->gap_avg_load_ns < paced_chirping_lowest_internal_pacing_gap) {
 			paced_chirping_exit(sk, pc, PC_EXIT_SYSTEM_LIMITATION);
 		} else if (pc->send_timestamp_location == FQ_PACING &&
