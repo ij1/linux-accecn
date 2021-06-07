@@ -256,13 +256,13 @@ u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigne
 /* When I write this I am not sure why this is here.. */
 static unsigned int paced_chirping_enabled __read_mostly = 0;
 
-struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc) { return NULL; }
-u32  paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc) { return 0; }
-void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs) {}
-int  paced_chirping_active(struct paced_chirping *pc) { return 0; }
-void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason) {}
-void paced_chirping_release(struct paced_chirping* pc) {}
-u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
+static inline struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc) { return NULL; }
+static inline u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc) { return 0; }
+static inline void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs) {}
+static inline int paced_chirping_active(struct paced_chirping *pc) { return 0; }
+static inline void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason) {}
+static inline void paced_chirping_release(struct paced_chirping* pc) {}
+static inline u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
 {
 	return tcp_tso_autosize(sk, mss_now,
 				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
