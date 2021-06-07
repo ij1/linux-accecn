@@ -148,6 +148,7 @@ u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned
 	return tcp_tso_autosize(sk, mss_now,
 				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 }
+EXPORT_SYMBOL(paced_chirping_tso_segs);
 
 static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 					     struct paced_chirping *pc,
