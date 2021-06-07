@@ -2853,8 +2853,7 @@ void tcp_cwnd_reduction(struct sock *sk, int newly_acked_sacked, int flag)
 			       max_t(int, tp->prr_delivered - tp->prr_out,
 				     newly_acked_sacked) + 1);
 	} else {
-		/* BUGFIX: Not added to mainline yet? */
-		sndcnt = min_t(int, delta, tp->prr_delivered - tp->prr_out);
+		sndcnt = min(delta, newly_acked_sacked);
 	}
 	/* Force a fast retransmit upon entering fast recovery */
 	sndcnt = max(sndcnt, (tp->prr_out ? 0 : 1));
