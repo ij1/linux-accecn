@@ -529,6 +529,7 @@ static struct sk_buff *fq_dequeue(struct Qdisc *sch)
 	struct fq_flow_head *head;
 	struct sk_buff *skb;
 	struct fq_flow *f;
+	struct skb_shared_info* info;
 	unsigned long rate;
 	u32 plen;
 	u64 now;
@@ -639,6 +640,12 @@ begin:
 		f->time_next_packet = now + len;
 	}
 out:
+	info = skb_shinfo(skb);
+	if (info) {
+		info->pacing_location = FQ_PACING;
+		info->pacing_timestamp = ktime_get_ns();
+	}
+
 	qdisc_bstats_update(sch, skb);
 	return skb;
 }

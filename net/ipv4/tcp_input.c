@@ -2853,7 +2853,8 @@ void tcp_cwnd_reduction(struct sock *sk, int newly_acked_sacked, int flag)
 			       max_t(int, tp->prr_delivered - tp->prr_out,
 				     newly_acked_sacked) + 1);
 	} else {
-		sndcnt = min(delta, newly_acked_sacked);
+		/* BUGFIX: Not added to mainline yet? */
+		sndcnt = min_t(int, delta, tp->prr_delivered - tp->prr_out);
 	}
 	/* Force a fast retransmit upon entering fast recovery */
 	sndcnt = max(sndcnt, (tp->prr_out ? 0 : 1));
@@ -2913,7 +2914,7 @@ static void tcp_try_to_open(struct sock *sk, int flag)
 	if (!tcp_any_retrans_done(sk))
 		tp->retrans_stamp = 0;
 
-	if (flag & FLAG_ECE)
+	if ((flag & FLAG_ECE) && !unlikely(tp->disable_cwr_upon_ece))
 		tcp_enter_cwr(sk);
 
 	if (inet_csk(sk)->icsk_ca_state != TCP_CA_CWR) {
@@ -3513,6 +3514,13 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 		if (!fully_acked)
 			break;
 
+		if (icsk->icsk_ca_ops->pkt_acked) {
+			icsk->icsk_ca_ops->pkt_acked(sk, skb);
+#if IS_ENABLED(CONFIG_PACED_CHIRPING)
+			skb_ext_del(skb, SKB_EXT_PACED_CHIRPING);
+#endif
+		}
+
 		tcp_ack_tstamp(sk, skb, prior_snd_una);
 
 		next = skb_rb_next(skb);
@@ -3701,7 +3709,8 @@ static void tcp_cong_control(struct sock *sk, u32 ack, u32 acked_sacked,
 		/* Advance cwnd if state allows */
 		tcp_cong_avoid(sk, ack, acked_sacked);
 	}
-	tcp_update_pacing_rate(sk);
+	if (!tcp_sk(sk)->disable_kernel_pacing_calculation)
+		tcp_update_pacing_rate(sk);
 }
 
 /* Check that window update is acceptable.
@@ -5720,8 +5729,12 @@ send_now:
 	}
 
 	if (!ofo_possible || RB_EMPTY_ROOT(&tp->out_of_order_queue)) {
-		tcp_send_delayed_ack(sk);
-		return;
+		if (sock_net(sk)->ipv4.sysctl_tcp_delayed_acks) {
+			tcp_send_delayed_ack(sk);
+			return;
+		}
+		/* Delayed acks disabled */
+		goto send_now;
 	}
 
 	if (!tcp_is_sack(tp) ||
@@ -6804,7 +6817,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		if (tp->rx_opt.tstamp_ok)
 			tp->advmss -= TCPOLEN_TSTAMP_ALIGNED;
 
-		if (!inet_csk(sk)->icsk_ca_ops->cong_control)
+		if (!inet_csk(sk)->icsk_ca_ops->cong_control && !tp->disable_kernel_pacing_calculation)
 			tcp_update_pacing_rate(sk);
 
 		/* Prevent spurious tcp_cwnd_restart() on first data packet */

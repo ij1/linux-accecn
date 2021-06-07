@@ -519,6 +519,27 @@ reset:
 	}
 }
 
+void paced_chirping_cache_get(struct sock *sk, struct paced_chirping_cache *pc_cache)
+{
+	struct dst_entry *dst = __sk_dst_get(sk);
+	struct tcp_metrics_block *tm;
+
+	sk_dst_confirm(sk);
+	if (!dst)
+		return;
+	rcu_read_lock();
+	tm = tcp_get_metrics(sk, dst, true);
+	if (!tm) {
+		rcu_read_unlock();
+		return;
+	}
+	pc_cache->srtt = tcp_metric_get(tm, TCP_METRIC_RTT);
+	pc_cache->cwnd = tcp_metric_get(tm, TCP_METRIC_CWND);
+	pc_cache->reordering = tcp_metric_get(tm, TCP_METRIC_REORDERING);
+	rcu_read_unlock();
+}
+EXPORT_SYMBOL(paced_chirping_cache_get);
+
 bool tcp_peer_is_proven(struct request_sock *req, struct dst_entry *dst)
 {
 	struct tcp_metrics_block *tm;

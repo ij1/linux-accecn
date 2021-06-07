@@ -88,6 +88,7 @@
 #include <net/tcp.h>
 #include <linux/inet_diag.h>
 #include <linux/inet.h>
+#include "paced_chirping.h"
 
 #define MIN_CWND		2U
 #define PRAGUE_ALPHA_BITS	20U
@@ -180,6 +181,7 @@ struct prague {
 	u8  saw_ce:1,		/* Is there an AQM on the path? */
 	    rtt_indep:3,	/* RTT independence mode */
 	    in_loss:1;		/* In cwnd reduction caused by loss */
+	struct paced_chirping *pc;
 };
 
 struct rtt_scaling_ops {
@@ -516,6 +518,11 @@ static void prague_enter_loss(struct sock *sk)
 	struct prague *ca = prague_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 
+	if (unlikely(paced_chirping_active(ca->pc))) {
+		paced_chirping_exit(sk, ca->pc, PC_EXIT_LOSS);
+		return;
+	}
+
 	ca->loss_cwnd = tp->snd_cwnd;
 	ca->loss_cwnd_cnt = ca->cwnd_cnt;
 	ca->cwnd_cnt -=
@@ -661,6 +668,11 @@ static u32 prague_cwnd_undo(struct sock *sk)
 
 static void prague_cong_control(struct sock *sk, const struct rate_sample *rs)
 {
+	if (unlikely(paced_chirping_active(prague_ca(sk)->pc))) {
+		paced_chirping_update(sk, prague_ca(sk)->pc, rs);
+		return;
+	}
+
 	prague_update_cwnd(sk, rs);
 	if (prague_should_update_ewma(sk))
 		prague_update_alpha(sk);
@@ -675,9 +687,16 @@ static u32 prague_ssthresh(struct sock *sk)
 	return tp->snd_ssthresh;
 }
 
-static u32 prague_tso_seg(struct sock *sk, unsigned int mss_now)
+static u32 prague_tso_segs(struct sock *sk, unsigned int mss_now)
 {
-	u32 tso_segs = tcp_tso_autosize(sk, mss_now,
+	struct prague *ca = prague_ca(sk);
+	u32 tso_segs;
+
+	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
+		return paced_chirping_tso_segs(sk, ca->pc, mss_now);
+	}
+
+	tso_segs = tcp_tso_autosize(sk, mss_now,
 					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 
 	return min_t(u32, tso_segs, prague_ca(sk)->max_tso_burst);
@@ -723,6 +742,9 @@ static void prague_release(struct sock *sk)
 
 	LOG(sk, "Released [delivered_ce=%u,received_ce=%u]",
 	    tp->delivered_ce, tp->received_ce);
+
+	paced_chirping_release(sk, prague_ca(sk)->pc);
+	prague_ca(sk)->pc = NULL;
 }
 
 static void prague_init(struct sock *sk)
@@ -771,6 +793,9 @@ static void prague_init(struct sock *sk)
 	tp->alpha = PRAGUE_MAX_ALPHA;		/* Used ONLY to log alpha */
 
 	prague_new_round(sk);
+
+	if (paced_chirping_enabled)
+		ca->pc = paced_chirping_init(sk, NULL); /* Allocate for us */
 }
 
 static bool prague_target_rtt_elapsed(struct sock *sk)
@@ -851,6 +876,20 @@ rtt_scaling_heuristics[__RTT_CONTROL_MAX] __read_mostly = {
 	},
 };
 
+static u32 prague_new_chirp(struct sock *sk)
+{
+	return paced_chirping_new_chirp(sk, prague_ca(sk)->pc);
+}
+
+static void prague_pkt_acked(struct sock *sk, struct sk_buff *skb)
+{
+	struct prague *ca = inet_csk_ca(sk);
+	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
+		paced_chirping_pkt_acked(sk, ca->pc, skb);
+	}
+}
+
+
 static struct tcp_congestion_ops prague __read_mostly = {
 	.init		= prague_init,
 	.release	= prague_release,
@@ -861,7 +900,9 @@ static struct tcp_congestion_ops prague __read_mostly = {
 	.pkts_acked	= prague_pkts_acked,
 	.set_state	= prague_state,
 	.get_info	= prague_get_info,
-	.tso_segs	= prague_tso_seg,
+	.tso_segs	= prague_tso_segs,
+	.new_chirp      = prague_new_chirp,
+	.pkt_acked      = prague_pkt_acked,
 	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_NEEDS_ACCECN |
 		TCP_CONG_NON_RESTRICTED,
 	.owner		= THIS_MODULE,

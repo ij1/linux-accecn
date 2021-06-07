@@ -417,6 +417,14 @@ void tcp_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&tp->tsq_node);
 	INIT_LIST_HEAD(&tp->tsorted_sent_queue);
 
+#if IS_ENABLED(CONFIG_PACED_CHIRPING)
+	tp->chirp.packets = tp->chirp.packets_out = 0;
+	tp->is_chirping = 0;
+	tp->chirp.scheduled_gaps = NULL;
+#endif
+	tp->disable_kernel_pacing_calculation = 0;
+	tp->disable_cwr_upon_ece = 0;
+
 	icsk->icsk_rto = TCP_TIMEOUT_INIT;
 	icsk->icsk_rto_min = TCP_RTO_MIN;
 	icsk->icsk_delack_max = TCP_DELACK_MAX;

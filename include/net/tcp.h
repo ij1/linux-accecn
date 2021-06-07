@@ -40,6 +40,7 @@
 #include <net/inet_ecn.h>
 #include <net/dst.h>
 #include <net/mptcp.h>
+#include <net/paced_chirping.h>
 
 #include <linux/seq_file.h>
 #include <linux/memcontrol.h>
@@ -810,7 +811,9 @@ void tcp_send_window_probe(struct sock *sk);
  * It is no longer tied to jiffies, but to 1 ms clock.
  * Note: double check if you want to use tcp_jiffies32 instead of this.
  */
-#define TCP_TS_HZ	1000
+//#define TCP_TS_HZ	1000
+/* Make the timestamp microsecond instead */
+#define TCP_TS_HZ	1000000
 
 static inline u64 tcp_clock_ns(void)
 {
@@ -1192,6 +1195,13 @@ struct tcp_congestion_ops {
 	 * after all the ca_state processing. (optional)
 	 */
 	void (*cong_control)(struct sock *sk, const struct rate_sample *rs);
+	/* call when congestion control indicates that it is sending chirps
+	 * and stack does not have a chirp description available.
+	 */
+	u32 (*new_chirp)(struct sock *sk);
+	/* Call when a packet is removed from the retransmit queue. */
+	void (*pkt_acked)(struct sock *sk, struct sk_buff *skb);
+
 	/* get info for inet_diag (optional) */
 	size_t (*get_info)(struct sock *sk, u32 ext, int *attr,
 			   union tcp_cc_info *info);
@@ -1608,6 +1618,10 @@ static inline bool tcp_paws_check(const struct tcp_options_received *rx_opt,
 		return true;
 	if (unlikely(!time_before32(ktime_get_seconds(),
 				    rx_opt->ts_recent_stamp + TCP_PAWS_24DAYS)))
+		return true;
+	/* Micro second granularity */
+	if (unlikely(!time_before32(ktime_get_seconds(),
+				    rx_opt->ts_recent_stamp + 2147)))
 		return true;
 	/*
 	 * Some OSes send SYN and SYNACK messages with tsval=0 tsecr=0,

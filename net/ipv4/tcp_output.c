@@ -39,6 +39,7 @@
 
 #include <net/tcp.h>
 #include <net/mptcp.h>
+#include <net/paced_chirping.h>
 
 #include <linux/compiler.h>
 #include <linux/gfp.h>
@@ -1393,10 +1394,55 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 	if (sk->sk_pacing_status != SK_PACING_NONE) {
 		unsigned long rate = sk->sk_pacing_rate;
 
+#if IS_ENABLED(CONFIG_PACED_CHIRPING)
+		if (tp->is_chirping) {
+			if (tp->chirp.packets > tp->chirp.packets_out) {
+				struct paced_chirping_ext *pc_ext = skb_ext_add(skb, SKB_EXT_PACED_CHIRPING);
+				struct skb_shared_info* info = skb_shinfo(skb);
+				struct chirp *chirp = &tp->chirp;
+				u64 len_ns = chirp->gap_ns;
+
+				chirp->gap_ns = (chirp->gap_step_ns > chirp->gap_ns) ? 0 : chirp->gap_ns - chirp->gap_step_ns;
+				chirp->packets_out++;
+
+				if (chirp->packets_out == 1U) {
+					chirp->begin_seq = tp->snd_nxt;
+				}
+
+				if (pc_ext) {
+					pc_ext->chirp_number = chirp->chirp_number;
+					pc_ext->packets = chirp->packets;
+					pc_ext->scheduled_gap = len_ns;
+				}
+				if (info) {
+					info->pacing_location  = INTERAL_PACING;
+					info->pacing_timestamp = ktime_get_ns();
+				}
+
+				if (chirp->packets_out == chirp->packets) {
+					tp->tcp_wstamp_ns += chirp->guard_interval_ns;
+
+					if (pc_ext)
+						pc_ext->scheduled_gap = chirp->guard_interval_ns;
+
+					chirp->end_seq = tp->snd_nxt + skb->len;
+					if (inet_csk(sk)->icsk_ca_ops->new_chirp)
+						inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
+				} else {
+					tp->tcp_wstamp_ns += len_ns;
+
+					if (chirp->scheduled_gaps)
+						chirp->scheduled_gaps[chirp->packets_out] = len_ns;
+				}
+			}
+		}
+
 		/* Original sch_fq does not pace first 10 MSS
 		 * Note that tp->data_segs_out overflows after 2^32 packets,
 		 * this is a minor annoyance.
 		 */
+		else
+#endif
 		if (rate != ~0UL && rate && tp->data_segs_out >= 10) {
 			u64 len_ns = div64_ul((u64)skb->len * NSEC_PER_SEC, rate);
 			u64 credit = tp->tcp_wstamp_ns - prior_wstamp;
@@ -2821,6 +2867,15 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 
 		if (tcp_pacing_check(sk))
 			break;
+
+#if IS_ENABLED(CONFIG_PACED_CHIRPING)
+		if (tp->is_chirping &&
+		    tp->chirp.packets <= tp->chirp.packets_out &&
+		    (!inet_csk(sk)->icsk_ca_ops->new_chirp ||
+		     inet_csk(sk)->icsk_ca_ops->new_chirp(sk))) {
+			break;
+		}
+#endif
 
 		tso_segs = tcp_init_tso_segs(skb, mss_now);
 		BUG_ON(!tso_segs);
