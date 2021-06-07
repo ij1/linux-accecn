@@ -875,7 +875,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 		}
 
 		/* TODO: KERN_DEBUG is not needed here */
-	       	TRACE_PRINT((KERN_DEBUG "[PC-estimate] %u-%u-%hu-%hu,"
+		TRACE_PRINT((KERN_DEBUG "[PC-estimate] %u-%u-%hu-%hu,"
 			     "%08u,%08u,%08u,%02u,%03u,%02u,%u,%u,%02u,%08llu,"    /* Other variables */
 			     "%08u,%08d,%08u,%02u,%02u,%02u,%05u,%08lld,%06u,%02u,%02u,"  /* pc */
 			     "%08u,%08u,%08u,%04u,%04u,%04u,%05u\n",                /* tp */
