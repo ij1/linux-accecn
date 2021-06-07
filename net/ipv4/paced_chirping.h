@@ -1,10 +1,6 @@
 #ifndef _TCP_PACED_CHIRPING_H
 #define _TCP_PACED_CHIRPING_H
 
-/* If you are reading this code, stop now, go do something else.
- * Do not waste your precious time on this mess.
- */
-
 #include <linux/mm.h>
 #include <net/tcp.h>
 #include <linux/inet_diag.h>
@@ -31,7 +27,6 @@ module_param(paced_chirping_log, uint, 0644);
 #define PC_EXIT_OVERLOAD                       0x03 /* Queueing delay is unacceptable*/
 #define PC_EXIT_ALLOCATION                     0x04 /* Requested allocation failed */
 #define PC_EXIT_MAX_CHIRPS_REACHED             0x05 /* In case of non-convergence */
-
 
 /* Initialization values */
 static unsigned int paced_chirping_use_initial_srrt       __read_mostly = 1U;
@@ -75,11 +70,9 @@ module_param(paced_chirping_overload_exit_queueing_delay_thresh_us, uint, 0644);
 module_param(paced_chirping_lowest_internal_pacing_gap, uint, 0644);
 module_param(paced_chirping_lowest_FQ_pacing_gap, uint, 0644);
 
-
 /* This is too fragile as is. */
 static u32 paced_chirping_use_proactive_service_time __read_mostly  = 0;
 module_param(paced_chirping_use_proactive_service_time, uint, 0644);
-
 
 struct cc_chirp {
 	/* Original analysis converted to on-line by Illpo */
@@ -198,8 +191,6 @@ static unsigned int paced_chirping_use_remote_tsval __read_mostly = 0U;
 module_param(paced_chirping_use_remote_tsval, uint, 0644);
 MODULE_PARM_DESC(paced_chirping_use_remote_tsval, "Whether to use remote tsval to calculate inter-arrival gaps (Default: 0)");
 
-
-
 /* Guide for putting paced chirping support into your CC module.
  *
  * 1. Include "paced_chirping.h". If you are experimenting and building PC functions
@@ -232,8 +223,6 @@ MODULE_PARM_DESC(paced_chirping_use_remote_tsval, "Whether to use remote tsval t
  * 9. Add callback for pkt_acked to a function that calls paced_chirping_pkt_acked.
  */
 
-
-
 /*************** Public functions ****************/
 /* TCP CC modules must implement new_chirp and release.
  * This text is outdated
@@ -253,7 +242,6 @@ MODULE_PARM_DESC(paced_chirping_use_remote_tsval, "Whether to use remote tsval t
  *
  * paced_chirping_exit should be called upon LOSS
  */
-
 struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc);
 u32  paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc);
 void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs);
@@ -262,7 +250,6 @@ int  paced_chirping_active(struct paced_chirping *pc);
 void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason);
 void paced_chirping_release(struct sock *sk, struct paced_chirping* pc);
 u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now);
-
 
 #else
 
