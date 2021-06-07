@@ -28,12 +28,25 @@ void paced_chirping_cache_get(struct sock *sk, struct paced_chirping_cache *pc_c
 
 #if IS_ENABLED(CONFIG_PACED_CHIRPING)
 
+static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
+	return tp->is_chirping;
+}
+
+void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb);
+
 static inline int packed_chirping_packet_in_chirp(struct sk_buff *skb)
 {
 	return skb_ext_find(skb, SKB_EXT_PACED_CHIRPING) != NULL;
 }
 
 #else
+
+static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
+        return false;
+}
+
+static inline void paced_chirping_chirp_gap(struct sock *sk,
+					    struct sk_buff *skb) {}
 
 static inline int packed_chirping_packet_in_chirp(struct sk_buff *skb)
 {

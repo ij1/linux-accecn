@@ -150,6 +150,50 @@ u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned
 }
 EXPORT_SYMBOL(paced_chirping_tso_segs);
 
+void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (tp->chirp.packets > tp->chirp.packets_out) {
+		struct paced_chirping_ext *pc_ext = skb_ext_add(skb, SKB_EXT_PACED_CHIRPING);
+		struct skb_shared_info* info = skb_shinfo(skb);
+		struct chirp *chirp = &tp->chirp;
+		u64 len_ns = chirp->gap_ns;
+
+		chirp->gap_ns = (chirp->gap_step_ns > chirp->gap_ns) ? 0 : chirp->gap_ns - chirp->gap_step_ns;
+		chirp->packets_out++;
+
+		if (chirp->packets_out == 1U) {
+			chirp->begin_seq = tp->snd_nxt;
+		}
+
+		if (pc_ext) {
+			pc_ext->chirp_number = chirp->chirp_number;
+			pc_ext->packets = chirp->packets;
+			pc_ext->scheduled_gap = len_ns;
+		}
+		if (info) {
+			info->pacing_location  = INTERNAL_PACING;
+			info->pacing_timestamp = ktime_get_ns();
+		}
+
+		if (chirp->packets_out == chirp->packets) {
+			tp->tcp_wstamp_ns += chirp->guard_interval_ns;
+
+			if (pc_ext)
+				pc_ext->scheduled_gap = chirp->guard_interval_ns;
+
+			chirp->end_seq = TCP_SKB_CB(skb)->end_seq;
+			if (inet_csk(sk)->icsk_ca_ops->new_chirp)
+				inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
+		} else {
+			tp->tcp_wstamp_ns += len_ns;
+
+			if (chirp->scheduled_gaps)
+				chirp->scheduled_gaps[chirp->packets_out] = len_ns;
+		}
+	}
+}
 static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 					     struct paced_chirping *pc,
 					     u32 N,
