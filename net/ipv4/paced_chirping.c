@@ -140,7 +140,7 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 EXPORT_SYMBOL(paced_chirping_exit);
 
 /******************** Chirp creating functions ********************/
-u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
+u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
 {
 	if (paced_chirping_enabled && paced_chirping_active(pc)) {
 		return 1;
