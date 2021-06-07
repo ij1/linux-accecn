@@ -1425,7 +1425,7 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 					if (pc_ext)
 						pc_ext->scheduled_gap = chirp->guard_interval_ns;
 
-					chirp->end_seq = tp->snd_nxt + skb->len;
+					chirp->end_seq = TCP_SKB_CB(skb)->end_seq;
 					if (inet_csk(sk)->icsk_ca_ops->new_chirp)
 						inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
 				} else {
