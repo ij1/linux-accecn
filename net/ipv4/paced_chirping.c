@@ -149,12 +149,12 @@ u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigne
 				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 }
 
-u32 paced_chirping_schedule_new_chirp(struct sock *sk,
-				      struct paced_chirping *pc,
-				      u32 N,
-				      u64 gap_avg_ns,
-				      u64 gap_avg_load_ns,
-				      u16 geometry)
+static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
+					     struct paced_chirping *pc,
+					     u32 N,
+					     u64 gap_avg_ns,
+					     u64 gap_avg_load_ns,
+					     u16 geometry)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -239,7 +239,7 @@ static u32 paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
 	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
 }
 
-u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
+static u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	u32 avg_gap_of_chirp = min_t(u64, pc->gap_avg_ns, pc->gap_avg_load_ns);
@@ -277,7 +277,7 @@ EXPORT_SYMBOL(paced_chirping_new_chirp);
  * that acked the previous packet. If the same ack acked multiple packets this will
  * (currently) return 0 for the packets after the first.
  * Might be reasonable to have inter-arrival time and analysis on a per ack basis. */
-u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
+static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
 {
 	u64 recv_gap_us = ULONG_MAX;
 	/* Remote time-stamp based */
@@ -305,7 +305,7 @@ u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_bu
 	return (unlikely(recv_gap_us == ULONG_MAX)) ? ULONG_MAX : recv_gap_us * 1000;
 }
 
-u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
+static u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
 {
 	struct skb_shared_info* info = skb_shinfo(skb);
 	u64 send_gap = pc->previous_send_timestamp ? (info->pacing_timestamp - pc->previous_send_timestamp) : 0;
@@ -346,7 +346,7 @@ static inline u32 get_per_packet_ewma_shift(struct tcp_sock *tp)
 	return max(4U, (u32)ilog2(tcp_packets_in_flight(tp) + 2)); /* Should be at least 16 pkts */
 }
 
-void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 recv_gap)
+static void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 recv_gap)
 {
 	s64 difference = (s64)recv_gap - (s64)pc->recv_gap_estimate_ns;
 	EWMA(pc->recv_gap_ad, difference, ewma_shift);
@@ -354,7 +354,7 @@ void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 
 }
 
 /******************** Chirp analysis function ********************/
-u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, struct cc_chirp *c, struct sk_buff *skb)
+static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, struct cc_chirp *c, struct sk_buff *skb)
 {
 	struct paced_chirping_ext *pc_ext;
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -620,7 +620,7 @@ static u32 paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced
 	return 0;
 }
 
-void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
+static void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
 {
 	s32 difference = (s32)estimate - (s32)pc->gap_avg_ns;
 
@@ -628,13 +628,13 @@ void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma
 	EWMA(pc->gap_avg_ns, estimate, ewma_shift);
 }
 
-void update_gap_load_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
+static void update_gap_load_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
 {
 	if (estimate < pc->gap_avg_load_ns)
 		EWMA(pc->gap_avg_load_ns, estimate, ewma_shift);
 }
 
-void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift)
+static void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift)
 {
 	u64 agg = 1;
 	if (c->jumps && c->aggregated) {
@@ -644,7 +644,7 @@ void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chirp *c, 
 	pc->aggregate_estimate = pc->aggregate_estimate - (pc->aggregate_estimate>>ewma_shift) + ((agg<<AGGREGATION_SHIFT)>>ewma_shift);
 }
 
-void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
+static void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
 {
 	/* Try to have a chirp cover 4 aggregates. */
 	u32 cover_aggregates = (pc->aggregate_estimate<<PC_CHIRP_SIZE_COVER_AGGREGATION_SHIFT)>>AGGREGATION_SHIFT;
@@ -654,7 +654,7 @@ void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
 	pc->N = min_t(u32, max_size, max_t(u32, min_size, cover_aggregates));
 }
 
-void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
+static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 {
 	/* As the load gap approaches the average gap the geometry of the chirps should decrease.
 	 * This increases the likelihood that cross-traffic is able to affect the estimate.
@@ -688,7 +688,7 @@ static u32 get_per_chirp_ewma_shift(struct tcp_sock *tp, u32 chirp_size)
 	return max(1, shift); /* Should be at least 2 chirps */
 }
 
-void paced_chirping_reset_chirp(struct cc_chirp *c)
+static void paced_chirping_reset_chirp(struct cc_chirp *c)
 {
 	c->gap_total = 0;
 	c->gap_pending = 0;
@@ -904,8 +904,8 @@ static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tc
 	pc->gap_avg_ns = min_t(u32, pc->gap_avg_ns, paced_chirping_maximum_initial_gap);
 }
 
-void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
-			      struct paced_chirping *pc)
+static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
+				     struct paced_chirping *pc)
 {
 	/* Alter kernel behaviour*/
 	cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
