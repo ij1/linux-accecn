@@ -135,8 +135,6 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 }
 EXPORT_SYMBOL(paced_chirping_exit);
 
-
-
 /******************** Chirp creating functions ********************/
 u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
 {
@@ -268,50 +266,6 @@ u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
 EXPORT_SYMBOL(paced_chirping_new_chirp);
 
 /********************************************************************************/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* Returns the inter-arrival time between the ack that acked this packet and the ack
  * that acked the previous packet. If the same ack acked multiple packets this will
@@ -470,7 +424,6 @@ u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, stru
 		EWMA(pc->queueing_delay_mad_us, abs((s32)qdelay - (s32)pc->queueing_delay_average_us), ewma_shift);
 		EWMA(pc->queueing_delay_average_us, qdelay, ewma_shift);
 
-
 		/* TODO: reset sum if rtt is close to min_rtt and sum close to 0 */
 		pc->queueing_delay_based_on_sum_of_deltas_ns = pc->queueing_delay_based_on_sum_of_deltas_ns + (s64)recv_gap - (s64)send_gap;
 	}
@@ -593,47 +546,6 @@ u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, stru
 }
 /********************************************************************************/
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /******************** Controller/Algorithm functions ********************/
 /* Reactive:  Estimates that are overly conservative unless continuous utilization
  *            of the link is the case. Needs persistent congestion.
@@ -705,7 +617,6 @@ void update_gap_load_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32
 	if (estimate < pc->gap_avg_load_ns)
 		EWMA(pc->gap_avg_load_ns, estimate, ewma_shift);
 }
-
 
 void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift)
 {
@@ -934,9 +845,6 @@ EXPORT_SYMBOL(paced_chirping_pkt_acked);
 
 /********************************************************************************/
 
-
-
-
 /* This function is called only once per acknowledgement */
 void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs)
 {
@@ -955,50 +863,6 @@ void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const str
 	pc->old_snd_una = tp->snd_una;
 }
 EXPORT_SYMBOL(paced_chirping_update);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tcp_sock *tp, struct paced_chirping *pc)
 {
