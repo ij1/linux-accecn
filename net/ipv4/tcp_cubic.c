@@ -154,8 +154,6 @@ static void bictcp_init(struct sock *sk)
 
 	if (!hystart && initial_ssthresh)
 		tcp_sk(sk)->snd_ssthresh = initial_ssthresh;
-
-
 }
 
 static void bictcp_cwnd_event(struct sock *sk, enum tcp_ca_event event)
