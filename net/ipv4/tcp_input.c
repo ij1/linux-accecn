@@ -4324,7 +4324,7 @@ void tcp_parse_options(const struct net *net,
 
 			case TCPOPT_EXP:
 				if (opsize >= TCPOLEN_EXP_ACCECN_BASE) {
-					__be16 magic = get_unaligned_be16(ptr);
+					u16 magic = get_unaligned_be16(ptr);
 					if (magic == TCPOPT_ACCECN0_MAGIC ||
 					    magic == TCPOPT_ACCECN1_MAGIC)
 						opt_rx->accecn = (ptr - 2) - (unsigned char *)th;
