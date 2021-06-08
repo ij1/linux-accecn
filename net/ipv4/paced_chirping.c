@@ -17,7 +17,7 @@
 #include <net/paced_chirping.h>
 
 static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct cc_chirp *c);
-static u32 paced_chirping_is_discontinuous_link(struct paced_chirping *pc);
+static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc);
 
 inline int paced_chirping_active(struct paced_chirping *pc)
 {
@@ -274,7 +274,7 @@ static bool enough_data_for_chirp(struct sock *sk, struct tcp_sock *tp, int N)
  * followed by sending at a much higher rate compared to average.
  * This kind of link cannot be handled by original chirp analysis.
  * Note that WiFi without aggregation is not discontinuous with this description. */
-static u32 paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
+static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
 {
 	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
 }
