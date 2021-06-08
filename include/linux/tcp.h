@@ -85,8 +85,6 @@ struct chirp {
 	u32 gap_ns;
 	u32 gap_step_ns;
 	u32 guard_interval_ns;
-	u32 begin_seq;
-	u32 end_seq;
 	u16 chirp_number;
 	u64 *scheduled_gaps;
 };

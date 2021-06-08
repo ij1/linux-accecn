@@ -158,10 +158,6 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		chirp->gap_ns = max_t(s32, chirp->gap_ns - chirp->gap_step_ns, 0);
 		chirp->packets_out++;
 
-		if (chirp->packets_out == 1U) {
-			chirp->begin_seq = tp->snd_nxt;
-		}
-
 		if (pc_ext) {
 			pc_ext->chirp_number = chirp->chirp_number;
 			pc_ext->packets = chirp->packets;
@@ -178,7 +174,6 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 			if (pc_ext)
 				pc_ext->scheduled_gap = chirp->guard_interval_ns;
 
-			chirp->end_seq = TCP_SKB_CB(skb)->end_seq;
 			if (inet_csk(sk)->icsk_ca_ops->new_chirp)
 				inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
 		} else {
