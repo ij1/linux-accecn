@@ -328,15 +328,13 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 
 	/* Remote time-stamp based */
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
-		if (pc->previous_rcv_tsval)
+		if (pc->previous_rcv_tsval) {
 			recv_gap_us = tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval;
 
-		if (pc->previous_rcv_tsval &&
-		    !pc->rcv_tsval_us_granul &&
-		    tp->srtt_us &&
-		    /* recv_gap_us > srtt(ms) * 2 */
-		    (recv_gap_us > paced_chirping_get_smoothed_rtt_us(tp, pc)>>9)) {
-			pc->rcv_tsval_us_granul = 1;
+			if (!pc->rcv_tsval_us_granul && tp->srtt_us &&
+			    /* recv_gap_us > srtt(ms) * 2 */
+			    (recv_gap_us > (tp->srtt_us >> (3 + 10-1))))
+				pc->rcv_tsval_us_granul = 1;
 		}
 		pc->previous_rcv_tsval = tp->rx_opt.rcv_tsval;
 	}
