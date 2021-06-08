@@ -633,7 +633,6 @@ static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_s
 static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
-	//u63 threshold = paced_chirping_service_time_queueing_delay_thresh_us;
 	/* (RTT + variation) * X%, X scaled by 1024 */
 	u64 threshold = (u64)tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
 	do_div(threshold, 1024U);
@@ -645,9 +644,6 @@ static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp
 	if (qdelay_us > threshold) {
 		return 1;
 	}
-	/*if (qdelay_us > paced_chirping_service_time_queueing_delay_thresh_us) {
-	  return 1;
-	  }*/
 	return 0;
 }
 
