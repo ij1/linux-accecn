@@ -325,9 +325,9 @@ EXPORT_SYMBOL(paced_chirping_new_chirp);
 static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
 {
 	u64 recv_gap_us = ULONG_MAX;
+
 	/* Remote time-stamp based */
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
-
 		if (pc->previous_rcv_tsval)
 			recv_gap_us = tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval;
 
@@ -347,15 +347,19 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 	}
 	pc->previous_recv_timestamp = tp->tcp_mstamp;
 
-	return (unlikely(recv_gap_us == ULONG_MAX)) ? ULONG_MAX : recv_gap_us * 1000;
+	return (unlikely(recv_gap_us == ULONG_MAX)) ? ULONG_MAX :
+						      recv_gap_us * 1000;
 }
 
 static u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
 {
 	struct skb_shared_info* info = skb_shinfo(skb);
-	u64 send_gap = pc->previous_send_timestamp ? (info->pacing_timestamp - pc->previous_send_timestamp) : 0;
+	u64 send_gap = pc->previous_send_timestamp ?
+		       info->pacing_timestamp - pc->previous_send_timestamp : 0;
+
 	pc->previous_send_timestamp = info->pacing_timestamp;
 	pc->send_timestamp_location = info->pacing_location;
+
 	return send_gap;
 }
 
