@@ -441,9 +441,8 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 			c->rate_delivered += 1;
 		} else { /* If jump, use estimate */
 
-			if (pc->start_qdelay > pc->prev_qdelay) {
+			if (pc->start_qdelay > pc->prev_qdelay)
 				c->rate_interval_ns += (pc->start_qdelay - pc->prev_qdelay)*1000;
-			}
 
 			proactive = paced_chirping_get_proactive_service_time(tp, c);
 
