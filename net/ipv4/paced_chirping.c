@@ -319,12 +319,13 @@ EXPORT_SYMBOL(paced_chirping_new_chirp);
  * Might be reasonable to have inter-arrival time and analysis on a per ack basis. */
 static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
 {
-	u64 recv_gap_us = ULONG_MAX;
+	u64 recv_gap = ULONG_MAX;
 
 	/* Remote time-stamp based */
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
 		if (pc->previous_rcv_tsval) {
-			recv_gap_us = tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval;
+			u64 recv_gap_us = tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval;
+			recv_gap = recv_gap_us * 1000;
 
 			if (!pc->rcv_tsval_us_granul && tp->srtt_us &&
 			    /* recv_gap_us > srtt(ms) * 2 */
@@ -336,12 +337,11 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 
 	/* Local time-stamp based */
 	if (pc->previous_recv_timestamp && !pc->rcv_tsval_us_granul) {
-		recv_gap_us = tp->tcp_mstamp - pc->previous_recv_timestamp;
+		recv_gap = (tp->tcp_mstamp - pc->previous_recv_timestamp) * 1000;
 	}
 	pc->previous_recv_timestamp = tp->tcp_mstamp;
 
-	return (unlikely(recv_gap_us == ULONG_MAX)) ? ULONG_MAX :
-						      recv_gap_us * 1000;
+	return recv_gap;
 }
 
 static u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
