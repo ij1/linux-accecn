@@ -37,11 +37,6 @@ static u32 paced_chirping_get_smoothed_queueing_delay_us(struct tcp_sock *tp, st
 	return tp->srtt_us ? (tp->srtt_us>>3) - tcp_min_rtt(tp) : 0;
 }
 
-static u32 paced_chirping_get_smoothed_rtt_us(struct tcp_sock *tp, struct paced_chirping *pc)
-{
-	return tp->srtt_us>>3;
-}
-
 static struct cc_chirp* get_chirp_struct(struct paced_chirping *pc)
 {
 	return &pc->cur_chirp;
@@ -720,7 +715,7 @@ static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 
 static inline void update_load_window(struct tcp_sock *tp, struct paced_chirping *pc)
 {
-	u64 window = paced_chirping_get_smoothed_rtt_us(tp, pc) * 1000;
+	u64 window = ((u64)tp->srtt_us * 1000) >> 3;
 	do_div(window, max(1U, pc->gap_avg_load_ns));
 	pc->load_window = min_t(u32, window, tp->snd_cwnd_clamp);
 }
