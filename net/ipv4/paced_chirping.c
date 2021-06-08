@@ -368,13 +368,10 @@ static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct pace
 	/* Iterate over all acked pkts and choose the newest timestamp.
 	 * This is necessary to deal with delayed acks. If not, chirp
 	 * estimate will be way too optimistic. */
-	struct sk_buff *next;
-	for (skb = skb_rb_next(skb); skb; skb = next) {
-		struct tcp_skb_cb *scb = TCP_SKB_CB(skb);
-		if (after(scb->end_seq, tp->snd_una))
+	skb_rbtree_walk_from(skb) {
+		if (after(TCP_SKB_CB(skb)->end_seq, tp->snd_una))
 			break;
 		last_ackt = tcp_skb_timestamp_us(skb);
-		next = skb_rb_next(skb);
 	}
 
 	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, last_ackt);
