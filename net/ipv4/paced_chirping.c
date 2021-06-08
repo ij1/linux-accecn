@@ -630,7 +630,7 @@ static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_s
 	return min_t(u32, reactive_service_time_ns, reactive_recv_gap_estimate_ns);
 }
 
-static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
+static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
 	/* (RTT + variation) * X%, X scaled by 1024 */
@@ -641,10 +641,7 @@ static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp
 		threshold = max_t(u64, threshold, 10000U);
 	}
 
-	if (qdelay_us > threshold) {
-		return 1;
-	}
-	return 0;
+	return qdelay_us > threshold;
 }
 
 static u32 paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
