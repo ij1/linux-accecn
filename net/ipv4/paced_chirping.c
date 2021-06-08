@@ -471,7 +471,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		/* TODO: This might be superfluous */
 		update_recv_gap_estimate_ns(pc, ewma_shift, recv_gap);
 
-		EWMA(pc->queueing_delay_mad_us, abs((s32)qdelay - (s32)pc->queueing_delay_average_us), ewma_shift);
+		EWMA(pc->queueing_delay_mad_us, abs((s32)(qdelay - pc->queueing_delay_average_us)), ewma_shift);
 		EWMA(pc->queueing_delay_average_us, qdelay, ewma_shift);
 
 		/* TODO: reset sum if rtt is close to min_rtt and sum close to 0 */
