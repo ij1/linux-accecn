@@ -697,7 +697,7 @@ static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 	low_thresh = 1U << PC_G_G_SHIFT;
 	low_thresh += div_u64((u64)(pc->N-1)<<(10 + PC_G_G_SHIFT), pc->gap_avg_ns+1);
 
-	rel_diff = div_u64(pc->gap_avg_load_ns<<PC_G_G_SHIFT, pc->gap_avg_ns+1);
+	rel_diff = div_u64((u64)pc->gap_avg_load_ns<<PC_G_G_SHIFT, pc->gap_avg_ns+1);
 
 	pc->geometry = clamp_val(rel_diff, low_thresh, 2U << PC_G_G_SHIFT);
 }
