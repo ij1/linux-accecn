@@ -410,18 +410,15 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	if (rtt_us <= 0 || !ext)
 		return 0;
 
-	/* Set variables (all except qdelay_diff) */
-	scheduled_gap = ext->scheduled_gap;  /* Get recorded information */
-	packets_in_chirp = ext->packets;     /* Get recorded information */
-	send_gap = get_send_gap_ns(pc, skb);     /* Measured inter-send time */
-	recv_gap = get_recv_gap_ns(tp, pc, skb); /* Receiver or sender based (best) */
-	qdelay = paced_chirping_get_queueing_delay_us(tp, pc, skb); /* Receiver or sender based (best) */
+	scheduled_gap = ext->scheduled_gap;
+	packets_in_chirp = ext->packets;
+	send_gap = get_send_gap_ns(pc, skb);
+	recv_gap = get_recv_gap_ns(tp, pc, skb);
+	qdelay = paced_chirping_get_queueing_delay_us(tp, pc, skb);
 	ewma_shift = get_per_packet_ewma_shift(tp);
 
-	/* Persistent queueing delay */
 	c->min_qdelay_us = min_t(u32, c->min_qdelay_us, qdelay);
 
-	/* Increment at the start */
 	c->packets_acked++;
 
 	if (recv_gap != ULLONG_MAX) {
@@ -444,9 +441,8 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 			c->rate_delivered += 1;
 		} else { /* If jump, use estimate */
 
-			/* Queueing delay has decreased over the aggregate */
 			if (pc->start_qdelay > pc->prev_qdelay) {
-				c->rate_interval_ns += (pc->start_qdelay - pc->prev_qdelay)*1000; /* From us to ns */
+				c->rate_interval_ns += (pc->start_qdelay - pc->prev_qdelay)*1000;
 			}
 
 			proactive = paced_chirping_get_proactive_service_time(tp, c);
@@ -497,9 +493,9 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		     c->rate_delivered));
 
 	/* Start of original online analysis */
-	if (c->packets_acked == 1U) { /* First packet */
+	if (c->packets_acked == 1U) {
 		c->last_delay = qdelay;
-		return 0; /* Nothing more to do */
+		return 0;
 	}
 
 	if (c->valid) { /* All other packets */
