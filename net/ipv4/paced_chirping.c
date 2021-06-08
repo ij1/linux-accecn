@@ -945,7 +945,7 @@ static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
 	tp->is_chirping = 1;
 
 	/* Initial algorithm variables */
-	pc->geometry = min_t(u32, max_t(u32, paced_chirping_initial_geometry, 1U << PC_G_G_SHIFT), 2U << PC_G_G_SHIFT);
+	pc->geometry = clamp_val(paced_chirping_initial_geometry, 1U << PC_G_G_SHIFT, 2U << PC_G_G_SHIFT);
 	pc->next_chirp_number = PC_INITIAL_CHIRP_NUMBER;
 	pc->N = paced_chirping_prob_size;
 	paced_chirping_reset_chirp(get_chirp_struct(pc));
