@@ -905,8 +905,9 @@ static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tc
 	struct paced_chirping_cache cache;
 
 	if (paced_chirping_use_initial_srrt && tp->srtt_us>>3) {
-		pc->gap_avg_ns = NSEC_PER_USEC * ((tp->srtt_us>>3) >> paced_chirping_gap_pkts_shift);
-		pc->gap_avg_load_ns = NSEC_PER_USEC * ((tp->srtt_us>>3) >> paced_chirping_load_gap_pkts_shift);
+		u64 srtt_ns = (u64)tp->srtt_us * NSEC_PER_USEC;
+		pc->gap_avg_ns = srtt_ns >> (3 + paced_chirping_gap_pkts_shift);
+		pc->gap_avg_load_ns = srtt_ns >> (3 + paced_chirping_load_gap_pkts_shift);
 	} else {
 		pc->gap_avg_ns = paced_chirping_initial_gap_ns;
 		pc->gap_avg_load_ns = paced_chirping_initial_load_gap_ns;
