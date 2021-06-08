@@ -685,16 +685,15 @@ static void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
 
 static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 {
+	u32 low_thresh;
+	u32 rel_diff;
+
 	/* As the load gap approaches the average gap the geometry of the chirps should decrease.
 	 * This increases the likelihood that cross-traffic is able to affect the estimate.
 	 *
 	 * The lower limit aims at keeping at least 2 us difference between each gap.
 	 * The value of 2 is arbitrary. step = (avg * 2 * (geom - 1)) / (N-1). step >= 2000 ->
 	 */
-
-	u32 rel_diff;
-	u32 low_thresh;
-
 	low_thresh = 1U << PC_G_G_SHIFT;
 	low_thresh += div_u64((u64)(pc->N-1)<<(10 + PC_G_G_SHIFT), pc->gap_avg_ns+1);
 
