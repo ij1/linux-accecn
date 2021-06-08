@@ -155,7 +155,7 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		struct chirp *chirp = &tp->chirp;
 		u64 len_ns = chirp->gap_ns;
 
-		chirp->gap_ns = (chirp->gap_step_ns > chirp->gap_ns) ? 0 : chirp->gap_ns - chirp->gap_step_ns;
+		chirp->gap_ns = max_t(s32, chirp->gap_ns - chirp->gap_step_ns, 0);
 		chirp->packets_out++;
 
 		if (chirp->packets_out == 1U) {
