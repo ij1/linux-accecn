@@ -475,7 +475,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		EWMA(pc->queueing_delay_average_us, qdelay, ewma_shift);
 
 		/* TODO: reset sum if rtt is close to min_rtt and sum close to 0 */
-		pc->qdelay_from_delta_sum_ns = pc->qdelay_from_delta_sum_ns + (s64)recv_gap - (s64)send_gap;
+		pc->qdelay_from_delta_sum_ns = pc->qdelay_from_delta_sum_ns + recv_gap - send_gap;
 	}
 
 	TRACE_PRINT((KERN_DEBUG "[PC-analysis] %u-%u-%hu-%hu,"
