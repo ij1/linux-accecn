@@ -671,7 +671,7 @@ static void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chi
 		agg = c->aggregated + c->jumps;
 		do_div(agg, c->jumps);
 	}
-	pc->aggregate_estimate = pc->aggregate_estimate - (pc->aggregate_estimate>>ewma_shift) + ((agg<<AGGREGATION_SHIFT)>>ewma_shift);
+	EWMA(pc->aggregate_estimate, agg << AGGREGATION_SHIFT, ewma_shift);
 }
 
 static void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
