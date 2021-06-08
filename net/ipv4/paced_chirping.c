@@ -150,7 +150,7 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (tp->chirp.packets > tp->chirp.packets_out) {
-		struct paced_chirping_ext *pc_ext = skb_ext_add(skb, SKB_EXT_PACED_CHIRPING);
+		struct paced_chirping_ext *ext = skb_ext_add(skb, SKB_EXT_PACED_CHIRPING);
 		struct skb_shared_info* info = skb_shinfo(skb);
 		struct chirp *chirp = &tp->chirp;
 		u64 len_ns = chirp->gap_ns;
@@ -158,10 +158,10 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		chirp->gap_ns = max_t(s32, chirp->gap_ns - chirp->gap_step_ns, 0);
 		chirp->packets_out++;
 
-		if (pc_ext) {
-			pc_ext->chirp_number = chirp->chirp_number;
-			pc_ext->packets = chirp->packets;
-			pc_ext->scheduled_gap = len_ns;
+		if (ext) {
+			ext->chirp_number = chirp->chirp_number;
+			ext->packets = chirp->packets;
+			ext->scheduled_gap = len_ns;
 		}
 		if (info) {
 			info->pacing_location  = INTERNAL_PACING;
@@ -171,8 +171,8 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		if (chirp->packets_out == chirp->packets) {
 			tp->tcp_wstamp_ns += chirp->guard_interval_ns;
 
-			if (pc_ext)
-				pc_ext->scheduled_gap = chirp->guard_interval_ns;
+			if (ext)
+				ext->scheduled_gap = chirp->guard_interval_ns;
 
 			if (inet_csk(sk)->icsk_ca_ops->new_chirp)
 				inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
@@ -391,7 +391,7 @@ static void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shif
 /******************** Chirp analysis function ********************/
 static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, struct cc_chirp *c, struct sk_buff *skb)
 {
-	struct paced_chirping_ext *pc_ext;
+	struct paced_chirping_ext *ext;
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	s64 rtt_us;           /* RTT measured for this packet*/
@@ -404,15 +404,15 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	u32 ewma_shift;       /* shift value to use for per packet EWMA */
 	u32 proactive = UINT_MAX;
 
-	pc_ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
+	ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
 	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, tcp_skb_timestamp_us(skb));
 
-	if (rtt_us <= 0 || !pc_ext)
+	if (rtt_us <= 0 || !ext)
 		return 0;
 
 	/* Set variables (all except qdelay_diff) */
-	scheduled_gap = pc_ext->scheduled_gap;  /* Get recorded information */
-	packets_in_chirp = pc_ext->packets;     /* Get recorded information */
+	scheduled_gap = ext->scheduled_gap;  /* Get recorded information */
+	packets_in_chirp = ext->packets;     /* Get recorded information */
 	send_gap = get_send_gap_ns(pc, skb);     /* Measured inter-send time */
 	recv_gap = get_recv_gap_ns(tp, pc, skb); /* Receiver or sender based (best) */
 	qdelay = paced_chirping_get_queueing_delay_us(tp, pc, skb); /* Receiver or sender based (best) */
@@ -737,7 +737,7 @@ static void paced_chirping_reset_chirp(struct cc_chirp *c)
 
 static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb)
 {
-	struct paced_chirping_ext *pc_ext;
+	struct paced_chirping_ext *ext;
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct cc_chirp *c;
 	u32 ewma_shift;
@@ -745,16 +745,16 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 	u32 proactive_service_time;
 	u32 persistent_service_time;
 
-	pc_ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
-	if (!pc_ext) { /* Acked packet that is not part of a chirp */
+	ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
+	if (!ext) { /* Acked packet that is not part of a chirp */
 		return;
 	}
 
 	c = get_chirp_struct(pc);
-	if (c->chirp_number != pc_ext->chirp_number) {
+	if (c->chirp_number != ext->chirp_number) {
 		/* Reset the chirp */
 		paced_chirping_reset_chirp(c);
-		c->chirp_number = pc_ext->chirp_number;
+		c->chirp_number = ext->chirp_number;
 	}
 
 	/* For debugging/non-convergence safety purposes */
