@@ -635,7 +635,7 @@ static u32 paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp
 	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
 	//u63 threshold = paced_chirping_service_time_queueing_delay_thresh_us;
 	/* (RTT + variation) * X%, X scaled by 1024 */
-	u64 threshold = tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
+	u64 threshold = (u64)tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
 	do_div(threshold, 1024U);
 
 	if (paced_chirping_is_discontinuous_link(pc)) {
