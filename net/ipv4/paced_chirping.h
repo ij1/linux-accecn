@@ -96,7 +96,7 @@ struct cc_chirp {
 	u32     last_sample;
 
 	/* Detecting persistent queueing delay */
-	u32     min_queueing_delay_us;
+	u32     min_qdelay_us;
 
 	/* Same interpretation as tp members, but
 	 * only over part of a chirp with persistent queueing delay. */

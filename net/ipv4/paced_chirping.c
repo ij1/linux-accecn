@@ -28,7 +28,7 @@ EXPORT_SYMBOL(paced_chirping_active);
 static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	/* The minimum queueing delay over a chirp is a hot candidate. */
-	return c->min_queueing_delay_us == UINT_MAX ? 0 : c->min_queueing_delay_us;
+	return c->min_qdelay_us == UINT_MAX ? 0 : c->min_qdelay_us;
 }
 
 static u32 paced_chirping_get_smoothed_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc)
@@ -423,7 +423,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	ewma_shift = get_per_packet_ewma_shift(tp);
 
 	/* Persistent queueing delay */
-	c->min_queueing_delay_us = min_t(u32, c->min_queueing_delay_us, qdelay);
+	c->min_qdelay_us = min_t(u32, c->min_qdelay_us, qdelay);
 
 	/* Increment at the start */
 	c->packets_acked++;
@@ -493,7 +493,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		     recv_gap,
 		     qdelay,
 
-		     c->min_queueing_delay_us,
+		     c->min_qdelay_us,
 		     pc->send_timestamp_location,
 		     tp->tcp_mstamp,
 		     proactive,
@@ -748,7 +748,7 @@ static void paced_chirping_reset_chirp(struct cc_chirp *c)
 	//c->rate_interval_ns = 0;
 	//c->rate_delivered = 0;
 
-	c->min_queueing_delay_us = UINT_MAX;
+	c->min_qdelay_us = UINT_MAX;
 }
 
 static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb)
@@ -878,7 +878,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 			     pc->send_timestamp_location,
 
 			     tcp_min_rtt(tp),
-			     c->min_queueing_delay_us,
+			     c->min_qdelay_us,
 			     tp->srtt_us>>3,
 			     tp->snd_cwnd,
 			     tcp_packets_in_flight(tp),
