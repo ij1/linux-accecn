@@ -692,7 +692,7 @@ static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 	 * The value of 2 is arbitrary. step = (avg * 2 * (geom - 1)) / (N-1). step >= 2000 ->
 	 */
 
-	u64 relative_difference;
+	u32 relative_difference;
 	u32 lower_threshold;
 
 	lower_threshold = 1U << PC_G_G_SHIFT;
