@@ -70,9 +70,9 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 	/* TODO: Reconsider this if discontinuous link */
 	if (!paced_chirping_is_discontinuous_link(pc)) {
 		upper_limit = div_u64((u64)tcp_min_rtt(tp) * NSEC_PER_USEC, pc->gap_avg_ns);
-		exit_cwnd_window = max(2U, min_t(u32, upper_limit, tcp_packets_in_flight(tp)));
+		exit_cwnd_window = clamp_val(tcp_packets_in_flight(tp), 2U, upper_limit);
 	} else {
-		exit_cwnd_window = max_t(u32, 2U, tcp_packets_in_flight(tp));
+		exit_cwnd_window = max(2U, tcp_packets_in_flight(tp));
 	}
 
 	switch(reason) {
