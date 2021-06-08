@@ -374,7 +374,7 @@ static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct pace
 	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, last_ackt);
 	queue_delay_us = (u32)max_t(s64, 0LL, rtt_us - tcp_min_rtt(tp));
 	if (paced_chirping_use_remote_tsval && pc->rcv_tsval_us_granul) {
-		queue_delay_us = div_u64((u64)max((s64)0U, pc->qdelay_from_delta_sum_ns), 1000);
+		queue_delay_us = div_u64((u64)max_t(s64, 0LL, pc->qdelay_from_delta_sum_ns), 1000U);
 	}
 	return queue_delay_us;
 }
