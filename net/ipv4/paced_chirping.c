@@ -692,15 +692,15 @@ static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 	 * The value of 2 is arbitrary. step = (avg * 2 * (geom - 1)) / (N-1). step >= 2000 ->
 	 */
 
-	u32 relative_difference;
-	u32 lower_threshold;
+	u32 rel_diff;
+	u32 low_thresh;
 
-	lower_threshold = 1U << PC_G_G_SHIFT;
-	lower_threshold += div_u64((u64)(pc->N-1)<<(10 + PC_G_G_SHIFT), pc->gap_avg_ns+1);
+	low_thresh = 1U << PC_G_G_SHIFT;
+	low_thresh += div_u64((u64)(pc->N-1)<<(10 + PC_G_G_SHIFT), pc->gap_avg_ns+1);
 
-	relative_difference = div_u64(pc->gap_avg_load_ns<<PC_G_G_SHIFT, pc->gap_avg_ns+1);
+	rel_diff = div_u64(pc->gap_avg_load_ns<<PC_G_G_SHIFT, pc->gap_avg_ns+1);
 
-	pc->geometry = clamp_val(relative_difference, lower_threshold, 2U << PC_G_G_SHIFT);
+	pc->geometry = clamp_val(rel_diff, low_thresh, 2U << PC_G_G_SHIFT);
 }
 
 static inline void update_load_window(struct tcp_sock *tp, struct paced_chirping *pc)
