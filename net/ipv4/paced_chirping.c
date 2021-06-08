@@ -319,7 +319,7 @@ EXPORT_SYMBOL(paced_chirping_new_chirp);
  * Might be reasonable to have inter-arrival time and analysis on a per ack basis. */
 static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
 {
-	u64 recv_gap = ULONG_MAX;
+	u64 recv_gap = ULLONG_MAX;
 
 	/* Remote time-stamp based */
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
@@ -428,7 +428,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	/* Increment at the start */
 	c->packets_acked++;
 
-	if (recv_gap != ULONG_MAX) {
+	if (recv_gap != ULLONG_MAX) {
 		/* Detecting discontinuous links
 		 * TODO: Deal with delayed acks and ack thinning. */
 		if (//recv_gap != 0 &&
