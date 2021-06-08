@@ -69,7 +69,7 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 
 	/* TODO: Reconsider this if discontinuous link */
 	if (!paced_chirping_is_discontinuous_link(pc)) {
-		upper_limit = div_u64((u64)tcp_min_rtt(tp)*1000, pc->gap_avg_ns);
+		upper_limit = div_u64((u64)tcp_min_rtt(tp) * NSEC_PER_USEC, pc->gap_avg_ns);
 		exit_cwnd_window = max(2U, min_t(u32, upper_limit, tcp_packets_in_flight(tp)));
 	} else {
 		exit_cwnd_window = max_t(u32, 2U, tcp_packets_in_flight(tp));
@@ -320,7 +320,7 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
 		if (pc->previous_rcv_tsval) {
 			u64 recv_gap_us = tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval;
-			recv_gap = recv_gap_us * 1000;
+			recv_gap = recv_gap_us * NSEC_PER_USEC;
 
 			if (!pc->rcv_tsval_us_granul && tp->srtt_us &&
 			    /* recv_gap_us > srtt(ms) * 2 */
@@ -332,7 +332,7 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 
 	/* Local time-stamp based */
 	if (pc->previous_recv_timestamp && !pc->rcv_tsval_us_granul) {
-		recv_gap = (tp->tcp_mstamp - pc->previous_recv_timestamp) * 1000;
+		recv_gap = (tp->tcp_mstamp - pc->previous_recv_timestamp) * NSEC_PER_USEC;
 	}
 	pc->previous_recv_timestamp = tp->tcp_mstamp;
 
@@ -370,7 +370,7 @@ static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct pace
 	queue_delay_us = (u32)max_t(s64, 0LL, rtt_us - tcp_min_rtt(tp));
 
 	if (paced_chirping_use_remote_tsval && pc->rcv_tsval_us_granul)
-		queue_delay_us = div_u64((u64)max_t(s64, 0LL, pc->qdelay_from_delta_sum_ns), 1000U);
+		queue_delay_us = div_u64((u64)max_t(s64, 0LL, pc->qdelay_from_delta_sum_ns), NSEC_PER_USEC);
 
 	return queue_delay_us;
 }
@@ -435,14 +435,14 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		}
 
 		if (!(recv_gap > (pc->gap_avg_ns<<1)) ||
-		    (pc->prev_qdelay*1000 > send_gap &&
+		    (pc->prev_qdelay * NSEC_PER_USEC > send_gap &&
 		     c->rate_delivered < tcp_packets_in_flight(tp))) { /* If not jump, collect */
 			c->rate_interval_ns += recv_gap;
 			c->rate_delivered += 1;
 		} else { /* If jump, use estimate */
 
 			if (pc->start_qdelay > pc->prev_qdelay)
-				c->rate_interval_ns += (pc->start_qdelay - pc->prev_qdelay)*1000;
+				c->rate_interval_ns += (pc->start_qdelay - pc->prev_qdelay) * NSEC_PER_USEC;
 
 			proactive = paced_chirping_get_proactive_service_time(tp, c);
 
@@ -593,7 +593,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
  * headers. */
 static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
 {
-	u64 interval = tp->rate_interval_us * 1000;
+	u64 interval = tp->rate_interval_us * NSEC_PER_USEC;
 	u32 delivered = tp->rate_delivered;
 	if (!interval || !delivered)
 		return UINT_MAX;
@@ -694,7 +694,7 @@ static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 
 static inline void update_load_window(struct tcp_sock *tp, struct paced_chirping *pc)
 {
-	u64 window = ((u64)tp->srtt_us * 1000) >> 3;
+	u64 window = ((u64)tp->srtt_us * NSEC_PER_USEC) >> 3;
 	do_div(window, max(1U, pc->gap_avg_load_ns));
 	pc->load_window = min_t(u32, window, tp->snd_cwnd_clamp);
 }
@@ -905,8 +905,8 @@ static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tc
 	struct paced_chirping_cache cache;
 
 	if (paced_chirping_use_initial_srrt && tp->srtt_us>>3) {
-		pc->gap_avg_ns = 1000*((tp->srtt_us>>3)>>paced_chirping_gap_pkts_shift);
-		pc->gap_avg_load_ns = 1000*((tp->srtt_us>>3)>>paced_chirping_load_gap_pkts_shift);
+		pc->gap_avg_ns = NSEC_PER_USEC * ((tp->srtt_us>>3) >> paced_chirping_gap_pkts_shift);
+		pc->gap_avg_load_ns = NSEC_PER_USEC * ((tp->srtt_us>>3) >> paced_chirping_load_gap_pkts_shift);
 	} else {
 		pc->gap_avg_ns = paced_chirping_initial_gap_ns;
 		pc->gap_avg_load_ns = paced_chirping_initial_load_gap_ns;
