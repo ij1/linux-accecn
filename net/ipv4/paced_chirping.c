@@ -637,9 +637,8 @@ static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *t
 	u64 threshold = (u64)tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
 	do_div(threshold, 1024U);
 
-	if (paced_chirping_is_discontinuous_link(pc)) {
+	if (paced_chirping_is_discontinuous_link(pc))
 		threshold = max_t(u64, threshold, 10000U);
-	}
 
 	return qdelay_us > threshold;
 }
