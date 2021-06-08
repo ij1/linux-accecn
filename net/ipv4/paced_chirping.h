@@ -142,7 +142,7 @@ struct paced_chirping {
 	u32     load_window;     /* In case RTT suddenly increases. RTT/avg_load */
 
 	/* Alternative queueing delay calculation */
-	s64     queueing_delay_based_on_sum_of_deltas_ns; /* Sum of deltas between recv gap and send gap. */
+	s64     qdelay_from_delta_sum_ns; /* Sum of deltas between recv gap and send gap. */
 
 	/* For logging and debugging purposes */
 	u32     old_snd_una; /* Used to see how many bytes an ack acked. */

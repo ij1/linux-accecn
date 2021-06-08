@@ -116,7 +116,7 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 		   pc->aggregate_estimate>>AGGREGATION_SHIFT,
 		   pc->N,
 		   pc->geometry,
-		   pc->queueing_delay_based_on_sum_of_deltas_ns,
+		   pc->qdelay_from_delta_sum_ns,
 		   pc->next_chirp_number,
 		   pc->state,
 		   pc->send_timestamp_location,
@@ -374,7 +374,7 @@ static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct pace
 	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, last_ackt);
 	queue_delay_us = (u32)max_t(s64, 0LL, rtt_us - tcp_min_rtt(tp));
 	if (paced_chirping_use_remote_tsval && pc->rcv_tsval_us_granul) {
-		queue_delay_us = div_u64((u64)max((s64)0U, pc->queueing_delay_based_on_sum_of_deltas_ns), 1000);
+		queue_delay_us = div_u64((u64)max((s64)0U, pc->qdelay_from_delta_sum_ns), 1000);
 	}
 	return queue_delay_us;
 }
@@ -475,7 +475,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		EWMA(pc->queueing_delay_average_us, qdelay, ewma_shift);
 
 		/* TODO: reset sum if rtt is close to min_rtt and sum close to 0 */
-		pc->queueing_delay_based_on_sum_of_deltas_ns = pc->queueing_delay_based_on_sum_of_deltas_ns + (s64)recv_gap - (s64)send_gap;
+		pc->qdelay_from_delta_sum_ns = pc->qdelay_from_delta_sum_ns + (s64)recv_gap - (s64)send_gap;
 	}
 
 	TRACE_PRINT((KERN_DEBUG "[PC-analysis] %u-%u-%hu-%hu,"
@@ -872,7 +872,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 			     pc->aggregate_estimate>>AGGREGATION_SHIFT,
 			     pc->N,
 			     pc->geometry,
-			     pc->queueing_delay_based_on_sum_of_deltas_ns,
+			     pc->qdelay_from_delta_sum_ns,
 			     pc->next_chirp_number,
 			     pc->state,
 			     pc->send_timestamp_location,
