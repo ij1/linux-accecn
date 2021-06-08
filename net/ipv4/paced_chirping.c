@@ -334,8 +334,8 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 		if (pc->previous_rcv_tsval &&
 		    !pc->rcv_tsval_us_granul &&
 		    tp->srtt_us &&
+		    /* recv_gap_us > srtt(ms) * 2 */
 		    (recv_gap_us > paced_chirping_get_smoothed_rtt_us(tp, pc)>>9)) {
-			/* recv_gap_us > srtt(ms) * 2 */
 			pc->rcv_tsval_us_granul = 1;
 		}
 		pc->previous_rcv_tsval = tp->rx_opt.rcv_tsval;
