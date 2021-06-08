@@ -387,7 +387,7 @@ static inline u32 get_per_packet_ewma_shift(struct tcp_sock *tp)
 
 static void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 recv_gap)
 {
-	s64 difference = (s64)recv_gap - (s64)pc->recv_gap_estimate_ns;
+	s64 difference = (s64)(recv_gap - pc->recv_gap_estimate_ns);
 	EWMA(pc->recv_gap_ad, difference, ewma_shift);
 	EWMA(pc->recv_gap_estimate_ns, recv_gap, ewma_shift);
 }
