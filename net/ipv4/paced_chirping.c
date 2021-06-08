@@ -700,7 +700,7 @@ static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
 
 	relative_difference = div_u64(pc->gap_avg_load_ns<<PC_G_G_SHIFT, pc->gap_avg_ns+1);
 
-	pc->geometry = min_t(u32, max_t(u32, relative_difference, lower_threshold), 2U << PC_G_G_SHIFT);
+	pc->geometry = clamp_val(relative_difference, lower_threshold, 2U << PC_G_G_SHIFT);
 }
 
 static inline void update_load_window(struct tcp_sock *tp, struct paced_chirping *pc)
