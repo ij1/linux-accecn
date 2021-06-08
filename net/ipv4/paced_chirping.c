@@ -678,10 +678,9 @@ static void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
 {
 	/* Try to have a chirp cover 4 aggregates. */
 	u32 cover_aggregates = (pc->aggregate_estimate<<PC_CHIRP_SIZE_COVER_AGGREGATION_SHIFT)>>AGGREGATION_SHIFT;
-	u32 min_size = PC_CHIRP_SIZE_MIN;
-	u32 max_size = PC_CHIRP_SIZE_MAX;
+
 	/* TODO: Make sure 1 or 2 chirps of this size can fit in one RTT. Also apply upper restriction */
-	pc->N = min_t(u32, max_size, max_t(u32, min_size, cover_aggregates));
+	pc->N = clamp_val(cover_aggregates, PC_CHIRP_SIZE_MIN, PC_CHIRP_SIZE_MAX);
 }
 
 static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
