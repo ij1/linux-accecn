@@ -591,7 +591,8 @@ static bool tcp_accecn_process_option(struct sock *sk,
 					res = false;
 					ambiguous_ecn_bytes_incr = true;
 				}
-				if (ecnfield != estimate_ecnfield) {
+				if ((ecnfield != estimate_ecnfield) ||
+				    !sock_net(sk)->ipv4.sysctl_tcp_ecn_trust_byte_heuristic) {
 					if (!first_changed) {
 						tp->estimate_ecnfield = ecnfield;
 						first_changed = true;
