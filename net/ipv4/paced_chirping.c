@@ -643,13 +643,11 @@ static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *t
 	return qdelay_us > threshold;
 }
 
-static u32 paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
+static bool paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u32 qdelay_us = paced_chirping_get_smoothed_queueing_delay_us(tp, pc);
-	if (qdelay_us >= paced_chirping_overload_exit_queueing_delay_thresh_us) {
-		return 1;
-	}
-	return 0;
+
+	return qdelay_us >= paced_chirping_overload_exit_queueing_delay_thresh_us;
 }
 
 static void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
