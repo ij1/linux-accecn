@@ -863,9 +863,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 /* How do you preserve ack-count?  Maybe we can use the update callback */
 void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb)
 {
-	/* skb should never be NULL. No need to analyze if PC is inactive*/
-	/* TODO: Check that pc is not NULL. Do so in all functions. */
-	if (!pc || !skb || !paced_chirping_active(pc))
+	if (!pc || !paced_chirping_active(pc))
 		return;
 
 	paced_chirping_pkt_acked_startup(sk, pc, skb);
