@@ -875,7 +875,6 @@ EXPORT_SYMBOL(paced_chirping_pkt_acked);
 /* This function is called only once per acknowledgement */
 void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	struct cc_chirp *c;
 
 	if (!pc || !paced_chirping_active(pc))
@@ -884,9 +883,6 @@ void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const str
 	c = get_chirp_struct(pc);
 	if (c)
 		c->ack_cnt++;
-
-	/* Update when all packets have been taken of rtx queue */
-	pc->old_snd_una = tp->snd_una;
 }
 EXPORT_SYMBOL(paced_chirping_update);
 
@@ -953,7 +949,6 @@ struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirpin
 	paced_chirping_init_both(sk, tp, pc);
 	paced_chirping_set_initial_gap_avg(sk, tp, pc);
 
-	pc->old_snd_una = tp->snd_una;
 	pc->load_window = TCP_INIT_CWND;
 	pc->recv_gap_estimate_ns = pc->gap_avg_load_ns;
 	pc->proactive_service_time_ns = pc->gap_avg_ns;
