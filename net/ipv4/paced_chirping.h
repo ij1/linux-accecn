@@ -128,11 +128,9 @@ struct paced_chirping {
 	u32     queueing_delay_average_us;
 	u32     queueing_delay_mad_us;
 
-
 	/* For discontinuous links */
 	u64     proactive_service_time_ns;
 	s64     proactive_service_time_ad;
-
 
 	u32     prev_qdelay;
 	u32     start_qdelay;
