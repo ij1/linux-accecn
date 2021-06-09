@@ -59,16 +59,6 @@ static struct cc_chirp* get_chirp_struct(struct paced_chirping *pc)
 	return &pc->cur_chirp;
 }
 
-void paced_chirping_release(struct sock *sk, struct paced_chirping* pc)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-	memset(&tp->chirp, 0, sizeof(tp->chirp));
-
-	if (pc && pc->allocated_on_heap)
-		kfree(pc);
-}
-EXPORT_SYMBOL(paced_chirping_release);
-
 void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1003,3 +993,14 @@ struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirpin
 	return pc;
 }
 EXPORT_SYMBOL(paced_chirping_init);
+
+void paced_chirping_release(struct sock *sk, struct paced_chirping* pc)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	memset(&tp->chirp, 0, sizeof(tp->chirp));
+
+	if (pc && pc->allocated_on_heap)
+		kfree(pc);
+}
+EXPORT_SYMBOL(paced_chirping_release);
+
