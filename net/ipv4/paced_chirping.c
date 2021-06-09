@@ -277,7 +277,7 @@ static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
 static u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 avg_gap_of_chirp = min_t(u64, pc->gap_avg_ns, pc->gap_avg_load_ns);
+	u32 avg_gap_of_chirp = min(pc->gap_avg_ns, pc->gap_avg_load_ns);
 	u32 N = pc->N;
 	u16 geometry = pc->geometry;
 
@@ -417,7 +417,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	qdelay = paced_chirping_get_queueing_delay_us(tp, pc, skb);
 	ewma_shift = get_per_packet_ewma_shift(tp);
 
-	c->min_qdelay_us = min_t(u32, c->min_qdelay_us, qdelay);
+	c->min_qdelay_us = min(c->min_qdelay_us, qdelay);
 
 	c->packets_acked++;
 
@@ -617,7 +617,7 @@ static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_s
 {
 	u32 reactive_service_time_ns = paced_chirping_get_reactive_service_time(tp);
 	u32 reactive_recv_gap_estimate_ns = pc->recv_gap_estimate_ns;
-	return min_t(u32, reactive_service_time_ns, reactive_recv_gap_estimate_ns);
+	return min(reactive_service_time_ns, reactive_recv_gap_estimate_ns);
 }
 
 static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
@@ -628,7 +628,7 @@ static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *t
 	do_div(threshold, 1024U);
 
 	if (paced_chirping_is_discontinuous_link(pc))
-		threshold = max_t(u64, threshold, 10000U);
+		threshold = max(threshold, 10000ULL);
 
 	return qdelay_us > threshold;
 }
@@ -797,7 +797,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 		if (paced_chirping_use_proactive_service_time &&
 		    paced_chirping_is_discontinuous_link(pc) &&
 		    proactive_service_time != UINT_MAX) {
-			estimate = min_t(u32, proactive_service_time, persistent_service_time);
+			estimate = min(proactive_service_time, persistent_service_time);
 		}
 
 		update_gap_estimate(pc, c, ewma_shift, estimate);
@@ -920,7 +920,7 @@ static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tc
 		}
 	}
 
-	pc->gap_avg_ns = min_t(u32, pc->gap_avg_ns, paced_chirping_maximum_initial_gap);
+	pc->gap_avg_ns = min(pc->gap_avg_ns, paced_chirping_maximum_initial_gap);
 }
 
 static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
