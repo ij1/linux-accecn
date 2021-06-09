@@ -223,7 +223,6 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	 *            = a - s * (N-2)/2
 	 */
 
-	/* Calculate the gap between the first two packets */
 	initial_gap_ns = (gap_avg_ns * geometry) >> PC_G_G_SHIFT;
 
 	/* Calculate the linear decrease in inter-packet gap */
@@ -241,7 +240,6 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	else
 		guard_interval_ns = gap_avg_ns;
 
-	/* Provide the kernel with the pacing information */
 	tp->chirp.packets = N;
 	tp->chirp.gap_ns = initial_gap_ns;
 	tp->chirp.gap_step_ns = gap_step_ns;
