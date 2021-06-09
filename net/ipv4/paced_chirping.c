@@ -229,9 +229,7 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	/* Calculate the linear decrease in inter-packet gap */
 	N = max(N, 2U); /* Other option is to return 0, something is wrong if N < 2 */
 	gap_step_ns = gap_avg_ns * ((geometry - (1 << PC_G_G_SHIFT)) << 1);
-	gap_step_ns += N - 2; /* Round up */
-	do_div(gap_step_ns, N - 1);
-	gap_step_ns >>= PC_G_G_SHIFT;
+	gap_step_ns = DIV64_U64_ROUND_UP(gap_step_ns, N - 1) >> PC_G_G_SHIFT;
 
 	average_gap_ns = initial_gap_ns - ((gap_step_ns * (N - 2)) >> 1);
 
