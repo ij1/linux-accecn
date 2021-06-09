@@ -42,18 +42,6 @@ static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
 	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
 }
 
-static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
-{
-	/* The minimum queueing delay over a chirp is a hot candidate. */
-	return c->min_qdelay_us == UINT_MAX ? 0 : c->min_qdelay_us;
-}
-
-static u32 paced_chirping_get_smoothed_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc)
-{
-	/* The minimum queueing delay over a chirp is a hot candidate. */
-	return tp->srtt_us ? (tp->srtt_us>>3) - tcp_min_rtt(tp) : 0;
-}
-
 static struct cc_chirp* get_chirp_struct(struct paced_chirping *pc)
 {
 	return &pc->cur_chirp;
@@ -412,6 +400,12 @@ static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
 	return interval;
 }
 
+static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
+{
+	/* The minimum queueing delay over a chirp is a hot candidate. */
+	return c->min_qdelay_us == UINT_MAX ? 0 : c->min_qdelay_us;
+}
+
 static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u32 reactive_service_time_ns = paced_chirping_get_reactive_service_time(tp);
@@ -632,6 +626,12 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 }
 
 /******************** Controller/Algorithm functions ********************/
+static u32 paced_chirping_get_smoothed_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc)
+{
+	/* The minimum queueing delay over a chirp is a hot candidate. */
+	return tp->srtt_us ? (tp->srtt_us>>3) - tcp_min_rtt(tp) : 0;
+}
+
 static bool paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u32 qdelay_us = paced_chirping_get_smoothed_queueing_delay_us(tp, pc);
