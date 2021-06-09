@@ -135,7 +135,6 @@ static inline void bictcp_hystart_reset(struct sock *sk)
 	ca->end_seq = tp->snd_nxt;
 	ca->curr_rtt = ~0U;
 	ca->sample_cnt = 0;
-	ca->use_hystart = 1;
 }
 
 static void bictcp_init(struct sock *sk)
