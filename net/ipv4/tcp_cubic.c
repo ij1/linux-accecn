@@ -94,7 +94,8 @@ struct bictcp {
 	u32	ack_cnt;	/* number of acks */
 	u32	tcp_cwnd;	/* estimated tcp cwnd */
 	u16	unused;
-	u8	sample_cnt;	/* number of samples to decide curr_rtt */
+	u8	sample_cnt:7,	/* number of samples to decide curr_rtt */
+		use_hystart:1;
 	u8	found;		/* the exit point is found? */
 	u32	round_start;	/* beginning of each round */
 	u32	end_seq;	/* end_seq of the round */
@@ -115,6 +116,7 @@ static inline void bictcp_reset(struct bictcp *ca)
 	ca->ack_cnt = 0;
 	ca->tcp_cwnd = 0;
 	ca->found = 0;
+	ca->use_hystart = hystart;
 }
 
 static inline u32 bictcp_clock_us(const struct sock *sk)
@@ -139,10 +141,10 @@ static void bictcp_init(struct sock *sk)
 
 	bictcp_reset(ca);
 
-	if (hystart)
+	if (ca->use_hystart)
 		bictcp_hystart_reset(sk);
 
-	if (!hystart && initial_ssthresh)
+	if (!ca->use_hystart && initial_ssthresh)
 		tcp_sk(sk)->snd_ssthresh = initial_ssthresh;
 }
 
@@ -337,7 +339,7 @@ static void bictcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 		return;
 
 	if (tcp_in_slow_start(tp)) {
-		if (hystart && after(ack, ca->end_seq))
+		if (ca->use_hystart && after(ack, ca->end_seq))
 			bictcp_hystart_reset(sk);
 		acked = tcp_slow_start(tp, acked);
 		if (!acked)
@@ -474,7 +476,7 @@ static void bictcp_acked(struct sock *sk, const struct ack_sample *sample)
 		ca->delay_min = delay;
 
 	/* hystart triggers when cwnd is larger than some threshold */
-	if (!ca->found && tcp_in_slow_start(tp) && hystart &&
+	if (!ca->found && tcp_in_slow_start(tp) && ca->use_hystart &&
 	    tp->snd_cwnd >= hystart_low_window)
 		hystart_update(sk, delay);
 }
