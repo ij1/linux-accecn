@@ -1,0 +1,8 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: add use_hystart to cubic
+
+To prevent hystart and paced chirping from being enabled
+at the same time, add way to disable hystart independent
+of module param.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
