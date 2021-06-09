@@ -224,22 +224,22 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	 */
 
 	/* Calculate the gap between the first two packets */
-	initial_gap_ns = (gap_avg_ns * (u64)geometry)>>PC_G_G_SHIFT;
+	initial_gap_ns = (gap_avg_ns * (u64)geometry) >> PC_G_G_SHIFT;
 
 	/* Calculate the linear decrease in inter-packet gap */
 	N = max(N, 2U); /* Other option is to return 0, something is wrong if N < 2 */
-	gap_step_ns = gap_avg_ns * ((geometry - (1<<PC_G_G_SHIFT))<<1);
+	gap_step_ns = gap_avg_ns * ((geometry - (1 << PC_G_G_SHIFT)) << 1);
 	gap_step_ns += N - 2; /* Round up */
-	do_div(gap_step_ns, N-1);
+	do_div(gap_step_ns, N - 1);
 	gap_step_ns >>= PC_G_G_SHIFT;
 
-	average_gap_ns = initial_gap_ns - ((gap_step_ns * (N-2))>>1);
+	average_gap_ns = initial_gap_ns - ((gap_step_ns * (N - 2)) >> 1);
 
 	/* Calculate the guard interval
 	 * If load gap is smaller than average probe gap, then set probe gap to the
 	 * load gap. We shouldn't really be probing for less than what we are "sure" we can claim. */
 	if (gap_avg_load_ns > average_gap_ns)
-		guard_interval_ns = gap_avg_load_ns + (N-1) * (gap_avg_load_ns - average_gap_ns);
+		guard_interval_ns = gap_avg_load_ns + (N - 1) * (gap_avg_load_ns - average_gap_ns);
 	else
 		guard_interval_ns = gap_avg_ns;
 
@@ -251,7 +251,7 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	tp->chirp.packets_out = 0;
 	tp->chirp.chirp_number = pc->next_chirp_number++;
 
-	tp->snd_cwnd = tcp_packets_in_flight(tp) + (N<<1);
+	tp->snd_cwnd = tcp_packets_in_flight(tp) + (N << 1);
 	return 0;
 }
 
