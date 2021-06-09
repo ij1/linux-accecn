@@ -232,9 +232,11 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 
 	average_gap_ns = initial_gap_ns - ((gap_step_ns * (N - 2)) >> 1);
 
-	/* Calculate the guard interval
-	 * If load gap is smaller than average probe gap, then set probe gap to the
-	 * load gap. We shouldn't really be probing for less than what we are "sure" we can claim. */
+	/*
+	 * If load gap is smaller than average probe gap, then set probe gap
+	 * to the load gap. We shouldn't really be probing for less than what
+	 * we are "sure" we can claim.
+	 */
 	if (gap_avg_load_ns > average_gap_ns)
 		guard_interval_ns = gap_avg_load_ns + (N - 1) * (gap_avg_load_ns - average_gap_ns);
 	else
