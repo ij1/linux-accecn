@@ -34,11 +34,6 @@ static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
 
 void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb);
 
-static inline int packed_chirping_packet_in_chirp(struct sk_buff *skb)
-{
-	return skb_ext_find(skb, SKB_EXT_PACED_CHIRPING) != NULL;
-}
-
 #else
 
 static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
@@ -47,11 +42,6 @@ static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
 
 static inline void paced_chirping_chirp_gap(struct sock *sk,
 					    struct sk_buff *skb) {}
-
-static inline int packed_chirping_packet_in_chirp(struct sk_buff *skb)
-{
-	return false;
-}
 
 #endif
 
