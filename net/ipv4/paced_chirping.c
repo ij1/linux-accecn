@@ -740,13 +740,11 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 	u32 persistent_service_time;
 
 	ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
-	if (!ext) { /* Acked packet that is not part of a chirp */
+	if (!ext)
 		return;
-	}
 
 	c = get_chirp_struct(pc);
 	if (c->chirp_number != ext->chirp_number) {
-		/* Reset the chirp */
 		paced_chirping_reset_chirp(c);
 		c->chirp_number = ext->chirp_number;
 	}
@@ -754,14 +752,12 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 	/* For debugging/non-convergence safety purposes */
 	if (c->chirp_number >= paced_chirping_maximum_num_chirps)
 		paced_chirping_exit(sk, pc, PC_EXIT_MAX_CHIRPS_REACHED);
-	/* Exit if queueing delay is much too great */
-	if (paced_chirping_should_exit_overload(tp, pc, c)) {
+
+	if (paced_chirping_should_exit_overload(tp, pc, c))
 		paced_chirping_exit(sk, pc, PC_EXIT_OVERLOAD);
-	}
 
 	estimate = paced_chirping_run_analysis(sk, pc, c, skb);
-	if (estimate) { /* New estimate is available */
-
+	if (estimate) {
 		ewma_shift = get_per_chirp_ewma_shift(tp, c->packets_acked + 1);
 
 		/* TODO: I guess here is where discontinuous links are
@@ -779,9 +775,8 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 		/* TODO: Think about this..
 		 * It might be better to use gap_avg_ns/2 in case all estimates
 		 * are invalid or false. no information -> slow start  */
-		if (estimate == UINT_MAX || estimate > 100000000U) {
+		if (estimate == UINT_MAX || estimate > 100000000U)
 			estimate = pc->gap_avg_ns;
-		}
 
 		/* TODO: Does it make sens to try to avoid overshoot if the link
 		 *       itself is making it difficult to estimate?
@@ -795,9 +790,8 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 		proactive_service_time = pc->proactive_service_time_ns;
 		if (paced_chirping_use_proactive_service_time &&
 		    paced_chirping_is_discontinuous_link(pc) &&
-		    proactive_service_time != UINT_MAX) {
+		    proactive_service_time != UINT_MAX)
 			estimate = min(proactive_service_time, persistent_service_time);
-		}
 
 		update_gap_estimate(pc, c, ewma_shift, estimate);
 		update_gap_load_estimate(pc, c, ewma_shift+1, pc->gap_avg_ns);
@@ -810,9 +804,8 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 		 * Previously trend had to be increasing, but I believe
 		 * that forced overshoot by underestimation followed by increasing
 		 * trend. */
-		if (pc->gap_avg_load_ns <= pc->gap_avg_ns) {
+		if (pc->gap_avg_load_ns <= pc->gap_avg_ns)
 			paced_chirping_exit(sk, pc, PC_EXIT_ESTIMATE_CONVERGENCE);
-		}
 
 		if ((!pc->send_tstamp_location || pc->send_tstamp_location == INTERNAL_PACING)
 		    && pc->gap_avg_load_ns < paced_chirping_lowest_internal_pacing_gap) {
