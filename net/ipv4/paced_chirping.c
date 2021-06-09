@@ -323,8 +323,8 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 
 	/* Remote time-stamp based */
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
-		if (pc->previous_rcv_tsval) {
-			u64 recv_gap_us = (tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval) *
+		if (pc->prev_rcv_tsval) {
+			u64 recv_gap_us = (tp->rx_opt.rcv_tsval - pc->prev_rcv_tsval) *
 			                  (USEC_PER_SEC / TCP_TS_HZ);
 			recv_gap = recv_gap_us * NSEC_PER_USEC;
 
@@ -333,14 +333,14 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 			    (recv_gap_us > (tp->srtt_us >> (3 + 10 - 1))))
 				pc->rcv_tsval_us_granul = 1;
 		}
-		pc->previous_rcv_tsval = tp->rx_opt.rcv_tsval;
+		pc->prev_rcv_tsval = tp->rx_opt.rcv_tsval;
 	}
 
 	/* Local time-stamp based */
-	if (pc->previous_recv_timestamp && !pc->rcv_tsval_us_granul) {
-		recv_gap = (tp->tcp_mstamp - pc->previous_recv_timestamp) * NSEC_PER_USEC;
+	if (pc->prev_recv_timestamp && !pc->rcv_tsval_us_granul) {
+		recv_gap = (tp->tcp_mstamp - pc->prev_recv_timestamp) * NSEC_PER_USEC;
 	}
-	pc->previous_recv_timestamp = tp->tcp_mstamp;
+	pc->prev_recv_timestamp = tp->tcp_mstamp;
 
 	return recv_gap;
 }
@@ -348,10 +348,10 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 static u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
 {
 	struct skb_shared_info* info = skb_shinfo(skb);
-	u64 send_gap = pc->previous_send_timestamp ?
-		       info->pacing_timestamp - pc->previous_send_timestamp : 0;
+	u64 send_gap = pc->prev_send_timestamp ?
+		       info->pacing_timestamp - pc->prev_send_timestamp : 0;
 
-	pc->previous_send_timestamp = info->pacing_timestamp;
+	pc->prev_send_timestamp = info->pacing_timestamp;
 	pc->send_timestamp_location = info->pacing_location;
 
 	return send_gap;
@@ -975,8 +975,8 @@ struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirpin
 	pc->recv_gap_estimate_ns = pc->gap_avg_load_ns;
 	pc->proactive_service_time_ns = pc->gap_avg_ns;
 	pc->state = PC_STATE_ACTIVE;
-	pc->previous_recv_timestamp = 0;
-	pc->previous_rcv_tsval = 0;
+	pc->prev_recv_timestamp = 0;
+	pc->prev_rcv_tsval = 0;
 
 	pc->aggregate_estimate = 1<<AGGREGATION_SHIFT;
 

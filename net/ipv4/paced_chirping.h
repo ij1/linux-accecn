@@ -110,12 +110,12 @@ struct cc_chirp {
 
 struct paced_chirping {
 	/* Local timestamps */
-	u64     previous_send_timestamp; /* Send timestamp of latest handled packet */
+	u64     prev_send_timestamp;	/* Send timestamp of latest handled packet */
 	u8      send_timestamp_location; /* Where in the stack the last packet was paced */
-	u64     previous_recv_timestamp; /* Recv timestamp of latest handled packet */
+	u64     prev_recv_timestamp;	/* Recv timestamp of latest handled packet */
 
 	/* Remote timestamp */
-	u64     previous_rcv_tsval;      /* Receiver side timestamp of latest ACK */
+	u64     prev_rcv_tsval;		/* Receiver side timestamp of latest ACK */
 	u8      rcv_tsval_us_granul;     /* Whether or not heuristic deems ts microsecond */
 
 	/* Estimates */
