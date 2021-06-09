@@ -795,7 +795,7 @@ static void prague_init(struct sock *sk)
 	prague_new_round(sk);
 
 	if (paced_chirping_enabled)
-		ca->pc = paced_chirping_init(sk, NULL); /* Allocate for us */
+		ca->pc = paced_chirping_init(sk, NULL);
 }
 
 static bool prague_target_rtt_elapsed(struct sock *sk)
