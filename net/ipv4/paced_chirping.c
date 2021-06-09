@@ -226,7 +226,6 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	initial_gap_ns = (gap_avg_ns * geometry) >> PC_G_G_SHIFT;
 
 	/* Calculate the linear decrease in inter-packet gap */
-	N = max(N, 2U); /* Other option is to return 0, something is wrong if N < 2 */
 	gap_step_ns = gap_avg_ns * ((geometry - (1 << PC_G_G_SHIFT)) << 1);
 	gap_step_ns = DIV64_U64_ROUND_UP(gap_step_ns, N - 1) >> PC_G_G_SHIFT;
 
@@ -931,7 +930,7 @@ static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
 	/* Initial algorithm variables */
 	pc->geometry = clamp_val(paced_chirping_initial_geometry, 1U << PC_G_G_SHIFT, 2U << PC_G_G_SHIFT);
 	pc->next_chirp_number = PC_INITIAL_CHIRP_NUMBER;
-	pc->N = paced_chirping_prob_size;
+	pc->N = max(paced_chirping_prob_size, 2U);
 	paced_chirping_reset_chirp(get_chirp_struct(pc));
 }
 
