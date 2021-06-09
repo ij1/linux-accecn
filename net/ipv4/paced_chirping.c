@@ -910,7 +910,6 @@ static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tc
 static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
 				     struct paced_chirping *pc)
 {
-	/* Alter kernel behaviour*/
 	cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
 	sk->sk_pacing_rate = ~0U;
 	sk->sk_gso_max_segs = 1;
@@ -919,7 +918,6 @@ static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
 	tp->disable_cwr_upon_ece = 1;
 	tp->is_chirping = 1;
 
-	/* Initial algorithm variables */
 	pc->geometry = clamp_val(paced_chirping_initial_geometry, 1U << PC_G_G_SHIFT, 2U << PC_G_G_SHIFT);
 	pc->next_chirp_number = PC_INITIAL_CHIRP_NUMBER;
 	pc->N = max(paced_chirping_prob_size, 2U);
