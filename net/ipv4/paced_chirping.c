@@ -651,10 +651,10 @@ static void update_gap_load_estimate(struct paced_chirping *pc, struct cc_chirp 
 static void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift)
 {
 	u64 agg = 1;
-	if (c->jumps && c->aggregated) {
-		agg = c->aggregated + c->jumps;
-		do_div(agg, c->jumps);
-	}
+
+	if (c->jumps && c->aggregated)
+		agg = (c->aggregated + c->jumps) / c->jumps;
+
 	EWMA(pc->aggregate_estimate, agg << AGGREGATION_SHIFT, ewma_shift);
 }
 
