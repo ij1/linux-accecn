@@ -2828,7 +2828,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 
 #if IS_ENABLED(CONFIG_PACED_CHIRPING)
 		if (tp->is_chirping &&
-		    tp->chirp.packets <= tp->chirp.packets_out &&
+		    tp->chirp.packets_out >= tp->chirp.packets &&
 		    inet_csk(sk)->icsk_ca_ops->new_chirp(sk)) {
 			break;
 		}
