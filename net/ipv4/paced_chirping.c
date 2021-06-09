@@ -324,7 +324,8 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 	/* Remote time-stamp based */
 	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
 		if (pc->previous_rcv_tsval) {
-			u64 recv_gap_us = tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval;
+			u64 recv_gap_us = (tp->rx_opt.rcv_tsval - pc->previous_rcv_tsval) *
+			                  (USEC_PER_SEC / TCP_TS_HZ);
 			recv_gap = recv_gap_us * NSEC_PER_USEC;
 
 			if (!pc->rcv_tsval_us_granul && tp->srtt_us &&
