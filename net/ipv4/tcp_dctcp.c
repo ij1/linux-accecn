@@ -256,7 +256,7 @@ static void dctcp_acked(struct sock *sk, const struct ack_sample *sample)
 	}
 }
 
-static u32 dctcp_new_chirp (struct sock *sk)
+static bool dctcp_new_chirp (struct sock *sk)
 {
 	struct dctcp *ca = inet_csk_ca(sk);
 	return paced_chirping_new_chirp(sk, ca->pc);

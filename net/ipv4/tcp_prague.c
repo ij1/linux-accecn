@@ -876,7 +876,7 @@ rtt_scaling_heuristics[__RTT_CONTROL_MAX] __read_mostly = {
 	},
 };
 
-static u32 prague_new_chirp(struct sock *sk)
+static bool prague_new_chirp(struct sock *sk)
 {
 	return paced_chirping_new_chirp(sk, prague_ca(sk)->pc);
 }

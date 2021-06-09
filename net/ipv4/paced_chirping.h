@@ -243,7 +243,7 @@ MODULE_PARM_DESC(paced_chirping_use_remote_tsval, "Whether to use remote tsval t
  * paced_chirping_exit should be called upon LOSS
  */
 struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc);
-u32  paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc);
+bool paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc);
 void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs);
 void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb);
 int  paced_chirping_active(struct paced_chirping *pc);
@@ -257,7 +257,7 @@ u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigne
 static unsigned int paced_chirping_enabled __read_mostly = 0;
 
 static inline struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc) { return NULL; }
-static inline u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc) { return 0; }
+static inline bool paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc) { return true; }
 static inline void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs) {}
 static inline int paced_chirping_active(struct paced_chirping *pc) { return 0; }
 static inline void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason) {}

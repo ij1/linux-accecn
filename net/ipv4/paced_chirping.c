@@ -264,7 +264,7 @@ static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
 	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
 }
 
-static u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
+static bool paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	u32 avg_gap_of_chirp = min(pc->gap_avg_ns, pc->gap_avg_load_ns);
@@ -276,10 +276,11 @@ static u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirpi
 	else if (pc->next_chirp_number <= PC_INITIAL_CHIRP_NUMBER+3)
 		N = PC_SECOND_ROUND_CHIRPS_SIZE;
 
+	 /* Halt sending? */
 	if (tcp_packets_in_flight(tp) >= pc->load_window)
-		return 1; /* Halts sending */
+		return true;
 	if (!enough_data_for_chirp(sk, tp, N))
-		return 0; /* Just send away, TODO: Handle app limited */
+		return false; /* Just send away, TODO: Handle app limited */
 
 	/* If there is aggregation, shift the center of the chirps downwards
 	 * Really only useful if average service rate is used. */
@@ -289,13 +290,13 @@ static u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirpi
 	}
 	paced_chirping_schedule_new_chirp(sk, pc, N, avg_gap_of_chirp, pc->gap_avg_load_ns, geometry);
 
-	return 0;
+	return false;
 }
 
-u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
+bool paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
 {
 	if (!pc || !paced_chirping_active(pc))
-		return 0;
+		return false;
 	return paced_chirping_new_chirp_startup(sk, pc);
 }
 EXPORT_SYMBOL(paced_chirping_new_chirp);

@@ -1198,7 +1198,7 @@ struct tcp_congestion_ops {
 	/* call when congestion control indicates that it is sending chirps
 	 * and stack does not have a chirp description available.
 	 */
-	u32 (*new_chirp)(struct sock *sk);
+	bool (*new_chirp)(struct sock *sk);
 	/* Call when a packet is removed from the retransmit queue. */
 	void (*pkt_acked)(struct sock *sk, struct sk_buff *skb);
 

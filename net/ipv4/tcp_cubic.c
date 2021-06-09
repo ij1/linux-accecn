@@ -503,7 +503,7 @@ static void bictcp_acked(struct sock *sk, const struct ack_sample *sample)
 }
 
 /* Paced Chirping new functions */
-static u32 bictcp_new_chirp(struct sock *sk)
+static bool bictcp_new_chirp(struct sock *sk)
 {
 	struct bictcp *ca = inet_csk_ca(sk);
 	return paced_chirping_new_chirp(sk, ca->pc);
