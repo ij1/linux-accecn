@@ -16,9 +16,6 @@
 #include "paced_chirping.h"
 #include <net/paced_chirping.h>
 
-static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct cc_chirp *c);
-static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc);
-
 inline int paced_chirping_active(struct paced_chirping *pc)
 {
 	return pc && pc->state;
@@ -35,6 +32,15 @@ bool paced_chirping_new_chirp_check(struct sock *sk)
 	return inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
 }
 EXPORT_SYMBOL(paced_chirping_new_chirp_check);
+
+/* A discontinuous link in the sens that it has idle periods
+ * followed by sending at a much higher rate compared to average.
+ * This kind of link cannot be handled by original chirp analysis.
+ * Note that WiFi without aggregation is not discontinuous with this description. */
+static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
+{
+	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
+}
 
 static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
@@ -267,15 +273,6 @@ static bool enough_data_for_chirp(struct sock *sk, struct tcp_sock *tp, int N)
 {
 	return READ_ONCE(tp->write_seq) - tp->snd_nxt >= tp->mss_cache * N;
 }
-/* A discontinuous link in the sens that it has idle periods
- * followed by sending at a much higher rate compared to average.
- * This kind of link cannot be handled by original chirp analysis.
- * Note that WiFi without aggregation is not discontinuous with this description. */
-static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
-{
-	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
-}
-
 static bool paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -392,6 +389,18 @@ static void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shif
 	s64 difference = (s64)(recv_gap - pc->recv_gap_estimate_ns);
 	EWMA(pc->recv_gap_ad, difference, ewma_shift);
 	EWMA(pc->recv_gap_estimate_ns, recv_gap, ewma_shift);
+}
+
+/* Proactive: Estimates that are based on service rate measured over (usually)
+ *            a fraction of the round-trip time. Needs transient congestion. */
+static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct cc_chirp *c)
+{
+	u64 interval = c->rate_interval_ns;
+	u32 delivered = c->rate_delivered;
+	if (!interval || !delivered)
+		return UINT_MAX;
+	do_div(interval, delivered);
+	return interval;
 }
 
 /******************** Chirp analysis function ********************/
@@ -602,18 +611,6 @@ static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
 {
 	u64 interval = tp->rate_interval_us * NSEC_PER_USEC;
 	u32 delivered = tp->rate_delivered;
-	if (!interval || !delivered)
-		return UINT_MAX;
-	do_div(interval, delivered);
-	return interval;
-}
-
-/* Proactive: Estimates that are based on service rate measured over (usually)
- *            a fraction of the round-trip time. Needs transient congestion. */
-static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct cc_chirp *c)
-{
-	u64 interval = c->rate_interval_ns;
-	u32 delivered = c->rate_delivered;
 	if (!interval || !delivered)
 		return UINT_MAX;
 	do_div(interval, delivered);
