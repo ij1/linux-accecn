@@ -882,9 +882,8 @@ void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const str
 		return;
 
 	c = get_chirp_struct(pc);
-	if (c) {
+	if (c)
 		c->ack_cnt++;
-	}
 
 	/* Update when all packets have been taken of rtx queue */
 	pc->old_snd_una = tp->snd_una;
