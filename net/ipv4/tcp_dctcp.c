@@ -262,7 +262,7 @@ static bool dctcp_new_chirp (struct sock *sk)
 	return paced_chirping_new_chirp(sk, ca->pc);
 }
 
-static void dctcp_ack_acked(struct sock *sk, struct sk_buff *skb)
+static void dctcp_pkt_acked(struct sock *sk, struct sk_buff *skb)
 {
 	struct dctcp *ca = inet_csk_ca(sk);
 	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
@@ -297,7 +297,7 @@ static struct tcp_congestion_ops dctcp __read_mostly = {
 	.pkts_acked     = dctcp_acked,
 	.new_chirp      = dctcp_new_chirp,
 	.tso_segs	= dctcp_tso_segs,
-	.pkt_acked      = dctcp_ack_acked,
+	.pkt_acked      = dctcp_pkt_acked,
 
 	.name		= "dctcp",
 };
