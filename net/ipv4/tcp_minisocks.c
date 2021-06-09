@@ -567,7 +567,6 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 #if IS_ENABLED(CONFIG_PACED_CHIRPING)
 	newtp->chirp.packets = newtp->chirp.packets_out = 0;
 	newtp->is_chirping = 0;
-	newtp->chirp.scheduled_gaps = NULL;
 #endif
 	newtp->disable_kernel_pacing_calculation = 0;
 	newtp->disable_cwr_upon_ece = 0;

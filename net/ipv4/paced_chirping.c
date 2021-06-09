@@ -176,9 +176,6 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 				inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
 		} else {
 			tp->tcp_wstamp_ns += len_ns;
-
-			if (chirp->scheduled_gaps)
-				chirp->scheduled_gaps[chirp->packets_out] = len_ns;
 		}
 	}
 }
@@ -251,7 +248,6 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	tp->chirp.gap_ns = initial_gap_ns;
 	tp->chirp.gap_step_ns = gap_step_ns;
 	tp->chirp.guard_interval_ns = guard_interval_ns;
-	tp->chirp.scheduled_gaps = NULL;
 	tp->chirp.packets_out = 0;
 	tp->chirp.chirp_number = pc->next_chirp_number++;
 
