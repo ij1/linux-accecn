@@ -179,6 +179,7 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		}
 	}
 }
+
 static void paced_chirping_schedule_new_chirp(struct sock *sk,
 					      struct paced_chirping *pc,
 					      u32 N,
