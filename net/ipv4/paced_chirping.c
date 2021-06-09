@@ -179,12 +179,12 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		}
 	}
 }
-static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
-					     struct paced_chirping *pc,
-					     u32 N,
-					     u64 gap_avg_ns,
-					     u64 gap_avg_load_ns,
-					     u16 geometry)
+static void paced_chirping_schedule_new_chirp(struct sock *sk,
+					      struct paced_chirping *pc,
+					      u32 N,
+					      u64 gap_avg_ns,
+					      u64 gap_avg_load_ns,
+					      u16 geometry)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -249,7 +249,6 @@ static u32 paced_chirping_schedule_new_chirp(struct sock *sk,
 	tp->chirp.chirp_number = pc->next_chirp_number++;
 
 	tp->snd_cwnd = tcp_packets_in_flight(tp) + (N << 1);
-	return 0;
 }
 
 static bool enough_data_for_chirp(struct sock *sk, struct tcp_sock *tp, int N)
@@ -288,7 +287,9 @@ static u32 paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirpi
 		avg_gap_of_chirp = avg_gap_of_chirp - (avg_gap_of_chirp>>PC_DISCONT_LINK_CHIRP_AVG_SUB_SHIFT);
 		geometry = min_t(u32, pc->geometry, 1536U);
 	}
-	return paced_chirping_schedule_new_chirp(sk, pc, N, avg_gap_of_chirp, pc->gap_avg_load_ns, geometry);
+	paced_chirping_schedule_new_chirp(sk, pc, N, avg_gap_of_chirp, pc->gap_avg_load_ns, geometry);
+
+	return 0;
 }
 
 u32 paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
