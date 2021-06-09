@@ -417,13 +417,6 @@ void tcp_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&tp->tsq_node);
 	INIT_LIST_HEAD(&tp->tsorted_sent_queue);
 
-#if IS_ENABLED(CONFIG_PACED_CHIRPING)
-	tp->chirp.packets = tp->chirp.packets_out = 0;
-	tp->is_chirping = 0;
-#endif
-	tp->disable_kernel_pacing_calculation = 0;
-	tp->disable_cwr_upon_ece = 0;
-
 	icsk->icsk_rto = TCP_TIMEOUT_INIT;
 	icsk->icsk_rto_min = TCP_RTO_MIN;
 	icsk->icsk_delack_max = TCP_DELACK_MAX;
@@ -2755,6 +2748,12 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tp->rx_opt.num_sacks = 0;
 	tp->rcv_ooopack = 0;
 
+#if IS_ENABLED(CONFIG_PACED_CHIRPING)
+	tp->chirp.packets = tp->chirp.packets_out = 0;
+	tp->is_chirping = 0;
+#endif
+	tp->disable_kernel_pacing_calculation = 0;
+	tp->disable_cwr_upon_ece = 0;
 
 	/* Clean up fastopen related fields */
 	tcp_free_fastopen_req(tp);
