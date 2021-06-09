@@ -111,19 +111,19 @@ struct cc_chirp {
 struct paced_chirping {
 	/* Local timestamps */
 	u64     prev_send_timestamp;	/* Send timestamp of latest handled packet */
-	u8      send_timestamp_location; /* Where in the stack the last packet was paced */
+	u8      send_timestamp_location;/* Where in the stack the last packet was paced */
 	u64     prev_recv_timestamp;	/* Recv timestamp of latest handled packet */
 
 	/* Remote timestamp */
 	u64     prev_rcv_tsval;		/* Receiver side timestamp of latest ACK */
-	u8      rcv_tsval_us_granul;     /* Whether or not heuristic deems ts microsecond */
+	u8      rcv_tsval_us_granul;	/* Whether or not heuristic deems ts microsecond */
 
 	/* Estimates */
-	u32     gap_avg_ns;      /* Average gap (estimate) */
-	s32     gap_avg_ad;      /* Trend of average gap */
+	u32     gap_avg_ns;		/* Average gap */
+	s32     gap_avg_ad;		/* Trend of average gap */
 
-	u64     recv_gap_estimate_ns; /* EWMA over recv gaps */
-	s64     recv_gap_ad; /* Trend of recv_gap_estimate_ns */
+	u64     recv_gap_estimate_ns;	/* EWMA over recv gaps */
+	s64     recv_gap_ad;		/* Trend of recv_gap_estimate_ns */
 
 	u32     queueing_delay_average_us;
 	u32     queueing_delay_mad_us;
