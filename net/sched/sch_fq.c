@@ -640,7 +640,7 @@ begin:
 	}
 out:
 	skb_shinfo(skb)->pacing_location = FQ_PACING;
-	skb_shinfo(skb)->pacing_timestamp = ktime_get_ns();
+	skb_shinfo(skb)->pacing_tstamp = ktime_get_ns();
 
 	qdisc_bstats_update(sch, skb);
 	return skb;

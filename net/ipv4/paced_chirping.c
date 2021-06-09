@@ -130,7 +130,7 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 		   pc->qdelay_from_delta_sum_ns,
 		   pc->next_chirp_number,
 		   pc->state,
-		   pc->send_timestamp_location,
+		   pc->send_tstamp_location,
 
 		   tcp_min_rtt(tp),
 		   tp->srtt_us>>3,
@@ -177,7 +177,7 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		ext->packets = chirp->packets;
 		ext->scheduled_gap = len_ns;
 		info->pacing_location  = INTERNAL_PACING;
-		info->pacing_timestamp = ktime_get_ns();
+		info->pacing_tstamp = ktime_get_ns();
 
 		if (chirp->packets_out == chirp->packets) {
 			tp->tcp_wstamp_ns += chirp->guard_interval_ns;
@@ -337,10 +337,10 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 	}
 
 	/* Local time-stamp based */
-	if (pc->prev_recv_timestamp && !pc->rcv_tsval_us_granul) {
-		recv_gap = (tp->tcp_mstamp - pc->prev_recv_timestamp) * NSEC_PER_USEC;
+	if (pc->prev_recv_tstamp && !pc->rcv_tsval_us_granul) {
+		recv_gap = (tp->tcp_mstamp - pc->prev_recv_tstamp) * NSEC_PER_USEC;
 	}
-	pc->prev_recv_timestamp = tp->tcp_mstamp;
+	pc->prev_recv_tstamp = tp->tcp_mstamp;
 
 	return recv_gap;
 }
@@ -348,11 +348,11 @@ static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struc
 static u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
 {
 	struct skb_shared_info* info = skb_shinfo(skb);
-	u64 send_gap = pc->prev_send_timestamp ?
-		       info->pacing_timestamp - pc->prev_send_timestamp : 0;
+	u64 send_gap = pc->prev_send_tstamp ?
+		       info->pacing_tstamp - pc->prev_send_tstamp : 0;
 
-	pc->prev_send_timestamp = info->pacing_timestamp;
-	pc->send_timestamp_location = info->pacing_location;
+	pc->prev_send_tstamp = info->pacing_tstamp;
+	pc->send_tstamp_location = info->pacing_location;
 
 	return send_gap;
 }
@@ -491,7 +491,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		     qdelay,
 
 		     c->min_qdelay_us,
-		     pc->send_timestamp_location,
+		     pc->send_tstamp_location,
 		     tp->tcp_mstamp,
 		     proactive,
 		     c->rate_interval_ns,
@@ -822,10 +822,10 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 			paced_chirping_exit(sk, pc, PC_EXIT_ESTIMATE_CONVERGENCE);
 		}
 
-		if ((!pc->send_timestamp_location || pc->send_timestamp_location == INTERNAL_PACING)
+		if ((!pc->send_tstamp_location || pc->send_tstamp_location == INTERNAL_PACING)
 		    && pc->gap_avg_load_ns < paced_chirping_lowest_internal_pacing_gap) {
 			paced_chirping_exit(sk, pc, PC_EXIT_SYSTEM_LIMITATION);
-		} else if (pc->send_timestamp_location == FQ_PACING &&
+		} else if (pc->send_tstamp_location == FQ_PACING &&
 			   pc->gap_avg_load_ns < paced_chirping_lowest_FQ_pacing_gap) {
 			paced_chirping_exit(sk, pc, PC_EXIT_SYSTEM_LIMITATION);
 		}
@@ -861,7 +861,7 @@ static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirp
 			     pc->qdelay_from_delta_sum_ns,
 			     pc->next_chirp_number,
 			     pc->state,
-			     pc->send_timestamp_location,
+			     pc->send_tstamp_location,
 
 			     tcp_min_rtt(tp),
 			     c->min_qdelay_us,
@@ -975,7 +975,7 @@ struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirpin
 	pc->recv_gap_estimate_ns = pc->gap_avg_load_ns;
 	pc->proactive_service_time_ns = pc->gap_avg_ns;
 	pc->state = PC_STATE_ACTIVE;
-	pc->prev_recv_timestamp = 0;
+	pc->prev_recv_tstamp = 0;
 	pc->prev_rcv_tsval = 0;
 
 	pc->aggregate_estimate = 1<<AGGREGATION_SHIFT;

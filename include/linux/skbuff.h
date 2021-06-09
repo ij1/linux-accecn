@@ -522,7 +522,7 @@ struct skb_shared_info {
 	unsigned int	gso_type;
 	u32		tskey;
 	u8		pacing_location;
-	u64		pacing_timestamp;
+	u64		pacing_tstamp;
 
 	/*
 	 * Warning : all fields before dataref are cleared in __alloc_skb()
