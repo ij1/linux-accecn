@@ -990,4 +990,3 @@ void paced_chirping_release(struct sock *sk, struct paced_chirping* pc)
 		kfree(pc);
 }
 EXPORT_SYMBOL(paced_chirping_release);
-
