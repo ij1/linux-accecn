@@ -388,9 +388,11 @@ static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct
 {
 	u64 interval = c->rate_interval_ns;
 	u32 delivered = c->rate_delivered;
+
 	if (!interval || !delivered)
 		return UINT_MAX;
 	do_div(interval, delivered);
+
 	return interval;
 }
 
@@ -602,9 +604,11 @@ static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
 {
 	u64 interval = tp->rate_interval_us * NSEC_PER_USEC;
 	u32 delivered = tp->rate_delivered;
+
 	if (!interval || !delivered)
 		return UINT_MAX;
 	do_div(interval, delivered);
+
 	return interval;
 }
 
