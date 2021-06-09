@@ -155,24 +155,22 @@ void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
 		struct chirp *chirp = &tp->chirp;
 		u64 len_ns = chirp->gap_ns;
 
+		if (ext == NULL) {
+			/* Should exit here with PC_EXIT_ALLOCATION but pc is in ca struct */
+			return;
+		}
+
 		chirp->gap_ns = max_t(s32, chirp->gap_ns - chirp->gap_step_ns, 0);
 		chirp->packets_out++;
-
-		if (ext) {
-			ext->chirp_number = chirp->chirp_number;
-			ext->packets = chirp->packets;
-			ext->scheduled_gap = len_ns;
-		}
-		if (info) {
-			info->pacing_location  = INTERNAL_PACING;
-			info->pacing_timestamp = ktime_get_ns();
-		}
+		ext->chirp_number = chirp->chirp_number;
+		ext->packets = chirp->packets;
+		ext->scheduled_gap = len_ns;
+		info->pacing_location  = INTERNAL_PACING;
+		info->pacing_timestamp = ktime_get_ns();
 
 		if (chirp->packets_out == chirp->packets) {
 			tp->tcp_wstamp_ns += chirp->guard_interval_ns;
-
-			if (ext)
-				ext->scheduled_gap = chirp->guard_interval_ns;
+			ext->scheduled_gap = chirp->guard_interval_ns;
 
 			if (inet_csk(sk)->icsk_ca_ops->new_chirp)
 				inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
