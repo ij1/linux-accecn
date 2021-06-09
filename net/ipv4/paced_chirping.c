@@ -371,7 +371,8 @@ static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct pace
 /* Assume in flight stays fairly constant, alright? */
 static inline u32 get_per_packet_ewma_shift(struct tcp_sock *tp)
 {
-	return max(4U, (u32)ilog2(tcp_packets_in_flight(tp) + 2)); /* Should be at least 16 pkts */
+	/* Should be at least 16 pkts */
+	return max_t(u32, 4, ilog2(tcp_packets_in_flight(tp) + 2));
 }
 
 static void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 recv_gap)
