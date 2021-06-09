@@ -1,0 +1,7 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] net: return low-level tstamps to sender
+
+Reuse existing timestamping but set the timestamp to the sent
+skb instead or in addition to the current target.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
