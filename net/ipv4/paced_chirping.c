@@ -396,6 +396,42 @@ static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct
 	return interval;
 }
 
+/* Reactive:  Estimates that are overly conservative unless continuous utilization
+ *            of the link is the case. Needs persistent congestion.
+ * TODO: Data suggests this is too conservative because it does not include
+ * headers. */
+static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
+{
+	u64 interval = tp->rate_interval_us * NSEC_PER_USEC;
+	u32 delivered = tp->rate_delivered;
+
+	if (!interval || !delivered)
+		return UINT_MAX;
+	do_div(interval, delivered);
+
+	return interval;
+}
+
+static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
+{
+	u32 reactive_service_time_ns = paced_chirping_get_reactive_service_time(tp);
+	u32 reactive_recv_gap_estimate_ns = pc->recv_gap_estimate_ns;
+	return min(reactive_service_time_ns, reactive_recv_gap_estimate_ns);
+}
+
+static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
+{
+	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
+	/* (RTT + variation) * X%, X scaled by 1024 */
+	u64 threshold = (u64)tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
+	do_div(threshold, 1024U);
+
+	if (paced_chirping_is_discontinuous_link(pc))
+		threshold = max(threshold, 10000ULL);
+
+	return qdelay_us > threshold;
+}
+
 /******************** Chirp analysis function ********************/
 static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, struct cc_chirp *c, struct sk_buff *skb)
 {
@@ -596,42 +632,6 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 }
 
 /******************** Controller/Algorithm functions ********************/
-/* Reactive:  Estimates that are overly conservative unless continuous utilization
- *            of the link is the case. Needs persistent congestion.
- * TODO: Data suggests this is too conservative because it does not include
- * headers. */
-static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
-{
-	u64 interval = tp->rate_interval_us * NSEC_PER_USEC;
-	u32 delivered = tp->rate_delivered;
-
-	if (!interval || !delivered)
-		return UINT_MAX;
-	do_div(interval, delivered);
-
-	return interval;
-}
-
-static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
-{
-	u32 reactive_service_time_ns = paced_chirping_get_reactive_service_time(tp);
-	u32 reactive_recv_gap_estimate_ns = pc->recv_gap_estimate_ns;
-	return min(reactive_service_time_ns, reactive_recv_gap_estimate_ns);
-}
-
-static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
-{
-	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
-	/* (RTT + variation) * X%, X scaled by 1024 */
-	u64 threshold = (u64)tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
-	do_div(threshold, 1024U);
-
-	if (paced_chirping_is_discontinuous_link(pc))
-		threshold = max(threshold, 10000ULL);
-
-	return qdelay_us > threshold;
-}
-
 static bool paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	u32 qdelay_us = paced_chirping_get_smoothed_queueing_delay_us(tp, pc);
