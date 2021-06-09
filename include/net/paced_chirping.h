@@ -28,7 +28,8 @@ void paced_chirping_cache_get(struct sock *sk, struct paced_chirping_cache *pc_c
 
 #if IS_ENABLED(CONFIG_PACED_CHIRPING)
 
-static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
+static inline bool paced_chirping_is_chirping(struct tcp_sock *tp)
+{
 	return tp->is_chirping;
 }
 
@@ -47,7 +48,8 @@ static inline bool paced_chirping_new_chirp_and_send_check(struct sock *sk)
 
 #else
 
-static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
+static inline bool paced_chirping_is_chirping(struct tcp_sock *tp)
+{
         return false;
 }
 
