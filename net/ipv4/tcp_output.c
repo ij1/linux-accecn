@@ -2826,13 +2826,8 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		if (tcp_pacing_check(sk))
 			break;
 
-#if IS_ENABLED(CONFIG_PACED_CHIRPING)
-		if (tp->is_chirping &&
-		    tp->chirp.packets_out >= tp->chirp.packets &&
-		    inet_csk(sk)->icsk_ca_ops->new_chirp(sk)) {
+		if (paced_chirping_new_chirp_and_send_check(sk))
 			break;
-		}
-#endif
 
 		tso_segs = tcp_init_tso_segs(skb, mss_now);
 		BUG_ON(!tso_segs);

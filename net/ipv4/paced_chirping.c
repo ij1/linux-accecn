@@ -25,6 +25,17 @@ inline int paced_chirping_active(struct paced_chirping *pc)
 }
 EXPORT_SYMBOL(paced_chirping_active);
 
+bool paced_chirping_new_chirp_check(struct sock *sk)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (tp->chirp.packets_out < tp->chirp.packets)
+		return false;
+
+	return inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
+}
+EXPORT_SYMBOL(paced_chirping_new_chirp_check);
+
 static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
 {
 	/* The minimum queueing delay over a chirp is a hot candidate. */

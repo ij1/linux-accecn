@@ -33,6 +33,17 @@ static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
 }
 
 void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb);
+bool paced_chirping_new_chirp_check(struct sock *sk);
+
+static inline bool paced_chirping_new_chirp_and_send_check(struct sock *sk)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (!paced_chirping_is_chirping(tp))
+		return false;
+
+	return paced_chirping_new_chirp_check(sk);
+}
 
 #else
 
@@ -42,6 +53,11 @@ static inline bool paced_chirping_is_chirping(struct tcp_sock *tp) {
 
 static inline void paced_chirping_chirp_gap(struct sock *sk,
 					    struct sk_buff *skb) {}
+
+static inline bool paced_chirping_new_chirp_and_send_check(struct sock *sk)
+{
+	return false;
+}
 
 #endif
 
