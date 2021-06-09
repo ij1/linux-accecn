@@ -1,5 +1,4 @@
 /*
- *
  * The Paced Chirping start-up extension can be enabled by setting sysctl paced_chirping_enabled to 1.
  * Paced chirping is described in https://riteproject.files.wordpress.com/2018/07/misundjoakimmastersthesissubmitted180515.pdf
  *
