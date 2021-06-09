@@ -869,7 +869,6 @@ void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct
 		return;
 
 	paced_chirping_pkt_acked_startup(sk, pc, skb);
-
 }
 EXPORT_SYMBOL(paced_chirping_pkt_acked);
 
