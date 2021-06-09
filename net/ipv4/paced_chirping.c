@@ -529,7 +529,8 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 			qdelay_diff = max(c->last_delay, c->excursion_start) - c->excursion_start;
 
 			if (qdelay_diff >= ((c->max_q>>1) + (c->max_q>>3))) {
-				c->max_q = c->max_q > qdelay_diff ? c->max_q:qdelay_diff;
+				/* FIXME: is it ok to have a too small type for max_q? */
+				c->max_q = min_t(u16, max_t(u32, c->max_q, qdelay_diff), 0xFFFFU);
 				c->excursion_len++;
 
 				if (c->packets_acked != packets_in_chirp &&
