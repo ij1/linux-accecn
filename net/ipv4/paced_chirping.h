@@ -75,9 +75,9 @@ static u32 paced_chirping_use_proactive_service_time __read_mostly  = 0;
 module_param(paced_chirping_use_proactive_service_time, uint, 0644);
 
 struct cc_chirp {
-	/* Original analysis converted to on-line by Illpo */
-	u32     gap_total; /* Can be sub-40 bits */
-	u32     gap_pending; /* Can be sub-40 bits */
+	/* State variables for online calculation */
+	u64     gap_total;
+	u64     gap_pending;
 
 	u32     chirp_number : 16, /* Chirp number, first chirp has number 0 */
 		packets_acked :  8, /* Used to record the measured queue delays */
