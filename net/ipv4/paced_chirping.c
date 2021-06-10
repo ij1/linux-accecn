@@ -597,9 +597,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 			}
 		}
 
-		if (c->packets_acked != packets_in_chirp) {
-			c->last_delay = qdelay;
-		}
+		c->last_delay = qdelay;
 	}
 
 	/* TODO: Add print statement from logging */
