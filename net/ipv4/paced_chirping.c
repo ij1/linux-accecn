@@ -546,7 +546,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		 */
 		if (c->packets_acked < packets_in_chirp &&
 		    (send_gap<<1) < scheduled_gap) {
-			c->valid = 1;
+			c->valid = 0;
 		}
 
 		c->uncounted++;
