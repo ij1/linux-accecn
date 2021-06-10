@@ -440,6 +440,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	u32 packets_in_chirp; /* The number of packets in the current chirp */
 	u32 ewma_shift;       /* shift value to use for per packet EWMA */
 	u32 proactive = UINT_MAX;
+	bool last_pkt;
 
 	ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
 	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, tcp_skb_timestamp_us(skb));
@@ -534,6 +535,8 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		return 0;
 	}
 
+	last_pkt = c->packets_acked == packets_in_chirp;
+
 	if (c->valid) { /* All other packets */
 		/* TODO: Scheduled gap is gap between this packet and the next packet, so it shouldn't
 		 *       (really) be compared with send gap, which is between the previous packet and
@@ -544,16 +547,12 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		 *       Rectify by storing previous scheduled gap. Also reconsider whether this is
 		 *       necessary or if it should be more tolerant.
 		 */
-		if (c->packets_acked < packets_in_chirp &&
-		    (send_gap<<1) < scheduled_gap) {
+		if (!last_pkt && (send_gap << 1) < scheduled_gap)
 			c->valid = 1;
-		}
 
 		c->uncounted++;
 
-		if (!c->in_excursion &&
-		    c->last_delay < qdelay &&
-		    c->packets_acked < packets_in_chirp) {
+		if (!c->in_excursion && c->last_delay < qdelay && !last_pkt) {
 			c->excursion_start = c->last_delay;
 			c->excursion_len = 0;
 			c->last_sample = send_gap;
@@ -568,8 +567,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 				c->max_q = max(c->max_q, qdelay_diff);
 				c->excursion_len++;
 
-				if (c->packets_acked != packets_in_chirp &&
-				    c->last_delay < qdelay) {
+				if (!last_pkt && c->last_delay < qdelay) {
 					c->gap_pending += send_gap;
 					c->pending_count++;
 				}
@@ -584,8 +582,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 				c->in_excursion = 0;
 
 				if (!c->in_excursion &&
-				    c->last_delay < qdelay &&
-				    c->packets_acked < packets_in_chirp) {
+				    c->last_delay < qdelay && !last_pkt) {
 					c->excursion_start = c->last_delay;
 					c->excursion_len = 1;
 					c->last_sample = send_gap;
@@ -602,7 +599,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 
 	/* TODO: Add print statement from logging */
 
-	if (c->packets_acked == packets_in_chirp) {
+	if (last_pkt) {
 		if (!c->in_excursion)
 			c->last_sample = send_gap;
 
