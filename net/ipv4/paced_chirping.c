@@ -562,7 +562,6 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		}
 
 		if (c->in_excursion) {
-
 			qdelay_diff = max(c->last_delay, c->excursion_start) - c->excursion_start;
 
 			if (qdelay_diff >= ((c->max_q>>1) + (c->max_q>>3))) {
@@ -574,6 +573,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 					c->gap_pending += send_gap;
 					c->pending_count++;
 				}
+
 			} else {
 				if (c->excursion_len >= paced_chirping_L) {
 					c->gap_total += c->gap_pending;
