@@ -91,7 +91,7 @@ struct cc_chirp {
 		pending_count : 8;
 
 	u32     excursion_start;      /* Need to be this big */
-	u16     max_q;                /* Need to be this big */
+	u32     max_q;
 	u32     last_delay;
 	u32     last_sample;
 
