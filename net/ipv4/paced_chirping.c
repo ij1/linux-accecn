@@ -581,8 +581,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 				c->pending_count = 0;
 				c->in_excursion = 0;
 
-				if (!c->in_excursion &&
-				    c->last_delay < qdelay && !last_pkt) {
+				if (c->last_delay < qdelay && !last_pkt) {
 					c->excursion_start = c->last_delay;
 					c->excursion_len = 1;
 					c->last_sample = send_gap;
