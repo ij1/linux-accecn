@@ -80,8 +80,7 @@ struct cc_chirp {
 	u64     gap_pending;
 
 	u32     chirp_number : 16, /* Chirp number, first chirp has number 0 */
-		packets_acked :  8, /* Used to record the measured queue delays */
-		excursion_index : 8; /* Start of last excursion in chirp */
+		packets_acked :  8; /* Used to record the measured queue delays */
 
 	u32     uncounted     : 6,
 		in_excursion  : 1,

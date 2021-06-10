@@ -582,7 +582,6 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 				c->gap_pending = 0;
 				c->pending_count = 0;
 				c->in_excursion = 0;
-				c->excursion_index = c->packets_acked;
 
 				if (!c->in_excursion &&
 				    c->last_delay < qdelay &&
@@ -596,8 +595,6 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 					c->pending_count = 1;
 				}
 			}
-		} else {
-			c->excursion_index = c->packets_acked;
 		}
 
 		if (c->packets_acked != packets_in_chirp) {
@@ -709,7 +706,6 @@ static void paced_chirping_reset_chirp(struct cc_chirp *c)
 	c->gap_pending = 0;
 	c->chirp_number = 0;
 	c->packets_acked = 0;
-	c->excursion_index = 0;
 	c->uncounted = 0;
 	c->in_excursion = 0;
 	c->valid = 1;
