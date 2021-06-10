@@ -4669,7 +4669,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 		     struct sock *sk, int tstype)
 {
 	struct sk_buff *skb;
-	bool tsonly, opt_stats = false;
+	bool tsonly, opt_stats = false, sender_stamps;
 
 	if (!sk)
 		return;
@@ -4679,8 +4679,10 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 		return;
 
 	tsonly = sk->sk_tsflags & SOF_TIMESTAMPING_OPT_TSONLY;
+	sender_stamps = sk->sk_tsflags & FIXME;
+
 	if (!skb_may_tx_timestamp(sk, tsonly))
-		return;
+		goto out;
 
 	if (tsonly) {
 #ifdef CONFIG_INET
@@ -4696,7 +4698,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 		skb = skb_clone(orig_skb, GFP_ATOMIC);
 	}
 	if (!skb)
-		return;
+		goto out;
 
 	if (tsonly) {
 		skb_shinfo(skb)->tx_flags |= skb_shinfo(orig_skb)->tx_flags &
@@ -4704,12 +4706,26 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 		skb_shinfo(skb)->tskey = skb_shinfo(orig_skb)->tskey;
 	}
 
-	if (hwtstamps)
+	if (hwtstamps) {
 		*skb_hwtstamps(skb) = *hwtstamps;
-	else
+		if (sender_stamps)
+			*skb_hwtstamps(orig_skb) = *hwtstamps;
+	} else {
 		skb->tstamp = ktime_get_real();
+		if (sender_stamps)
+			skb_shinfo(orig_skb)->hwtstamps.hwstamps = skb->tstamp;
+	}
 
 	__skb_complete_tx_timestamp(skb, sk, tstype, opt_stats);
+	return;
+
+out:
+	if (sender_stamps) {
+		if (hwtstamps)
+			*skb_hwtstamps(orig_skb) = *hwtstamps;
+		else
+			skb_shinfo(orig_skb)-> = ktime_get_real();
+	}
 }
 EXPORT_SYMBOL_GPL(__skb_tstamp_tx);
 
