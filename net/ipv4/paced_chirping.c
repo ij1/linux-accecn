@@ -529,7 +529,6 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 		     c->rate_interval_ns,
 		     c->rate_delivered));
 
-	/* Start of original online analysis */
 	if (c->packets_acked == 1U) {
 		c->last_delay = qdelay;
 		return 0;
@@ -537,7 +536,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 
 	last_pkt = c->packets_acked == packets_in_chirp;
 
-	if (c->valid) { /* All other packets */
+	if (c->valid) {
 		/* TODO: Scheduled gap is gap between this packet and the next packet, so it shouldn't
 		 *       (really) be compared with send gap, which is between the previous packet and
 		 *       this packet. This is probably why the code before stored send gap in chirp,
