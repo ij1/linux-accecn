@@ -537,6 +537,8 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 	last_pkt = c->packets_acked == packets_in_chirp;
 
 	if (c->valid) {
+		bool delay_incr = c->last_delay < qdelay && !last_pkt;
+
 		/* TODO: Scheduled gap is gap between this packet and the next packet, so it shouldn't
 		 *       (really) be compared with send gap, which is between the previous packet and
 		 *       this packet. This is probably why the code before stored send gap in chirp,
@@ -551,7 +553,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 
 		c->uncounted++;
 
-		if (!c->in_excursion && c->last_delay < qdelay && !last_pkt) {
+		if (!c->in_excursion && delay_incr) {
 			c->excursion_start = c->last_delay;
 			c->excursion_len = 0;
 			c->last_sample = send_gap;
@@ -566,7 +568,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 				c->max_q = max(c->max_q, qdelay_diff);
 				c->excursion_len++;
 
-				if (!last_pkt && c->last_delay < qdelay) {
+				if (delay_incr) {
 					c->gap_pending += send_gap;
 					c->pending_count++;
 				}
@@ -580,7 +582,7 @@ static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *p
 				c->pending_count = 0;
 				c->in_excursion = 0;
 
-				if (c->last_delay < qdelay && !last_pkt) {
+				if (delay_incr) {
 					c->excursion_start = c->last_delay;
 					c->excursion_len = 1;
 					c->last_sample = send_gap;
