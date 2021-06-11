@@ -424,7 +424,7 @@ static bool sock_needs_netstamp(const struct sock *sk)
 	}
 }
 
-static void sock_disable_timestamp(struct sock *sk, unsigned long flags)
+void sock_disable_timestamp(struct sock *sk, unsigned long flags)
 {
 	if (sk->sk_flags & flags) {
 		sk->sk_flags &= ~flags;
@@ -433,7 +433,7 @@ static void sock_disable_timestamp(struct sock *sk, unsigned long flags)
 			net_disable_timestamp();
 	}
 }
-
+EXPORT_SYMBOL(sock_disable_timestamp);
 
 int __sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
@@ -3147,7 +3147,7 @@ void sock_enable_timestamp(struct sock *sk, enum sock_flags flag)
 
 		sock_set_flag(sk, flag);
 		/*
-		 * we just set one of the two flags which require net
+		 * we just set one of the three flags which require net
 		 * time stamping, but time stamping might have been on
 		 * already because of the other one
 		 */
