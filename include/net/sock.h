@@ -861,9 +861,14 @@ enum sock_flags {
 	SOCK_TXTIME,
 	SOCK_XDP, /* XDP is attached */
 	SOCK_TSTAMP_NEW, /* Indicates 64 bit timestamps always */
+	SOCK_INTERNAL_SEND_TIMESTAMP, /* Set internal timestamp for the use
+				       * on packet sending upper layer.
+				       */
 };
 
-#define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE))
+#define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | \
+			    (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE) | \
+			    (1UL << SOCK_INTERNAL_SEND_TIMESTAMP))
 
 static inline void sock_copy_flags(struct sock *nsk, struct sock *osk)
 {

@@ -518,7 +518,11 @@ struct skb_shared_info {
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
 	struct sk_buff	*frag_list;
-	struct skb_shared_hwtstamps hwtstamps;
+	union {
+		struct skb_shared_hwtstamps hwtstamps;
+		/* Overlaps with hwtstamps ktime_t on purpose */
+		ktime_t internal_send_tstamp;
+	};
 	unsigned int	gso_type;
 	u32		tskey;
 

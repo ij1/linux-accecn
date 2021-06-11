@@ -4669,20 +4669,21 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 		     struct sock *sk, int tstype)
 {
 	struct sk_buff *skb;
-	bool tsonly, opt_stats = false, sender_stamps;
+	bool tsonly, opt_stats = false, internal_ts;
 
 	if (!sk)
 		return;
 
+	internal_ts = sk->sk_flags & SOCK_INTERNAL_SEND_TIMESTAMP;
+
 	if (!hwtstamps && !(sk->sk_tsflags & SOF_TIMESTAMPING_OPT_TX_SWHW) &&
 	    skb_shinfo(orig_skb)->tx_flags & SKBTX_IN_PROGRESS)
-		return;
+		goto internal_only;
 
 	tsonly = sk->sk_tsflags & SOF_TIMESTAMPING_OPT_TSONLY;
-	sender_stamps = sk->sk_tsflags & FIXME;
 
 	if (!skb_may_tx_timestamp(sk, tsonly))
-		goto out;
+		goto internal_only;
 
 	if (tsonly) {
 #ifdef CONFIG_INET
@@ -4698,7 +4699,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 		skb = skb_clone(orig_skb, GFP_ATOMIC);
 	}
 	if (!skb)
-		goto out;
+		goto internal_only;
 
 	if (tsonly) {
 		skb_shinfo(skb)->tx_flags |= skb_shinfo(orig_skb)->tx_flags &
@@ -4708,23 +4709,24 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 
 	if (hwtstamps) {
 		*skb_hwtstamps(skb) = *hwtstamps;
-		if (sender_stamps)
-			*skb_hwtstamps(orig_skb) = *hwtstamps;
+		/* Only alloc_skb paths assign because shinfo hwtstamps overlaps */
+		if (tsonly && internal_ts)
+			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
 	} else {
 		skb->tstamp = ktime_get_real();
-		if (sender_stamps)
-			skb_shinfo(orig_skb)->hwtstamps.hwstamps = skb->tstamp;
+		if (internal_ts)
+			skb_shinfo(orig_skb)->internal_send_tstamp = skb->tstamp;
 	}
 
 	__skb_complete_tx_timestamp(skb, sk, tstype, opt_stats);
 	return;
 
-out:
-	if (sender_stamps) {
+internal_only:
+	if (internal_ts) {
 		if (hwtstamps)
-			*skb_hwtstamps(orig_skb) = *hwtstamps;
+			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
 		else
-			skb_shinfo(orig_skb)-> = ktime_get_real();
+			skb_shinfo(orig_skb)->internal_send_tstamp = ktime_get_real();
 	}
 }
 EXPORT_SYMBOL_GPL(__skb_tstamp_tx);
