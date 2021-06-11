@@ -862,7 +862,7 @@ enum sock_flags {
 	SOCK_XDP, /* XDP is attached */
 	SOCK_TSTAMP_NEW, /* Indicates 64 bit timestamps always */
 	SOCK_INTERNAL_SEND_TIMESTAMP, /* Set internal timestamp for the use
-				       * on packet sending upper layer.
+				       * of packet timing on upper layer.
 				       */
 };
 
