@@ -10,9 +10,9 @@ as hwtstamps to allow hw filling them. If the timestamp already
 exists, don't overwrite with software timestamp.
 
 Interestingly, prior to 49ca0d8bfaf3b (net-timestamp: no-payload
-option), the orig_skb hwtstamps were set before a clone was made
-so the timestamp was available on the original. The change
-description does not go into details whether the change was
-intentional or not.
+option), the orig_skb hwtstamps were set before the clone/alloc
+was made so the timestamp was available on the original. The
+change description does not go into details whether the change
+was intentional or not.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
