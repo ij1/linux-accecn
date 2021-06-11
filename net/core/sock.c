@@ -3156,6 +3156,7 @@ void sock_enable_timestamp(struct sock *sk, enum sock_flags flag)
 			net_enable_timestamp();
 	}
 }
+EXPORT_SYMBOL(sock_enable_timestamp);
 
 int sock_recv_errqueue(struct sock *sk, struct msghdr *msg, int len,
 		       int level, int type)
