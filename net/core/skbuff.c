@@ -4674,12 +4674,11 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 	if (!sk)
 		return;
 
-	internal_ts = sk->sk_flags & SOCK_INTERNAL_SEND_TIMESTAMP;
-
 	if (!hwtstamps && !(sk->sk_tsflags & SOF_TIMESTAMPING_OPT_TX_SWHW) &&
 	    skb_shinfo(orig_skb)->tx_flags & SKBTX_IN_PROGRESS)
-		goto internal_only;
+		return;
 
+	internal_ts = sk->sk_flags & SOCK_INTERNAL_SEND_TIMESTAMP;
 	tsonly = sk->sk_tsflags & SOF_TIMESTAMPING_OPT_TSONLY;
 
 	if (!skb_may_tx_timestamp(sk, tsonly))
