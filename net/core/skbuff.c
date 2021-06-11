@@ -4713,7 +4713,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
 	} else {
 		skb->tstamp = ktime_get_real();
-		if (internal_ts)
+		if (internal_ts && !skb_shinfo(orig_skb)->internal_send_tstamp)
 			skb_shinfo(orig_skb)->internal_send_tstamp = skb->tstamp;
 	}
 
@@ -4724,7 +4724,7 @@ internal_only:
 	if (internal_ts) {
 		if (hwtstamps)
 			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
-		else
+		else if (!skb_shinfo(orig_skb)->internal_send_tstamp)
 			skb_shinfo(orig_skb)->internal_send_tstamp = ktime_get_real();
 	}
 }
