@@ -4709,7 +4709,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 
 	if (hwtstamps) {
 		*skb_hwtstamps(skb) = *hwtstamps;
-		/* Only alloc_skb paths assign because shinfo hwtstamps overlaps */
+		/* Only alloc_skb paths assign because shinfo hwtstamps overlap */
 		if (tsonly && internal_ts)
 			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
 	} else {
