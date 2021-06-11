@@ -3,7 +3,7 @@ Subject: [PATCH] net: return low-level tstamps to sender
 
 Reuse existing timestamping infrastructure but set the timestamp
 to the original (sent) skb instead or in addition to the
-new/cloned skb that is put the err queue.
+new/cloned skb that is put into the err queue.
 
 The internal timestamp is placed into shinfo to the same location
 as hwtstamps to allow hw filling them. If the timestamp already
