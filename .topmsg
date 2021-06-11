@@ -1,7 +1,17 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
 Subject: [PATCH] net: return low-level tstamps to sender
 
-Reuse existing timestamping but set the timestamp to the sent
-skb instead or in addition to the current target.
+Reuse existing timestamping infrastructure but set the timestamp
+to the original (sent) skb instead or in addition to the
+new/cloned skb that is put the err queue.
+
+The internal timestamp is placed into shinfo to the same location
+as hwtstamps to allow hw filling them.
+
+Interestingly, prior to 49ca0d8bfaf3b (net-timestamp: no-payload
+option), the orig_skb hwtstamps were set before a clone was made
+so the timestamp was available on the original. The change
+description does not go into details whether the change was
+intentional or not.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
