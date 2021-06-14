@@ -455,22 +455,8 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 		acked -= rs->ece_delta;
 	}
 
-	if (acked <= 0 || ca->in_loss)
+	if (acked <= 0 || ca->in_loss || !tcp_is_cwnd_limited(sk))
 		goto adjust;
-
-	if (!tcp_is_cwnd_limited(sk)) {
-		if (tcp_needs_internal_pacing(sk)) {
-			/* TCP internal pacing could preempt the cwnd limited
-			 * check. This is a poor man's attempt at bypassing
-			 * this, but will fail to account for rwnd/sndbuf
-			 * limited cases. */
-			if (tcp_write_queue_empty(sk))
-				goto adjust;
-			/* else: keep going */
-		} else {
-			goto adjust;
-		}
-	}
 
 	if (tcp_in_slow_start(tp)) {
 		acked = tcp_slow_start(tp, acked);
