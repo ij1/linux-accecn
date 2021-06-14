@@ -4684,6 +4684,9 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
 	if (!skb_may_tx_timestamp(sk, tsonly))
 		goto internal_only;
 
+	if (internal_ts && !(sk->sk_tsflags & SOF_TIMESTAMPING_TX_RECORD_MASK))
+		goto internal_only;
+
 	if (tsonly) {
 #ifdef CONFIG_INET
 		if ((sk->sk_tsflags & SOF_TIMESTAMPING_OPT_STATS) &&
