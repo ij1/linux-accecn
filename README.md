@@ -55,6 +55,9 @@ fi
 # Enable TCP Prague and dualpi2
 scripts/config -m TCP_CONG_PRAGUE
 scripts/config -m NET_SCH_DUALPI2
+# Optionally enable DCTCP and BBR v2
+scripts/config -m TCP_CONG_DCTCP
+scripts/config -m TCP_CONG_BBR2
 
 # Build the kernel
 make -j$(nproc) LOCALVERSION=-prague-1
@@ -81,8 +84,7 @@ make sure to also build the [patched iproute2 ](https://github.com/L4STeam/iprou
 git clone https://github.com/L4STeam/iproute2.git && cd iproute2
 ./configure
 make
-# Enable DCTCP compat by also enqueing ECT(0) in the L4S queue
-tc/tc qdisc replace dev eth0 root dualpi2 any_ect
+tc/tc qdisc replace dev eth0 root dualpi2 ...
 # You can optionally install (!potentially overwrite) the new
 # iproute2 utils with `make install`
 ```
@@ -98,9 +100,9 @@ heavyly virtualized settings, as scheduling becomes less reliable.
 ```bash
 sysctl -w net.ipv4.tcp_congestion_control=prague
 # Enable Accurate ECN
-sysctl -w net.ipv4.tcp_ecn=5
+sysctl -w net.ipv4.tcp_ecn=3
 ```
 
+Prague attempts to negotiate Accurate ECN automatically.
 Note that, at the moment, Accurate ECN **must** be enabled on both ends of a
-connection in order to use prague as congestion control. Unlike DCTCP, it is
-sufficient to only use prague on the "bulk sender".
+connection in order it with DCTCP or BBR v2.
