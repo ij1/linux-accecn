@@ -74,9 +74,9 @@ static void dctcp_reset(const struct tcp_sock *tp, struct dctcp *ca)
 
 static void dctcp_init(struct sock *sk)
 {
-	const struct tcp_sock *tp = tcp_sk(sk);
+	struct tcp_sock *tp = tcp_sk(sk);
 
-	if ((tp->ecn_flags & TCP_ECN_OK) ||
+	if (tcp_ecn_mode_any(tp) ||
 	    (sk->sk_state == TCP_LISTEN ||
 	     sk->sk_state == TCP_CLOSE)) {
 		struct dctcp *ca = inet_csk_ca(sk);
@@ -87,6 +87,7 @@ static void dctcp_init(struct sock *sk)
 
 		ca->loss_cwnd = 0;
 		ca->ce_state = 0;
+		tp->ecn_flags |= TCP_ECN_ECT_1;
 
 		dctcp_reset(tp, ca);
 		return;
@@ -222,7 +223,7 @@ static struct tcp_congestion_ops dctcp __read_mostly = {
 	.undo_cwnd	= dctcp_cwnd_undo,
 	.set_state	= dctcp_state,
 	.get_info	= dctcp_get_info,
-	.flags		= TCP_CONG_NEEDS_ECN,
+	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_WANTS_CE_EVENTS,
 	.owner		= THIS_MODULE,
 	.name		= "dctcp",
 };
