@@ -42,6 +42,7 @@
 #include <linux/inet_diag.h>
 #include "tcp_dctcp.h"
 #include "paced_chirping.h"
+#include "paced_chirping_param.h"
 
 #define DCTCP_MAX_ALPHA	1024U
 

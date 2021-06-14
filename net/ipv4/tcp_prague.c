@@ -89,6 +89,7 @@
 #include <linux/inet_diag.h>
 #include <linux/inet.h>
 #include "paced_chirping.h"
+#include "paced_chirping_param.h"
 
 #define MIN_CWND		2U
 #define PRAGUE_ALPHA_BITS	20U

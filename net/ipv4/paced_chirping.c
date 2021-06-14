@@ -15,6 +15,68 @@
 #include "paced_chirping.h"
 #include <net/paced_chirping.h>
 
+/* Debugging */
+static unsigned int paced_chirping_trace __read_mostly = 1;
+static unsigned int paced_chirping_log __read_mostly = 1;
+module_param(paced_chirping_trace, uint, 0644);
+module_param(paced_chirping_log, uint, 0644);
+
+/* Initialization values */
+static unsigned int paced_chirping_use_initial_srrt       __read_mostly = 1U;
+static unsigned int paced_chirping_use_cached_information __read_mostly = 0U;
+static unsigned int paced_chirping_gap_pkts_shift         __read_mostly = 6U; /* 2^6 = 64 pkts */
+static unsigned int paced_chirping_load_gap_pkts_shift    __read_mostly = 4U; /* 2^4 = 16 pkts */
+static u32 paced_chirping_initial_gap_ns                  __read_mostly = 120000U;  /* ~ 100mbps */
+static u32 paced_chirping_initial_load_gap_ns             __read_mostly = 2400000U; /* ~ 5mbps */
+
+module_param(paced_chirping_use_cached_information, uint, 0644);
+module_param(paced_chirping_use_initial_srrt, uint, 0644);
+module_param(paced_chirping_gap_pkts_shift, uint, 0644);
+module_param(paced_chirping_load_gap_pkts_shift, uint, 0644);
+module_param(paced_chirping_initial_gap_ns, uint, 0644);
+module_param(paced_chirping_initial_load_gap_ns, uint, 0644);
+
+/* Provides some safety against misbehaviour */
+static u32 paced_chirping_service_time_queueing_delay_thresh_us __read_mostly  =  5000U; /* 5ms */
+static u32 paced_chirping_service_time_queueing_delay_percent   __read_mostly  =   205U; /* 20% */
+static u32 paced_chirping_overload_exit_queueing_delay_thresh_us __read_mostly = 30000U; /* 30ms */
+static u32 paced_chirping_lowest_internal_pacing_gap __read_mostly = 40000U; /* 40us */
+static u32 paced_chirping_lowest_FQ_pacing_gap __read_mostly       = 20000U; /* 20us */
+module_param(paced_chirping_service_time_queueing_delay_thresh_us, uint, 0644);
+module_param(paced_chirping_service_time_queueing_delay_percent, uint, 0644);
+module_param(paced_chirping_overload_exit_queueing_delay_thresh_us, uint, 0644);
+module_param(paced_chirping_lowest_internal_pacing_gap, uint, 0644);
+module_param(paced_chirping_lowest_FQ_pacing_gap, uint, 0644);
+
+/* This is too fragile as is. */
+static u32 paced_chirping_use_proactive_service_time __read_mostly  = 0;
+module_param(paced_chirping_use_proactive_service_time, uint, 0644);
+
+static unsigned int paced_chirping_initial_geometry __read_mostly = 2<<PC_G_G_SHIFT;
+module_param(paced_chirping_initial_geometry, uint, 0644);
+MODULE_PARM_DESC(paced_chirping_initial_geometry, "Initial geometry for chirps scaled by shift 10. (Default: 2 << 10)");
+
+static unsigned int paced_chirping_L __read_mostly = 5U;
+module_param(paced_chirping_L, uint, 0644);
+MODULE_PARM_DESC(paced_chirping_L, "Number of packets that make up an excursion (Default: 5)");
+
+static unsigned int paced_chirping_maximum_initial_gap __read_mostly = 1000000U;
+module_param(paced_chirping_maximum_initial_gap, uint, 0644);
+MODULE_PARM_DESC(paced_chirping_maximum_initial_gap, "Maximum initial average probing gap in nanoseconds (Default: 1ms)");
+
+/* This is useful in case it misbehaves. */
+static unsigned int paced_chirping_maximum_num_chirps __read_mostly = 200U;
+module_param(paced_chirping_maximum_num_chirps, uint, 0644);
+MODULE_PARM_DESC(paced_chirping_maximum_num_chirps, "Number of chirps analysed before Paced Chirping exists (Default: 200)");
+
+static unsigned int paced_chirping_prob_size __read_mostly = 16U;
+module_param(paced_chirping_prob_size, uint, 0644);
+MODULE_PARM_DESC(paced_chirping_prob_size, "Minimum number of packets in a chirp (Default: 16)");
+
+static unsigned int paced_chirping_use_remote_tsval __read_mostly = 0U;
+module_param(paced_chirping_use_remote_tsval, uint, 0644);
+MODULE_PARM_DESC(paced_chirping_use_remote_tsval, "Whether to use remote tsval to calculate inter-arrival gaps (Default: 0)");
+
 inline int paced_chirping_active(struct paced_chirping *pc)
 {
 	return pc && pc->state;
@@ -131,9 +193,9 @@ EXPORT_SYMBOL(paced_chirping_exit);
 /******************** Chirp creating functions ********************/
 u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
 {
-	if (paced_chirping_enabled && paced_chirping_active(pc)) {
+	if (paced_chirping_active(pc))
 		return 1;
-	}
+
 	return tcp_tso_autosize(sk, mss_now,
 				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 }

@@ -29,6 +29,7 @@
 #include <linux/math64.h>
 #include <net/tcp.h>
 #include "paced_chirping.h"
+#include "paced_chirping_param.h"
 
 #define BICTCP_BETA_SCALE    1024	/* Scale factor beta calculation
 					 * max_cwnd = snd_cwnd * beta
