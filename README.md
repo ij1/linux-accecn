@@ -11,7 +11,7 @@ Namely:
 - The base implementation of TCP Prague (see branch tcp_prague)
 - ECT(1) enabled DCTCP
 - ECT(1) enabled BBR v2 (from v2alpha branch in
-[BBR v2 repo](https://github.com/google/bbr)
+[BBR v2 repo](https://github.com/google/bbr))
 
 # Installation (debian derivatives)
 
