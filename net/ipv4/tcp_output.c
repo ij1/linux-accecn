@@ -894,15 +894,33 @@ static int tcp_options_fit_accecn(struct tcp_out_options *opts, int required,
 		opts->num_ecn_bytes--;
 		size -= TCPOLEN_ACCECN_PERCOUNTER;
 	}
-	if (opts->num_ecn_bytes < required)
+
+	if (opts->num_ecn_bytes < required) {
+		if (opts->num_sack_blocks > 2) {
+			/* Try to fit the option by removing one SACK block */
+			opts->num_sack_blocks--;
+			size = tcp_options_fit_accecn(opts, required,
+						      remaining + TCPOLEN_SACK_PERBLOCK,
+						      max_combine_saving);
+			if (opts->options & OPTION_ACCECN)
+				return size - TCPOLEN_SACK_PERBLOCK;
+
+			opts->num_sack_blocks++;
+		}
 		return 0;
+	}
 
 	opts->options |= OPTION_ACCECN;
 	return size;
 }
 
-static bool tcp_accecn_option_beacon_check(const struct tcp_sock *tp)
+static bool tcp_accecn_option_beacon_check(const struct sock *sk)
 {
+	const struct tcp_sock *tp = tcp_sk(sk);
+
+	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_option_beacon)
+		return false;
+
 	return tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
 	       (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT));
 }
@@ -1151,7 +1169,7 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	    (tp->saw_accecn_opt && tp->saw_accecn_opt != TCP_ACCECN_OPT_FAIL)) {
 		if (sock_net(sk)->ipv4.sysctl_tcp_ecn_option >= 2 ||
 		    tp->accecn_opt_demand ||
-		    tcp_accecn_option_beacon_check(tp)) {
+		    tcp_accecn_option_beacon_check(sk)) {
 			opts->ecn_bytes = tp->received_ecn_bytes;
 			size += tcp_options_fit_accecn(opts, tp->accecn_minlen,
 						       MAX_TCP_OPTION_SPACE - size,
@@ -1397,7 +1415,9 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 		 * Note that tp->data_segs_out overflows after 2^32 packets,
 		 * this is a minor annoyance.
 		 */
-		if (rate != ~0UL && rate && tp->data_segs_out >= 10) {
+		if (rate != ~0UL && rate &&
+		    (sock_net(sk)->ipv4.sysctl_tcp_pace_iw ||
+		     tp->data_segs_out >= 10)) {
 			u64 len_ns = div64_ul((u64)skb->len * NSEC_PER_SEC, rate);
 			u64 credit = tp->tcp_wstamp_ns - prior_wstamp;
 
@@ -2150,8 +2170,7 @@ static bool tcp_nagle_check(bool partial, const struct tcp_sock *tp,
 /* Return how many segs we'd like on a TSO packet,
  * to send one TSO packet per ms
  */
-static u32 tcp_tso_autosize(const struct sock *sk, unsigned int mss_now,
-			    int min_tso_segs)
+u32 tcp_tso_autosize(const struct sock *sk, unsigned int mss_now, int min_tso_segs)
 {
 	u32 bytes, segs;
 
@@ -2168,6 +2187,7 @@ static u32 tcp_tso_autosize(const struct sock *sk, unsigned int mss_now,
 
 	return segs;
 }
+EXPORT_SYMBOL_GPL(tcp_tso_autosize);
 
 /* Return the number of segments we want in the skb we are transmitting.
  * See if congestion control module wants to decide; otherwise, autosize.
@@ -2801,7 +2821,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	tcp_mstamp_refresh(tp);
 
 	/* AccECN option beacon depends on mstamp, it may change mss */
-	if (tcp_ecn_mode_accecn(tp) && tcp_accecn_option_beacon_check(tp))
+	if (tcp_ecn_mode_accecn(tp) && tcp_accecn_option_beacon_check(sk))
 		mss_now = tcp_current_mss(sk);
 
 	if (!push_one) {

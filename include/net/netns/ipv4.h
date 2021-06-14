@@ -95,7 +95,9 @@ struct netns_ipv4 {
 
 	int sysctl_tcp_ecn;
 	int sysctl_tcp_ecn_option;
+	int sysctl_tcp_ecn_option_beacon;
 	int sysctl_tcp_ecn_fallback;
+	int sysctl_tcp_ecn_unsafe_cep;
 
 	int sysctl_ip_default_ttl;
 	int sysctl_ip_no_pmtu_disc;
@@ -170,6 +172,7 @@ struct netns_ipv4 {
 	int sysctl_tcp_invalid_ratelimit;
 	int sysctl_tcp_pacing_ss_ratio;
 	int sysctl_tcp_pacing_ca_ratio;
+	int sysctl_tcp_pace_iw;
 	int sysctl_tcp_wmem[3];
 	int sysctl_tcp_rmem[3];
 	int sysctl_tcp_comp_sack_nr;

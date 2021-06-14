@@ -227,6 +227,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 					 TCPOLEN_ACCECN_PERCOUNTER * \
 					 TCP_ACCECN_NUMCOUNTERS)
 #define TCP_ACCECN_BEACON_FREQ_SHIFT	2 /* Send option at least 2^2 times per RTT */
+#define TCP_ACCECN_SAFETY_SHIFT	1	/* SAFETY_FACTOR in accecn draft */
 
 /* tp->saw_accecn_opt states */
 #define TCP_ACCECN_OPT_EMPTY_SEEN	0x1
@@ -1174,6 +1175,7 @@ struct rate_sample {
 	int  losses;		/* number of packets marked lost upon ACK */
 	u32  acked_sacked;	/* number of packets newly (S)ACKed upon ACK */
 	u32  prior_in_flight;	/* in flight before this ACK */
+	u32  ece_delta;		/* is this ACK echoing some received CE? */
 	bool is_app_limited;	/* is sample from packet with bubble in pipe? */
 	bool is_retrans;	/* is sample from retransmission? */
 	bool is_ack_delayed;	/* is this (likely) a delayed ACK? */
@@ -1396,6 +1398,11 @@ static inline __u32 tcp_max_tso_deferred_mss(const struct tcp_sock *tp)
 {
 	return 3;
 }
+
+/* Return how many segs we'd like on a TSO packet,
+ * to send one TSO packet per ms
+ */
+u32 tcp_tso_autosize(const struct sock *sk, unsigned int mss_now, int min_tso_segs);
 
 /* Returns end sequence number of the receiver's advertised window */
 static inline u32 tcp_wnd_end(const struct tcp_sock *tp)

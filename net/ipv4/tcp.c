@@ -270,6 +270,7 @@
 
 #include <net/icmp.h>
 #include <net/inet_common.h>
+#include <net/inet_ecn.h>
 #include <net/tcp.h>
 #include <net/mptcp.h>
 #include <net/xfrm.h>
@@ -2699,6 +2700,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tcp_accecn_init_counters(tp);
 	tp->prev_ecnfield = 0;
 	tp->accecn_opt_tstamp = 0;
+	tp->pkts_acked_ewma = 0;
 	if (icsk->icsk_ca_ops->release)
 		icsk->icsk_ca_ops->release(sk);
 	memset(icsk->icsk_ca_priv, 0, sizeof(icsk->icsk_ca_priv));
@@ -3481,6 +3483,14 @@ void tcp_get_info(struct sock *sk, struct tcp_info *info)
 	info->tcpi_rcv_ooopack = tp->rcv_ooopack;
 	info->tcpi_snd_wnd = tp->snd_wnd;
 	info->tcpi_fastopen_client_fail = tp->fastopen_client_fail;
+	info->tcpi_received_ce = tp->received_ce;
+	info->tcpi_delivered_e1_bytes = tp->delivered_ecn_bytes[INET_ECN_ECT_1 - 1];
+	info->tcpi_delivered_e0_bytes = tp->delivered_ecn_bytes[INET_ECN_ECT_0 - 1];
+	info->tcpi_delivered_ce_bytes = tp->delivered_ecn_bytes[INET_ECN_CE - 1];
+	info->tcpi_received_e1_bytes = tp->received_ecn_bytes[INET_ECN_ECT_1 - 1];
+	info->tcpi_received_e0_bytes = tp->received_ecn_bytes[INET_ECN_ECT_0 - 1];
+	info->tcpi_received_ce_bytes = tp->received_ecn_bytes[INET_ECN_CE - 1];
+
 	unlock_sock_fast(sk, slow);
 }
 EXPORT_SYMBOL_GPL(tcp_get_info);

@@ -267,10 +267,18 @@ struct tcp_sock {
 	u64	tcp_mstamp;	/* most recent packet received/sent */
 	u32	srtt_us;	/* smoothed round trip time << 3 in usecs */
 	u32	mdev_us;	/* medium deviation			*/
+	u64	srtt_pace_us;	/* smoothed round trip time pace in usecs */
+	u64	mdev_pace_us;	/* medium deviation pace		*/
+	u32 mrtt_pace_us;
 	u32	mdev_max_us;	/* maximal mdev for the last rtt period	*/
 	u32	rttvar_us;	/* smoothed mdev_max			*/
 	u32	rtt_seq;	/* sequence number to update rttvar	*/
 	struct  minmax rtt_min;
+
+	u8	g_srtt_shift;
+	u8	g_mdev_shift;
+	u64 classic_ecn; /* 0 ...  L_STICKY ... CLASSIC_ECN ... C_STICKY*/
+	u64 alpha;
 
 	u32	packets_out;	/* Packets which are "in flight"	*/
 	u32	retrans_out;	/* Retransmitted packets out		*/
@@ -313,6 +321,7 @@ struct tcp_sock {
 		prev_ecnfield:2,/* ECN bits from the previous segment */
 		accecn_opt_demand:2,/* Demand AccECN option for n next ACKs */
 		estimate_ecnfield:2;/* ECN field for AccECN delivered estimates */
+	u16	pkts_acked_ewma;/* EWMA of packets acked for AccECN cep heuristic */
 	u64	accecn_opt_tstamp;	/* Last AccECN option sent timestamp */
 	u32	lost;		/* Total data packets lost incl. rexmits */
 	u32	app_limited;	/* limited until "delivered" reaches this val */
