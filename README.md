@@ -11,7 +11,7 @@ Namely:
 - The base implementation of TCP Prague (see branch tcp_prague)
 - ECT(1) enabled DCTCP
 - ECT(1) enabled BBR v2 (from v2alpha branch in
-[BBR v2 repo](https://github.com/google/bbr)
+[BBR v2 repo](https://github.com/google/bbr))
 
 # Installation (debian derivatives)
 
@@ -95,7 +95,7 @@ While dualpi2 can work with DCTCP, DCTCP suffers from a few unfortunate
 interactions with GSO/pacing/..., resulting in under-utilization. As a result,
 we advice you to use tcp_prague which currently has
 basic fixes to those limitations. Note that this might still under-perform in
-heavyly virtualized settings, as scheduling becomes less reliable.
+heavily virtualized settings, as scheduling becomes less reliable.
 
 ```bash
 sysctl -w net.ipv4.tcp_congestion_control=prague
