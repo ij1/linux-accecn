@@ -121,6 +121,10 @@ MODULE_PARM_DESC(prague_burst_shift,
 		 "maximal GSO burst duration as a base-2 negative exponent");
 module_param(prague_burst_shift, uint, 0644);
 
+static u32 prague_max_tso_segs __read_mostly = 0;
+MODULE_PARM_DESC(prague_max_tso_segs, "Maximum TSO/GSO segments");
+module_param(prague_max_tso_segs, uint, 0644);
+
 static u32 prague_rtt_scaling __read_mostly = RTT_CONTROL_RATE;
 MODULE_PARM_DESC(prague_rtt_scaling, "Enable RTT independence through the "
 		 "chosen RTT scaling heuristic");
@@ -134,10 +138,6 @@ static int prague_rtt_transition __read_mostly = DEFAULT_RTT_TRANSITION;
 MODULE_PARM_DESC(prague_rtt_transition, "Amount of post-SS rounds to transition"
 		 " to be RTT independent.");
 module_param(prague_rtt_transition, uint, 0644);
-
-static u32 prague_max_tso_segs __read_mostly = 0;
-MODULE_PARM_DESC(prague_max_tso_segs, "Maximum TSO/GSO segments");
-module_param(prague_max_tso_segs, uint, 0644);
 
 struct prague {
 	u64 cwr_stamp;
