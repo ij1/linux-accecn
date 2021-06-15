@@ -1,0 +1,6 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: allow controlling max tso segs in Prague
+
+This may be useful during research & issue investigations.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
