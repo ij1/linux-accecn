@@ -135,6 +135,10 @@ MODULE_PARM_DESC(prague_rtt_transition, "Amount of post-SS rounds to transition"
 		 " to be RTT independent.");
 module_param(prague_rtt_transition, uint, 0644);
 
+static u32 prague_max_tso_segs __read_mostly = 0;
+MODULE_PARM_DESC(prague_max_tso_segs, "Maximum TSO/GSO segments");
+module_param(prague_max_tso_segs, uint, 0644);
+
 struct prague {
 	u64 cwr_stamp;
 	u64 alpha_stamp;	/* EWMA update timestamp */
@@ -499,8 +503,13 @@ static u32 prague_ssthresh(struct sock *sk)
 
 static u32 prague_tso_segs(struct sock *sk, unsigned int mss_now)
 {
-	return max_t(u32, prague_ca(sk)->max_tso_burst,
-		     sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+	u32 tso_segs = max_t(u32, prague_ca(sk)->max_tso_burst,
+			     sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+
+	if (prague_max_tso_segs)
+		tso_segs = min(tso_segs, prague_max_tso_segs);
+
+	return tso_segs;
 }
 
 static size_t prague_get_info(struct sock *sk, u32 ext, int *attr,
