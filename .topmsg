@@ -1,8 +1,13 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: allow ECN bits in TOS
+Subject: [PATCH] tcp: allow ECN bits in TOS/traffic class
 
-AccECN connection's last ACK cannot retain ECT(1) is the bits
-are always cleared causing them to switch into another service
-queue.
+AccECN connection's last ACK cannot retain ECT(1) as the bits
+are always cleared causing the packet to switch into another
+service queue.
+
+This effectively reverts ba9e04a7ddf4f22a1 (ip: fix tos
+reflection in ack and reset packets) and adds a finer-grained
+filtering for ECN bits so that acceptable TW ACKs can retain
+the bits.
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
