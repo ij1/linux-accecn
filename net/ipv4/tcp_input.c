@@ -3944,7 +3944,7 @@ bool tcp_oow_rate_limited(struct net *net, const struct sk_buff *skb,
 }
 
 /* RFC 5961 7 [ACK Throttling] */
-static void tcp_send_challenge_ack(struct sock *sk, const struct sk_buff *skb,
+void tcp_send_challenge_ack(struct sock *sk, const struct sk_buff *skb,
 				   bool accecn_reflector)
 {
 	/* unprotected vars, we dont care of overwrites */
@@ -4882,7 +4882,7 @@ static void tcp_sack_maybe_coalesce(struct tcp_sock *tp)
 	}
 }
 
-static void tcp_sack_compress_send_ack(struct sock *sk)
+void tcp_sack_compress_send_ack(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -5826,7 +5826,7 @@ static inline void tcp_data_snd_check(struct sock *sk)
 /*
  * Check if sending an ack is needed.
  */
-static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
+void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	unsigned long rtt, delay;
@@ -6544,7 +6544,7 @@ static void tcp_try_undo_spurious_syn(struct sock *sk)
 		tp->undo_marker = 0;
 }
 
-static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
+int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 					 const struct tcphdr *th)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
