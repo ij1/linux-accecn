@@ -8,4 +8,3 @@ accecn/option-sack-reduction
 accecn/option-snd-ctrl
 accecn/gro-cwr-optimization
 accecn/option-beacon-ctrl
-accecn/tcp-allow-ecn-bits-for-tos
