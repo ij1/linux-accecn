@@ -1,2 +1,8 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] accecn/tcp-allow-ecn-bits-for-tos
+Subject: [PATCH] tcp: allow ECN bits in TOS
+
+AccECN connection's last ACK cannot retain ECT(1) is the bits
+are always cleared causing them to switch into another service
+queue.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
