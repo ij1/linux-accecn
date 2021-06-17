@@ -46,7 +46,7 @@ jobs:
         make olddefconfig
     - name: make-deb
       run: make -j$(nproc) bindeb-pkg \
-            LOCALVERSION=$(git rev-parse --short HEAD)-prague-${GITHUB_RUN_NUMBER} \
+            LOCALVERSION=-$(git rev-parse --short HEAD)-prague-${GITHUB_RUN_NUMBER} \
             KDEB_PKGVERSION=1
     - name: Move artifacts
       run: |
