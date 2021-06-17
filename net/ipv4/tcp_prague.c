@@ -89,6 +89,8 @@
 #include <linux/inet_diag.h>
 #include <linux/inet.h>
 
+#include "tcp_dctcp.h"
+
 #define MIN_CWND		2U
 #define PRAGUE_ALPHA_BITS	20U
 #define PRAGUE_MAX_ALPHA	(1ULL << PRAGUE_ALPHA_BITS)
@@ -181,6 +183,8 @@ struct prague {
 	u32 round;		/* Round count since last slow-start exit */
 	u32 rtt_transition_delay;
 	u32 rtt_target;		/* RTT scaling target */
+	u32 prior_rcv_nxt;
+	u32 ce_state;
 	u8  saw_ce:1,		/* Is there an AQM on the path? */
 	    rtt_indep:3,	/* RTT independence mode */
 	    in_loss:1;		/* In cwnd reduction caused by loss */
@@ -639,6 +643,18 @@ static void prague_cwnd_event(struct sock *sk, enum tcp_ca_event ev)
 {
 	if (ev == CA_EVENT_LOSS)
 		prague_enter_loss(sk);
+	else if (tcp_ecn_mode_rfc3168(tcp_sk(sk))) {
+		struct prague *ca = prague_ca(sk);
+
+		switch (ev) {
+			case CA_EVENT_ECN_IS_CE:
+			case CA_EVENT_ECN_NO_CE:
+				dctcp_ece_ack_update(sk, ev, &ca->prior_rcv_nxt, &ca->ce_state);
+				break;
+			default:
+				break;
+		}
+	}
 }
 
 static u32 prague_cwnd_undo(struct sock *sk)
@@ -733,6 +749,8 @@ static void prague_init(struct sock *sk)
 		return;
 	}
 
+	ca->prior_rcv_nxt = tp->rcv_nxt;
+	ca->ce_state = 0;
 	tp->ecn_flags |= TCP_ECN_ECT_1;
 	cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
 	/* If we have an initial RTT estimate, ensure we have an initial pacing
@@ -861,8 +879,8 @@ static struct tcp_congestion_ops prague __read_mostly = {
 	.set_state	= prague_state,
 	.get_info	= prague_get_info,
 	.tso_segs	= prague_tso_segs,
-	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_NEEDS_ACCECN |
-		TCP_CONG_NON_RESTRICTED,
+	.flags		= TCP_CONG_NEEDS_ECN |
+		TCP_CONG_NON_RESTRICTED | TCP_CONG_WANTS_CE_EVENTS,
 	.owner		= THIS_MODULE,
 	.name		= "prague",
 };
