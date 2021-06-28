@@ -372,13 +372,13 @@ tcp_ecn_option - INTEGER
 	= ============================================================
 	0 Never send AccECN option. This also disables sending AccECN
 	  option in SYN/ACK during handshake.
-	1 Send AccECN option sparingly according to the rules outlined
-	  in draft-ietf-tcpm-accurate-ecn.
+	1 Send AccECN option sparingly according to the minimum option
+	  rules outlined in draft-ietf-tcpm-accurate-ecn.
 	2 Send AccECN option on every packet whenever it fits into TCP
 	  option space.
 	= ============================================================
 
-	Default: 1
+	Default: 2
 
 tcp_ecn_fallback - BOOLEAN
 	If the kernel detects that ECN connection misbehaves, enable fall
