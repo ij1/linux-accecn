@@ -177,7 +177,7 @@ void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct
 int  paced_chirping_active(struct paced_chirping *pc);
 void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason);
 void paced_chirping_release(struct sock *sk, struct paced_chirping* pc);
-u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now);
+u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, u32 tso_segs);
 
 #else
 
@@ -187,10 +187,9 @@ static inline void paced_chirping_update(struct sock *sk, struct paced_chirping 
 static inline int paced_chirping_active(struct paced_chirping *pc) { return 0; }
 static inline void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason) {}
 static inline void paced_chirping_release(struct paced_chirping* pc) {}
-static inline u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
+static inline u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, u32 tso_segs)
 {
-	return tcp_tso_autosize(sk, mss_now,
-				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+	return tso_segs;
 }
 #endif
 

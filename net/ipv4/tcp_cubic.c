@@ -528,12 +528,13 @@ static void bictcp_pkt_acked(struct sock *sk, struct sk_buff *skb)
 static u32 bictcp_tso_segs(struct sock *sk, unsigned int mss_now)
 {
 	struct bictcp *ca = inet_csk_ca(sk);
-	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
-		return paced_chirping_tso_segs(sk, ca->pc, mss_now);
-	}
+	u32 tso_segs = tcp_tso_autosize(sk, mss_now,
+					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 
-	return tcp_tso_autosize(sk, mss_now,
-				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
+		tso_segs = paced_chirping_tso_segs(sk, ca->pc, tso_segs);
+
+	return tso_segs;
 }
 
 

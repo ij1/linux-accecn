@@ -191,13 +191,12 @@ void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
 EXPORT_SYMBOL(paced_chirping_exit);
 
 /******************** Chirp creating functions ********************/
-u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, unsigned int mss_now)
+u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, u32 tso_segs)
 {
 	if (paced_chirping_active(pc))
 		return 1;
 
-	return tcp_tso_autosize(sk, mss_now,
-				sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
+	return tso_segs;
 }
 EXPORT_SYMBOL(paced_chirping_tso_segs);
 
