@@ -677,16 +677,13 @@ static u32 prague_ssthresh(struct sock *sk)
 static u32 prague_tso_segs(struct sock *sk, unsigned int mss_now)
 {
 	struct prague *ca = prague_ca(sk);
-	u32 tso_segs;
 
 	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
 		return paced_chirping_tso_segs(sk, ca->pc, mss_now);
 	}
 
-	tso_segs = tcp_tso_autosize(sk, mss_now,
-					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
-
-	return min_t(u32, tso_segs, prague_ca(sk)->max_tso_burst);
+	return max_t(u32, prague_ca(sk)->max_tso_burst,
+		     sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
 }
 
 static size_t prague_get_info(struct sock *sk, u32 ext, int *attr,
