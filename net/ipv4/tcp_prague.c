@@ -678,9 +678,8 @@ static u32 prague_tso_segs(struct sock *sk, unsigned int mss_now)
 {
 	struct prague *ca = prague_ca(sk);
 
-	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
+	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
 		return paced_chirping_tso_segs(sk, ca->pc, mss_now);
-	}
 
 	return max_t(u32, prague_ca(sk)->max_tso_burst,
 		     sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
