@@ -774,6 +774,9 @@ static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 		if (tp->pred_flags)
 			tcp_fast_path_on(tp);
 	}
+
+	if ((*flag & FLAG_SLOWPATH) && tp->rx_opt.accecn)
+		tp->accecn_old_delivered_ce = tp->delivered_ce;
 }
 
 /* Buffer size and advertised window tuning.
