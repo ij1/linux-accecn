@@ -482,6 +482,11 @@ static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr 
 	return false;
 }
 
+static u32 tcp_accecn_align_to_delta(u32 candidate, u32 delta)
+{
+	return candidate - ((candidate - delta) & TCP_ACCECN_CEP_ACE_MASK);
+}
+
 /* Returns the ECN CE delta */
 static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 				u32 delivered_pkts, int flag)
@@ -512,7 +517,7 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
 
-	safe_delta = delivered_pkts - ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
+	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
 
 	return safe_delta;
 }
