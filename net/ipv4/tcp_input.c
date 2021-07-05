@@ -611,6 +611,11 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	return res;
 }
 
+static u32 tcp_accecn_align_to_delta(u32 candidate, u32 delta)
+{
+	return candidate - ((candidate - delta) & TCP_ACCECN_CEP_ACE_MASK);
+}
+
 #define PKTS_ACKED_WEIGHT	6
 #define PKTS_ACKED_PREC		6
 #define ACK_COMP_THRESH		4
@@ -662,7 +667,7 @@ static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
 
-	safe_delta = delivered_pkts - ((delivered_pkts - delta) & TCP_ACCECN_CEP_ACE_MASK);
+	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
 
 	if (opt_deltas_valid) {
 		d_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1] - old_ceb;
