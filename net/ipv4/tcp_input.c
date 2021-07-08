@@ -754,7 +754,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		return safe_delta;
 	}
 
-	return safe_delta;
+	return delta;
 }
 
 static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
