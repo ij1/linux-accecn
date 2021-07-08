@@ -532,11 +532,10 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 }
 
 /* Returns true if the byte counters can be used */
-static bool tcp_accecn_process_option(struct sock *sk,
+static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
 				      u32 delivered_bytes, int flag)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 estimate_ecnfield = tp->estimate_ecnfield;
 	bool ambiguous_ecn_bytes_incr = false;
 	bool first_changed = false;
@@ -555,7 +554,7 @@ static bool tcp_accecn_process_option(struct sock *sk,
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
 				tp->saw_accecn_opt = TCP_ACCECN_OPT_FAIL;
-			return !!sock_net(sk)->ipv4.sysctl_tcp_ecn_trust_byte_heuristic;
+			return false;
 		}
 
 		if (estimate_ecnfield) {
@@ -591,8 +590,7 @@ static bool tcp_accecn_process_option(struct sock *sk,
 					res = false;
 					ambiguous_ecn_bytes_incr = true;
 				}
-				if ((ecnfield != estimate_ecnfield) ||
-				    !sock_net(sk)->ipv4.sysctl_tcp_ecn_trust_byte_heuristic) {
+				if (ecnfield != estimate_ecnfield) {
 					if (!first_changed) {
 						tp->estimate_ecnfield = ecnfield;
 						first_changed = true;
@@ -635,7 +633,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 
-	opt_deltas_valid = tcp_accecn_process_option(sk, skb, delivered_bytes, flag);
+	opt_deltas_valid = tcp_accecn_process_option(tp, skb, delivered_bytes, flag);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
