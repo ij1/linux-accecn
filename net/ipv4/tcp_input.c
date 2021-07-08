@@ -451,9 +451,9 @@ static u32 tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	s32 delta = __tcp_accecn_process(sk, skb, delivered_pkts, *flag);
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (delta > 0)
-		*flag |= FLAG_ECE;
 	if (delta != 0) {
+		if (delta > 0)
+			*flag |= FLAG_ECE;
 		tcp_count_delivered_ce(tp, delta);
 		rs->ece_delta = delta;
 		/* Recalculate header predictor */
