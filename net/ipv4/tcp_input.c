@@ -3664,6 +3664,7 @@ static u32 tcp_newly_delivered(struct sock *sk, struct rate_sample *rs,
 
 	delivered = tp->delivered - prior_delivered;
 	NET_ADD_STATS(net, LINUX_MIB_TCPDELIVERED, delivered);
+
 	if (flag & FLAG_ECE) {
 		rs->ece_delta = delivered;
 		NET_ADD_STATS(net, LINUX_MIB_TCPDELIVEREDCE, rs->ece_delta);
