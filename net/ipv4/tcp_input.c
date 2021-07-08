@@ -405,7 +405,7 @@ static bool tcp_ecn_rcv_ecn_echo(const struct tcp_sock *tp, const struct tcphdr 
 	return false;
 }
 
-static u32 tcp_accecn_align_to_delta(u32 candidate, u32 delta)
+static s32 tcp_accecn_align_to_delta(s32 candidate, u32 delta)
 {
 	return candidate - ((candidate - delta) & TCP_ACCECN_CEP_ACE_MASK);
 }
