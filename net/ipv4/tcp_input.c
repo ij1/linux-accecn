@@ -666,10 +666,6 @@ static s32 tcp_accecn_align_to_delta(s32 candidate, u32 delta)
 	return candidate - ((candidate - delta) & TCP_ACCECN_CEP_ACE_MASK);
 }
 
-#define PKTS_ACKED_WEIGHT	6
-#define PKTS_ACKED_PREC		6
-#define ACK_COMP_THRESH		4
-
 /* Returns the ECN CE delta */
 static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 				u32 delivered_pkts, u32 delivered_bytes, int flag)
@@ -690,19 +686,6 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	opt_deltas_valid = tcp_accecn_process_option(tp, skb, delivered_pkts,
 						     delivered_bytes, flag, delta);
 
-	if (delivered_pkts) {
-		if (!tp->pkts_acked_ewma) {
-			tp->pkts_acked_ewma = delivered_pkts << PKTS_ACKED_PREC;
-		} else {
-			u32 ewma = tp->pkts_acked_ewma;
-
-			ewma = (((ewma << PKTS_ACKED_WEIGHT) - ewma) +
-				(delivered_pkts << PKTS_ACKED_PREC)) >>
-			       PKTS_ACKED_WEIGHT;
-			tp->pkts_acked_ewma = min_t(u32, ewma, 0xFFFFU);
-		}
-	}
-
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
 		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
@@ -717,8 +700,6 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 
 	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
-		return delta;
-	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_unsafe_cep)
 		return delta;
 
 	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
@@ -771,11 +752,9 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
 		return safe_delta;
+	}
 
-	} else if (tp->pkts_acked_ewma > (ACK_COMP_THRESH << PKTS_ACKED_PREC))
-		return delta;
-
-	return safe_delta;
+	return delta;
 }
 
 static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
