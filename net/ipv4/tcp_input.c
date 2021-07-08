@@ -522,9 +522,9 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	return safe_delta;
 }
 
-static u32 tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
-			      const struct sk_buff *skb,
-			      u32 delivered_pkts, int *flag)
+static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
+			       const struct sk_buff *skb,
+			       u32 delivered_pkts, int *flag)
 {
 	s32 delta = __tcp_accecn_process(sk, skb, delivered_pkts, *flag);
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -538,7 +538,6 @@ static u32 tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 		if (tp->pred_flags)
 			tcp_fast_path_on(tp);
 	}
-	return delta;
 }
 
 /* Buffer size and advertised window tuning.
