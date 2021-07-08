@@ -679,6 +679,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
 		return safe_delta;
+
 	} else if (tp->pkts_acked_ewma > (ACK_COMP_THRESH << PKTS_ACKED_PREC))
 		return delta;
 
