@@ -396,7 +396,7 @@ out:
 	tp->classic_ecn = min_t(u64, max_t(s64, new_classic_ecn, 0), C_STICKY);
 }
 
-void prague_update_alpha(struct sock *sk)
+static void prague_update_alpha(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
