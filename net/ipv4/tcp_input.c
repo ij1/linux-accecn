@@ -628,7 +628,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 {
 	u32 old_ceb = tcp_sk(sk)->delivered_ecn_bytes[INET_ECN_CE - 1];
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 delta, safe_delta, d_ceb;
+	u32 delta, safe_delta;
 	bool opt_deltas_valid;
 	u32 corrected_ace;
 
@@ -675,7 +675,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
 
 	if (opt_deltas_valid) {
-		d_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1] - old_ceb;
+		s32 d_ceb = tp->delivered_ecn_bytes[INET_ECN_CE - 1] - old_ceb;
 		if (!d_ceb)
 			return delta;
 
@@ -695,6 +695,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			return safe_delta;
 		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
+		return safe_delta;
 	} else if (tp->pkts_acked_ewma > (ACK_COMP_THRESH << PKTS_ACKED_PREC))
 		return delta;
 
