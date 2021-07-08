@@ -701,8 +701,6 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 
 	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
-	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_unsafe_cep)
-		return delta;
 
 	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
 
