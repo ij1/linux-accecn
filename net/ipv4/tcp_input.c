@@ -551,7 +551,9 @@ static bool tcp_accecn_process_option(struct sock *sk,
 	if (!(flag & FLAG_SLOWPATH) || !tp->rx_opt.accecn) {
 		if (!tp->saw_accecn_opt) {
 			/* Too late to enable after this point due to
-			 * potential counter wraps
+			 * potential counter wraps. TODO: this could be
+			 * avoided if option parsing would be more careful
+			 * at the start.
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
 				tp->saw_accecn_opt = TCP_ACCECN_OPT_FAIL;
@@ -696,6 +698,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
 		return safe_delta;
+
 	} else if (tp->pkts_acked_ewma > (ACK_COMP_THRESH << PKTS_ACKED_PREC))
 		return delta;
 
