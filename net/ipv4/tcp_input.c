@@ -613,7 +613,7 @@ static bool tcp_accecn_process_option(struct sock *sk,
 	return res;
 }
 
-static u32 tcp_accecn_align_to_delta(u32 candidate, u32 delta)
+static s32 tcp_accecn_align_to_delta(s32 candidate, u32 delta)
 {
 	return candidate - ((candidate - delta) & TCP_ACCECN_CEP_ACE_MASK);
 }
@@ -635,6 +635,9 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	/* Reordered ACK? (...or uncertain due to lack of data to send and ts) */
 	if (!(flag & (FLAG_FORWARD_PROGRESS|FLAG_TS_PROGRESS)))
 		return 0;
+
+	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
+	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 
 	opt_deltas_valid = tcp_accecn_process_option(sk, skb, delivered_bytes, flag);
 
@@ -664,8 +667,6 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	if (tp->received_ce_pending >= TCP_ACCECN_ACE_MAX_DELTA)
 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 
-	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
-	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
 		return delta;
 	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_unsafe_cep)
