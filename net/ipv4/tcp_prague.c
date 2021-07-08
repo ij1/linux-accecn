@@ -316,7 +316,7 @@ static void prague_cwnd_changed(struct sock *sk)
 	prague_ai_ack_increase(sk);
 }
 
-void prague_update_alpha(struct sock *sk)
+static void prague_update_alpha(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
