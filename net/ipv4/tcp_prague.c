@@ -316,11 +316,12 @@ static void prague_cwnd_changed(struct sock *sk)
 	prague_ai_ack_increase(sk);
 }
 
-static void prague_update_alpha(struct sock *sk)
+void prague_update_alpha(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
-	u64 ecn_segs, alpha;
+	s64 ecn_segs;
+	u64 alpha;
 
 	/* Do not update alpha before we have proof that there's an AQM on
 	 * the path.
@@ -330,7 +331,7 @@ static void prague_update_alpha(struct sock *sk)
 
 
 	alpha = ca->upscaled_alpha;
-	ecn_segs = tp->delivered_ce - ca->old_delivered_ce;
+	ecn_segs = (s64)tp->delivered_ce - ca->old_delivered_ce;
 	/* We diverge from the original EWMA, i.e.,
 	 * alpha = (1 - g) * alpha + g * F
 	 * by working with (and storing)
@@ -344,13 +345,13 @@ static void prague_update_alpha(struct sock *sk)
 		u32 acked_segs = tp->delivered - ca->old_delivered;
 
 		ecn_segs <<= PRAGUE_ALPHA_BITS;
-		ecn_segs = div_u64(ecn_segs, max(1U, acked_segs));
+		ecn_segs = div_s64(ecn_segs, max(1U, acked_segs));
 	}
-	alpha = alpha - (alpha >> PRAGUE_SHIFT_G) + ecn_segs;
+	alpha = alpha - (alpha >> PRAGUE_SHIFT_G);
+	alpha = clamp_t(s64, alpha + ecn_segs, 0, PRAGUE_MAX_ALPHA << PRAGUE_SHIFT_G);
 	ca->alpha_stamp = tp->tcp_mstamp;
 
-	WRITE_ONCE(ca->upscaled_alpha,
-		   min(PRAGUE_MAX_ALPHA << PRAGUE_SHIFT_G, alpha));
+	WRITE_ONCE(ca->upscaled_alpha, alpha);
 
 skip:
 	prague_new_round(sk);
@@ -364,7 +365,7 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 	s64 acked;
 
 	acked = rs->acked_sacked;
-	if (rs->ece_delta) {
+	if (rs->ece_delta > 0) {
 		if (rs->ece_delta > acked)
 			LOG(sk, "Received %u marks for %lld acks at %u",
 			    rs->ece_delta, acked, tp->snd_una);
