@@ -667,7 +667,7 @@ static s32 tcp_accecn_align_to_delta(s32 candidate, u32 delta)
 }
 
 /* Returns the ECN CE delta */
-static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
+s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 				u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
 	u32 old_ceb = tcp_sk(sk)->delivered_ecn_bytes[INET_ECN_CE - 1];
@@ -757,7 +757,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	return delta;
 }
 
-static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
+void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 			       const struct sk_buff *skb,
 			       u32 delivered_pkts, u32 delivered_bytes, int *flag)
 {
