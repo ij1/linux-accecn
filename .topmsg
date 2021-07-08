@@ -1,4 +1,0 @@
-From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] TCP BBR: v2 alpha
-
-BBR v2 from https://github.com/google/bbr.git v2alpha branch.
