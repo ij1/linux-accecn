@@ -655,7 +655,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 
-	tcp_accecn_process_option(tp, skb, delivered_bytes,
+	tcp_accecn_process_option(tp, skb, delivered_pkts,
 				  delivered_bytes, flag, delta);
 
 	if (!(flag & FLAG_SLOWPATH)) {
