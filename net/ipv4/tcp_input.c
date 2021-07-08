@@ -310,7 +310,7 @@ static bool tcp_in_quickack_mode(struct sock *sk)
 		(icsk->icsk_ack.quick && !inet_csk_in_pingpong_mode(sk));
 }
 
-static void tcp_count_delivered_ce(struct tcp_sock *tp, u32 ecn_count)
+static void tcp_count_delivered_ce(struct tcp_sock *tp, s32 ecn_count)
 {
 	tp->delivered_ce += ecn_count;
 }
@@ -623,7 +623,7 @@ static u32 tcp_accecn_align_to_delta(u32 candidate, u32 delta)
 #define ACK_COMP_THRESH		4
 
 /* Returns the ECN CE delta */
-static u32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
+static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 				u32 delivered_pkts, u32 delivered_bytes, int flag)
 {
 	u32 old_ceb = tcp_sk(sk)->delivered_ecn_bytes[INET_ECN_CE - 1];
@@ -704,13 +704,14 @@ static void tcp_accecn_process(struct sock *sk, struct rate_sample *rs,
 			       const struct sk_buff *skb,
 			       u32 delivered_pkts, u32 delivered_bytes, int *flag)
 {
-	u32 delta = __tcp_accecn_process(sk, skb, delivered_pkts,
+	s32 delta = __tcp_accecn_process(sk, skb, delivered_pkts,
 					 delivered_bytes, *flag);
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (delta > 0) {
+	if (delta != 0) {
+		if (delta > 0)
+			*flag |= FLAG_ECE;
 		tcp_count_delivered_ce(tp, delta);
-		*flag |= FLAG_ECE;
 		rs->ece_delta = delta;
 		/* Recalculate header predictor */
 		if (tp->pred_flags)
@@ -4192,7 +4193,6 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		sk_dst_confirm(sk);
 
 	delivered = tcp_newly_delivered(sk, &rs, delivered, flag);
-
 	lost = tp->lost - lost;			/* freshly marked lost */
 	rs.is_ack_delayed = !!(flag & FLAG_ACK_MAYBE_DELAYED);
 	rs.is_ece = !!(flag & FLAG_ECE);
