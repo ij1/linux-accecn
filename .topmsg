@@ -20,9 +20,9 @@ to the sender which updates tp->delivered_ce (s.cep) based on the
 feedback. This signalling channel is lossy when ACE field overflow
 occurs.
 
-Aggressive strategy is selected here to deal with the ACE
+Conservative strategy is selected here to deal with the ACE
 overflow, however, some strategies using the AccECN option later
-in the overall patchset detecte ACE overflows correctly.
+in the overall patchset mitigate against false overflows detected.
 
 The ACE field values on the wire are offset by
 TCP_ACCECN_CEP_INIT_OFFSET. Delivered_ce/received_ce count the
