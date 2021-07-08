@@ -513,6 +513,29 @@ static unsigned int tcp_accecn_optfield_to_ecnfield(unsigned int optfield, bool 
 	return (tmp + (tmp >> 2)) & INET_ECN_MASK;
 }
 
+static bool tcp_accecn_consistent_check(u32 delivered_pkts, u32 delta, u8 estimate_ecnfield)
+{
+	if (estimate_ecnfield == INET_ECN_CE) {
+		if (!delta && delivered_pkts & TCP_ACCECN_CEP_ACE_MASK)
+			return false;
+	} else if (delta)
+		return false;
+
+	return true;
+}
+
+static u8 tcp_accecn_pick_non_ce_counter(const struct tcp_sock *tp)
+{
+	u32 e0b = tp->delivered_ecn_bytes[INET_ECN_ECT_0 - 1];
+	u32 e1b = tp->delivered_ecn_bytes[INET_ECN_ECT_1 - 1];
+
+	if (e1b && !e0b)
+		return e1b;
+	if (e0b && !e1b)
+		return e0b;
+
+	return 0;
+}
 
 /* Handles AccECN option ECT and CE 24-bit byte counters update into
  * the u32 value in tcp_sock. As we're processing TCP options, it is
@@ -534,15 +557,18 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 /* Returns true if the byte counters can be used */
 static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
-				      u32 delivered_bytes, int flag)
+				      u32 delivered_pkts,
+				      u32 delivered_bytes,
+				      int flag,
+				      u32 delta)
 {
-	u8 estimate_ecnfield = tp->estimate_ecnfield;
 	bool ambiguous_ecn_bytes_incr = false;
 	bool first_changed = false;
+	u8 estimate_ecnfield;
 	unsigned int optlen;
 	unsigned char *ptr;
-	bool order, res;
 	unsigned int i;
+	bool order;
 
 	if (tp->saw_accecn_opt == TCP_ACCECN_OPT_FAIL)
 		return false;
@@ -559,8 +585,29 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			return false;
 		}
 
-		if (estimate_ecnfield) {
-			tp->delivered_ecn_bytes[estimate_ecnfield - 1] += delivered_bytes;
+		if (delta && delivered_pkts) {
+			u32 ce_bytes_est;
+			if (delta >= delivered_pkts) {
+				ce_bytes_est = delivered_bytes;
+				tp->estimate_ecnfield = INET_ECN_CE;
+			} else {
+				ce_bytes_est = div_u64((u64)delivered_bytes * delta, delivered_pkts);
+			}
+			tp->delivered_ecn_bytes[INET_ECN_CE - 1] += ce_bytes_est;
+			delivered_bytes -= ce_bytes_est;
+			delivered_pkts -= min(delta, delivered_pkts);
+		}
+
+		if ((delivered_pkts & TCP_ACCECN_CEP_ACE_MASK) != 0) {
+			if (!delta && tp->estimate_ecnfield == INET_ECN_CE)
+				tp->estimate_ecnfield = 0;
+
+			if (!tp->estimate_ecnfield && delivered_bytes)
+				tp->estimate_ecnfield = tcp_accecn_pick_non_ce_counter(tp);
+		}
+
+		if (tp->estimate_ecnfield) {
+			tp->delivered_ecn_bytes[tp->estimate_ecnfield - 1] += delivered_bytes;
 			return true;
 		}
 		return false;
@@ -577,7 +624,7 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 		tp->saw_accecn_opt = tcp_accecn_option_init(skb,
 							    tp->rx_opt.accecn);
 
-	res = !!estimate_ecnfield;
+	estimate_ecnfield = tp->estimate_ecnfield;
 	for (i = 0; i < 3; i++) {
 		if (optlen >= TCPOLEN_ACCECN_PERCOUNTER) {
 			u8 ecnfield = tcp_accecn_optfield_to_ecnfield(i, order);
@@ -588,16 +635,14 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 			delta = tcp_update_ecn_bytes(&(tp->delivered_ecn_bytes[ecnfield - 1]),
 						     ptr, init_offset);
 			if (delta) {
-				if (delta < 0) {
-					res = false;
+				if (delta < 0)
 					ambiguous_ecn_bytes_incr = true;
-				}
+
 				if (ecnfield != estimate_ecnfield) {
 					if (!first_changed) {
 						tp->estimate_ecnfield = ecnfield;
 						first_changed = true;
 					} else {
-						res = false;
 						ambiguous_ecn_bytes_incr = true;
 					}
 				}
@@ -610,7 +655,10 @@ static bool tcp_accecn_process_option(struct tcp_sock *tp,
 	if (ambiguous_ecn_bytes_incr)
 		tp->estimate_ecnfield = 0;
 
-	return res;
+	if (!tcp_accecn_consistent_check(delivered_pkts, delta, tp->estimate_ecnfield))
+		tp->estimate_ecnfield = 0;
+
+	return true;
 }
 
 static s32 tcp_accecn_align_to_delta(s32 candidate, u32 delta)
@@ -633,7 +681,8 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 
-	tcp_accecn_process_option(tp, skb, delivered_bytes, flag);
+	tcp_accecn_process_option(tp, skb, delivered_bytes,
+				  delivered_bytes, flag, delta);
 
 	if (!(flag & FLAG_SLOWPATH)) {
 		/* AccECN counter might overflow on large ACKs */
