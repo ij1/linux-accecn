@@ -128,7 +128,7 @@ static void dctcp_update_alpha(struct sock *sk, u32 flags)
 			u32 delivered = tp->delivered - ca->old_delivered;
 
 			delivered_ce <<= (DCTCP_ALPHA_SHIFT - dctcp_shift_g);
-			delivered_ce = div64_u64(delivered_ce, max(1U, delivered));
+			delivered_ce = div_u64(delivered_ce, max(1U, delivered));
 
 			alpha = min(alpha + (u32)delivered_ce, DCTCP_MAX_ALPHA);
 		}
