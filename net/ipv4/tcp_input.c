@@ -532,11 +532,10 @@ static s32 tcp_update_ecn_bytes(u32 *cnt, const char *from, u32 init_offset)
 }
 
 /* Returns true if the byte counters can be used */
-static bool tcp_accecn_process_option(struct sock *sk,
+static bool tcp_accecn_process_option(struct tcp_sock *tp,
 				      const struct sk_buff *skb,
 				      u32 delivered_bytes, int flag)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
 	u8 estimate_ecnfield = tp->estimate_ecnfield;
 	bool ambiguous_ecn_bytes_incr = false;
 	bool first_changed = false;
@@ -557,7 +556,7 @@ static bool tcp_accecn_process_option(struct sock *sk,
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
 				tp->saw_accecn_opt = TCP_ACCECN_OPT_FAIL;
-			return !!sock_net(sk)->ipv4.sysctl_tcp_ecn_trust_byte_heuristic;
+			return false;
 		}
 
 		if (estimate_ecnfield) {
@@ -593,8 +592,7 @@ static bool tcp_accecn_process_option(struct sock *sk,
 					res = false;
 					ambiguous_ecn_bytes_incr = true;
 				}
-				if ((ecnfield != estimate_ecnfield) ||
-				    !sock_net(sk)->ipv4.sysctl_tcp_ecn_trust_byte_heuristic) {
+				if (ecnfield != estimate_ecnfield) {
 					if (!first_changed) {
 						tp->estimate_ecnfield = ecnfield;
 						first_changed = true;
@@ -641,7 +639,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	corrected_ace = tcp_accecn_ace(tcp_hdr(skb)) - TCP_ACCECN_CEP_INIT_OFFSET;
 	delta = (corrected_ace - tp->delivered_ce) & TCP_ACCECN_CEP_ACE_MASK;
 
-	opt_deltas_valid = tcp_accecn_process_option(sk, skb, delivered_bytes, flag);
+	opt_deltas_valid = tcp_accecn_process_option(tp, skb, delivered_bytes, flag);
 
 	if (delivered_pkts) {
 		if (!tp->pkts_acked_ewma) {
@@ -681,13 +679,39 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (!d_ceb)
 			return delta;
 
-		if ((delivered_pkts >= (TCP_ACCECN_CEP_ACE_MASK + 1) * 2) &&
-		    (tcp_is_sack(tp) ||
+		/* Backtracking when negative ceb delta is observed. */
+		if (d_ceb < 0) {
+			s32 neg_delta = DIV_ROUND_UP((u32)(-d_ceb), tp->mss_cache);
+			/* This is slightly problematic after delivered_ce
+			 * overflow but it's minor enough that complex
+			 * solution seems overkill.
+			 */
+			if (neg_delta > tp->delivered_ce)
+				neg_delta = tp->delivered_ce;
+
+			/* We might return positive here under some
+			 * complex conditions, don't be surprised.
+			 */
+			return tcp_accecn_align_to_delta(-neg_delta, delta) +
+			       TCP_ACCECN_CEP_ACE_MASK + 1;
+		}
+
+		if (delivered_bytes <= d_ceb) {
+			u32 extra_ce, ce_limit;
+
+			if (delivered_bytes == d_ceb)
+				return safe_delta;
+
+			/* Large ceb jump */
+			extra_ce = DIV_ROUND_UP(d_ceb - delivered_bytes,
+						tp->mss_cache);
+			ce_limit = delivered_pkts + extra_ce;
+			return tcp_accecn_align_to_delta(ce_limit, delta);
+		}
+
+		if ((tcp_is_sack(tp) ||
 		     ((1 << inet_csk(sk)->icsk_ca_state) & (TCPF_CA_Open|TCPF_CA_CWR)))) {
 			u32 est_d_cep;
-
-			if (delivered_bytes <= d_ceb)
-				return safe_delta;
 
 			est_d_cep = DIV_ROUND_UP_ULL((u64)d_ceb * delivered_pkts, delivered_bytes);
 			return min(safe_delta, delta + (est_d_cep & ~TCP_ACCECN_CEP_ACE_MASK));
@@ -698,6 +722,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
 		return safe_delta;
+
 	} else if (tp->pkts_acked_ewma > (ACK_COMP_THRESH << PKTS_ACKED_PREC))
 		return delta;
 
