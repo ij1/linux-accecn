@@ -1,0 +1,8 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] dctcp: Allow negative delivered_ce delta
+
+With AccECN, delivered_ce may get corrected downwards if
+AccECN option is present only sparsely. Make DCTCP prepared
+for negative delivered_ce deltas.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
