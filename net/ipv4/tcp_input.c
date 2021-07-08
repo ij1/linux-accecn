@@ -551,7 +551,9 @@ static bool tcp_accecn_process_option(struct sock *sk,
 	if (!(flag & FLAG_SLOWPATH) || !tp->rx_opt.accecn) {
 		if (!tp->saw_accecn_opt) {
 			/* Too late to enable after this point due to
-			 * potential counter wraps
+			 * potential counter wraps. TODO: this could be
+			 * avoided if option parsing would be more careful
+			 * at the start.
 			 */
 			if (tp->bytes_sent >= (1 << 23) - 1)
 				tp->saw_accecn_opt = TCP_ACCECN_OPT_FAIL;
@@ -679,13 +681,39 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (!d_ceb)
 			return delta;
 
-		if ((delivered_pkts >= (TCP_ACCECN_CEP_ACE_MASK + 1) * 2) &&
-		    (tcp_is_sack(tp) ||
+		/* Backtracking when negative ceb delta is observed. */
+		if (d_ceb < 0) {
+			s32 neg_delta = DIV_ROUND_UP((u32)(-d_ceb), tp->mss_cache);
+			/* This is slightly problematic after delivered_ce
+			 * overflow but it's minor enough that complex
+			 * solution seems overkill.
+			 */
+			if (neg_delta > tp->delivered_ce)
+				neg_delta = tp->delivered_ce;
+
+			/* We might return positive here under some
+			 * complex conditions, don't be surprised.
+			 */
+			return tcp_accecn_align_to_delta(-neg_delta, delta) +
+			       TCP_ACCECN_CEP_ACE_MASK + 1;
+		}
+
+		if (delivered_bytes <= d_ceb) {
+			u32 extra_ce, ce_limit;
+
+			if (delivered_bytes == d_ceb)
+				return safe_delta;
+
+			/* Large ceb jump */
+			extra_ce = DIV_ROUND_UP(d_ceb - delivered_bytes,
+						tp->mss_cache);
+			ce_limit = delivered_pkts + extra_ce;
+			return tcp_accecn_align_to_delta(ce_limit, delta);
+		}
+
+		if ((tcp_is_sack(tp) ||
 		     ((1 << inet_csk(sk)->icsk_ca_state) & (TCPF_CA_Open|TCPF_CA_CWR)))) {
 			u32 est_d_cep;
-
-			if (delivered_bytes <= d_ceb)
-				return safe_delta;
 
 			est_d_cep = DIV_ROUND_UP_ULL((u64)d_ceb * delivered_pkts, delivered_bytes);
 			return min(safe_delta, delta + (est_d_cep & ~TCP_ACCECN_CEP_ACE_MASK));
@@ -696,6 +724,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 		if (d_ceb < safe_delta * tp->mss_cache >> TCP_ACCECN_SAFETY_SHIFT)
 			return delta;
 		return safe_delta;
+
 	} else if (tp->pkts_acked_ewma > (ACK_COMP_THRESH << PKTS_ACKED_PREC))
 		return delta;
 
