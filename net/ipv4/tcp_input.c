@@ -730,7 +730,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	if (tp->received_ce_pending >= TCP_ACCECN_ACE_MAX_DELTA)
 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 
-	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
+	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK + delta)
 		return delta;
 
 	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
