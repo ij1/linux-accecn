@@ -662,7 +662,7 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 	}
 
 	/* ACE field is not available during handshake */
-	if (flag & FLAG_SYN_ACKED)
+	if ((flag & FLAG_SYN_ACKED) && !(flag & FLAG_DATA_ACKED))
 		return 0;
 
 	if (tp->received_ce_pending >= TCP_ACCECN_ACE_MAX_DELTA)
