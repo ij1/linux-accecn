@@ -885,7 +885,7 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
 #define TCPHDR_SYNACK_ACCECN (TCPHDR_SYN | TCPHDR_ACK | TCPHDR_CWR)
 
 #define TCP_ACCECN_CEP_ACE_MASK 0x7
-#define TCP_ACCECN_ACE_MAX_DELTA 6
+#define TCP_ACCECN_ACE_MAX_DELTA 7
 
 /* To avoid/detect middlebox interference, not all counters start at 0.
  * See draft-ietf-tcpm-accurate-ecn for the latest values.
