@@ -1,4 +1,11 @@
 From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
-Subject: [PATCH] tcp: accecn dctcp feedback support
+Subject: [PATCH] tcp: accecn DCTCP feedback support
+
+Only ECE is used for DCTCP feedback. CWR & AE indicate the
+peer is using ACE mode.
+
+Initial CEP is changed to 3. This allows maximal distance
+from DCTCP feedback indicators 0 and 1 while reserving 2
+for "max non-wrap".
 
 Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
