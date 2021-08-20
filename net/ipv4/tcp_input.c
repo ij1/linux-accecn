@@ -703,7 +703,10 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
 			/* Skip reflector */
 			if (TCP_SKB_CB(skb)->tcp_flags & (TCPHDR_CWR|TCPHDR_AE))
 				return 0;
-			return delivered_pkts;
+
+			if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_ECE)
+				return delivered_pkts;
+			return 0;
 		}
 	}
 
