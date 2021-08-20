@@ -4214,9 +4214,11 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPHPACKS);
 	} else {
-		if (ack_seq != TCP_SKB_CB(skb)->end_seq)
-			flag |= FLAG_DATA;
-		else
+		if (ack_seq != TCP_SKB_CB(skb)->end_seq) {
+			if ((TCP_SKB_CB(skb)->end_seq - ack_seq > 1) ||
+			    !(TCP_SKB_CB(skb)->tcp_flags & TCPHDR_SYN))
+				flag |= FLAG_DATA;
+		} else
 			NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPPUREACKS);
 
 		flag |= tcp_ack_update_window(sk, skb, ack, ack_seq);
