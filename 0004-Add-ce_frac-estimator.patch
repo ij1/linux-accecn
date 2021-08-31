@@ -1,0 +1,99 @@
+From 51026dc1bdcf9773ab0d8a67bd329a065287049c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@cs.helsinki.fi>
+Date: Wed, 21 Jul 2021 12:02:12 +0300
+Subject: [PATCH 4/4] Add ce_frac estimator
+
+---
+ include/linux/tcp.h  |  1 +
+ net/ipv4/tcp.c       |  1 +
+ net/ipv4/tcp_input.c | 21 ++++++++++++++++++---
+ 3 files changed, 20 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/tcp.h b/include/linux/tcp.h
+index b9960a941f9e..78d62bc4d662 100644
+--- a/include/linux/tcp.h
++++ b/include/linux/tcp.h
+@@ -321,6 +321,7 @@ struct tcp_sock {
+ 		prev_ecnfield:2,/* ECN bits from the previous segment */
+ 		accecn_opt_demand:2,/* Demand AccECN option for n next ACKs */
+ 		estimate_ecnfield:2;/* ECN field for AccECN delivered estimates */
++	u16	ce_frac;	/* CE fraction from last ACK w/o wraps */
+ 	u64	accecn_opt_tstamp;	/* Last AccECN option sent timestamp */
+ 	u32	lost;		/* Total data packets lost incl. rexmits */
+ 	u32	app_limited;	/* limited until "delivered" reaches this val */
+diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
+index 81bda2f8310d..569e5c8dbace 100644
+--- a/net/ipv4/tcp.c
++++ b/net/ipv4/tcp.c
+@@ -2701,6 +2701,7 @@ int tcp_disconnect(struct sock *sk, int flags)
+ 	tcp_accecn_init_counters(tp);
+ 	tp->prev_ecnfield = 0;
+ 	tp->accecn_opt_tstamp = 0;
++	tp->ce_frac = 0;
+ 	if (icsk->icsk_ca_ops->release)
+ 		icsk->icsk_ca_ops->release(sk);
+ 	memset(icsk->icsk_ca_priv, 0, sizeof(icsk->icsk_ca_priv));
+diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c
+index cf8652aa70f8..a49de76de07f 100644
+--- a/net/ipv4/tcp_input.c
++++ b/net/ipv4/tcp_input.c
+@@ -686,13 +686,15 @@ static bool tcp_accecn_detect_accecn_acemode(struct tcp_sock *tp,
+ 	return false;
+ }
+ 
++#define TCP_CE_FRAC_SHIFT 8
++
+ /* Returns the ECN CE delta */
+ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
+ 				u32 delivered_pkts, u32 delivered_bytes, int flag)
+ {
+ 	u32 old_ceb = tcp_sk(sk)->delivered_ecn_bytes[INET_ECN_CE - 1];
+ 	struct tcp_sock *tp = tcp_sk(sk);
+-	u32 delta, safe_delta;
++	u32 delta, safe_delta, tmp_delta;
+ 	bool opt_deltas_valid;
+ 	u32 corrected_ace;
+ 
+@@ -719,8 +721,10 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
+ 
+ 	if (!(flag & FLAG_SLOWPATH)) {
+ 		/* AccECN counter might overflow on large ACKs */
+-		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK)
++		if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK) {
++			tp->ce_frac = 0;
+ 			return 0;
++		}
+ 	}
+ 
+ 	/* ACE field is not available during handshake */
+@@ -730,8 +734,11 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
+ 	if (tp->received_ce_pending >= TCP_ACCECN_ACE_MAX_DELTA)
+ 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
+ 
+-	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK + delta)
++	if (delivered_pkts <= TCP_ACCECN_CEP_ACE_MASK + delta) {
++		if (delivered_pkts > 0)
++			tp->ce_frac = (delta << TCP_CE_FRAC_SHIFT) / delivered_pkts;
+ 		return delta;
++	}
+ 
+ 	safe_delta = tcp_accecn_align_to_delta(delivered_pkts, delta);
+ 
+@@ -794,6 +801,14 @@ static s32 __tcp_accecn_process(struct sock *sk, const struct sk_buff *skb,
+ 	if (sock_net(sk)->ipv4.sysctl_tcp_ecn_optionless_safe & 0x1)
+ 		return safe_delta;
+ 
++	tmp_delta = ((u64)tp->ce_frac * delivered_pkts +
++		     (1 << (TCP_CE_FRAC_SHIFT - 1))) >> TCP_CE_FRAC_SHIFT;
++	delta = max_t(s32, delta,
++		      delta - (((tmp_delta + 4 - delta) & TCP_ACCECN_CEP_ACE_MASK) - 4));
++
++	if (delta > delivered_pkts && delta > TCP_ACCECN_CEP_ACE_MASK)
++		delta -= TCP_ACCECN_CEP_ACE_MASK + 1;
++
+ 	return delta;
+ }
+ 
+-- 
+2.20.1
+

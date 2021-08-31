@@ -1,0 +1,38 @@
+From 62365bb2727880a6e261a9aada27531723a15178 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@cs.helsinki.fi>
+Date: Thu, 6 May 2021 12:01:41 +0300
+Subject: [PATCH 2/4] Try to use internal pacer for DCTCP
+
+---
+ net/ipv4/tcp_dctcp.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/net/ipv4/tcp_dctcp.c b/net/ipv4/tcp_dctcp.c
+index b9b8bf3dc005..1e371ddc9ad4 100644
+--- a/net/ipv4/tcp_dctcp.c
++++ b/net/ipv4/tcp_dctcp.c
+@@ -67,6 +67,10 @@ static unsigned int dctcp_max_tso_segs __read_mostly = 1;
+ module_param(dctcp_max_tso_segs, uint, 0644);
+ MODULE_PARM_DESC(dctcp_max_tso_segs, "maximum TSO/GSO segments");
+ 
++static unsigned int dctcp_pacing __read_mostly = 1;
++module_param(dctcp_pacing, uint, 0644);
++MODULE_PARM_DESC(dctcp_pacing, "use pacing during sending");
++
+ static struct tcp_congestion_ops dctcp_reno;
+ 
+ static void dctcp_reset(const struct tcp_sock *tp, struct dctcp *ca)
+@@ -95,6 +99,10 @@ static void dctcp_init(struct sock *sk)
+ 		tp->ecn_flags |= TCP_ECN_ECT_1;
+ 
+ 		dctcp_reset(tp, ca);
++
++		if (dctcp_pacing)
++			cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
++
+ 		return;
+ 	}
+ 
+-- 
+2.20.1
+
