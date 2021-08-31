@@ -1,0 +1,2060 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] tcp: add paced chirping
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+
+---
+ include/linux/skbuff.h          |    5 +
+ include/linux/tcp.h             |   18 +
+ include/net/paced_chirping.h    |   66 +++
+ include/net/tcp.h               |   16 +-
+ net/core/skbuff.c               |    7 +
+ net/ipv4/Kconfig                |    7 +
+ net/ipv4/Makefile               |    1 +
+ net/ipv4/paced_chirping.c       | 1042 +++++++++++++++++++++++++++++++++++++++
+ net/ipv4/paced_chirping.h       |  196 ++++++++
+ net/ipv4/paced_chirping_param.h |   14 +
+ net/ipv4/tcp.c                  |    6 +
+ net/ipv4/tcp_cubic.c            |   61 +++
+ net/ipv4/tcp_dctcp.c            |   81 ++-
+ net/ipv4/tcp_input.c            |   14 +-
+ net/ipv4/tcp_metrics.c          |   21 +
+ net/ipv4/tcp_output.c           |    9 +-
+ net/ipv4/tcp_prague.c           |   45 +-
+ net/sched/sch_fq.c              |    3 +
+ 18 files changed, 1603 insertions(+), 9 deletions(-)
+ create mode 100644 include/net/paced_chirping.h
+ create mode 100644 net/ipv4/paced_chirping.c
+ create mode 100644 net/ipv4/paced_chirping.h
+ create mode 100644 net/ipv4/paced_chirping_param.h
+
+diff --git a/include/linux/skbuff.h b/include/linux/skbuff.h
+index 72fee65d74d8..160a5418867d 100644
+--- a/include/linux/skbuff.h
++++ b/include/linux/skbuff.h
+@@ -521,6 +521,8 @@ struct skb_shared_info {
+ 	struct skb_shared_hwtstamps hwtstamps;
+ 	unsigned int	gso_type;
+ 	u32		tskey;
++	u8		pacing_location;
++	u64		pacing_tstamp;
+ 
+ 	/*
+ 	 * Warning : all fields before dataref are cleared in __alloc_skb()
+@@ -4152,6 +4154,9 @@ enum skb_ext_id {
+ #endif
+ #if IS_ENABLED(CONFIG_MPTCP)
+ 	SKB_EXT_MPTCP,
++#endif
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++	SKB_EXT_PACED_CHIRPING,
+ #endif
+ 	SKB_EXT_NUM, /* must be last */
+ };
+diff --git a/include/linux/tcp.h b/include/linux/tcp.h
+index 893465d7446c..d2766314fe78 100644
+--- a/include/linux/tcp.h
++++ b/include/linux/tcp.h
+@@ -78,6 +78,17 @@ struct tcp_sack_block {
+ #define TCP_SACK_SEEN     (1 << 0)   /*1 = peer is SACK capable, */
+ #define TCP_DSACK_SEEN    (1 << 2)   /*1 = DSACK was received from peer*/
+ 
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++struct chirp {
++	u16 packets;
++	u16 packets_out;
++	u32 gap_ns;
++	u32 gap_step_ns;
++	u32 guard_interval_ns;
++	u16 chirp_number;
++};
++#endif
++
+ struct tcp_options_received {
+ /*	PAWS/RTTM data	*/
+ 	int	ts_recent_stamp;/* Time we stored ts_recent (for aging) */
+@@ -337,6 +348,13 @@ struct tcp_sock {
+ 	struct hrtimer	pacing_timer;
+ 	struct hrtimer	compressed_ack_timer;
+ 
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++	u32 is_chirping;
++	struct chirp chirp;
++#endif
++	u32 disable_cwr_upon_ece;
++	u32 disable_kernel_pacing_calculation;
++
+ 	/* from STCP, retrans queue hinting */
+ 	struct sk_buff* lost_skb_hint;
+ 	struct sk_buff *retransmit_skb_hint;
+diff --git a/include/net/paced_chirping.h b/include/net/paced_chirping.h
+new file mode 100644
+index 000000000000..6945bf3c8510
+--- /dev/null
++++ b/include/net/paced_chirping.h
+@@ -0,0 +1,66 @@
++#ifndef __NET_PACED_CHIRPING_H
++#define __NET_PACED_CHIRPING_H
++
++#include <linux/skbuff.h>
++#include <linux/tcp.h>
++#include <linux/types.h>
++
++enum {
++	UNUSED,
++	INTERNAL_PACING,
++	FQ_PACING
++};
++
++struct paced_chirping_ext {
++	u16 chirp_number;
++	u8 packets;
++
++	u64 scheduled_gap;
++};
++
++struct paced_chirping_cache {
++	u32 srtt;
++	u32 cwnd;
++	u32 reordering;
++};
++
++void paced_chirping_cache_get(struct sock *sk, struct paced_chirping_cache *pc_cache);
++
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++
++static inline bool paced_chirping_is_chirping(struct tcp_sock *tp)
++{
++	return tp->is_chirping;
++}
++
++void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb);
++bool paced_chirping_new_chirp_check(struct sock *sk);
++
++static inline bool paced_chirping_new_chirp_and_send_check(struct sock *sk)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++
++	if (!paced_chirping_is_chirping(tp))
++		return false;
++
++	return paced_chirping_new_chirp_check(sk);
++}
++
++#else
++
++static inline bool paced_chirping_is_chirping(struct tcp_sock *tp)
++{
++        return false;
++}
++
++static inline void paced_chirping_chirp_gap(struct sock *sk,
++					    struct sk_buff *skb) {}
++
++static inline bool paced_chirping_new_chirp_and_send_check(struct sock *sk)
++{
++	return false;
++}
++
++#endif
++
++#endif /* __NET_PACED_CHIRPING_H */
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index 1d9d4d5138cb..933cf427bcf8 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -40,6 +40,7 @@
+ #include <net/inet_ecn.h>
+ #include <net/dst.h>
+ #include <net/mptcp.h>
++#include <net/paced_chirping.h>
+ 
+ #include <linux/seq_file.h>
+ #include <linux/memcontrol.h>
+@@ -811,7 +812,9 @@ void tcp_send_window_probe(struct sock *sk);
+  * It is no longer tied to jiffies, but to 1 ms clock.
+  * Note: double check if you want to use tcp_jiffies32 instead of this.
+  */
+-#define TCP_TS_HZ	1000
++//#define TCP_TS_HZ	1000
++/* Make the timestamp microsecond instead */
++#define TCP_TS_HZ	1000000
+ 
+ static inline u64 tcp_clock_ns(void)
+ {
+@@ -1193,6 +1196,13 @@ struct tcp_congestion_ops {
+ 	 * after all the ca_state processing. (optional)
+ 	 */
+ 	void (*cong_control)(struct sock *sk, const struct rate_sample *rs);
++	/* call when congestion control indicates that it is sending chirps
++	 * and stack does not have a chirp description available.
++	 */
++	bool (*new_chirp)(struct sock *sk);
++	/* Call when a packet is removed from the retransmit queue. */
++	void (*pkt_acked)(struct sock *sk, struct sk_buff *skb);
++
+ 	/* get info for inet_diag (optional) */
+ 	size_t (*get_info)(struct sock *sk, u32 ext, int *attr,
+ 			   union tcp_cc_info *info);
+@@ -1610,6 +1620,10 @@ static inline bool tcp_paws_check(const struct tcp_options_received *rx_opt,
+ 	if (unlikely(!time_before32(ktime_get_seconds(),
+ 				    rx_opt->ts_recent_stamp + TCP_PAWS_24DAYS)))
+ 		return true;
++	/* Micro second granularity */
++	if (unlikely(!time_before32(ktime_get_seconds(),
++				    rx_opt->ts_recent_stamp + 2147)))
++		return true;
+ 	/*
+ 	 * Some OSes send SYN and SYNACK messages with tsval=0 tsecr=0,
+ 	 * then following tcp messages have valid values. Ignore 0 value,
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index e578544b2cc7..0e825317033f 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -69,6 +69,7 @@
+ #include <net/xfrm.h>
+ #include <net/mpls.h>
+ #include <net/mptcp.h>
++#include <net/paced_chirping.h>
+ 
+ #include <linux/uaccess.h>
+ #include <trace/events/skb.h>
+@@ -4203,6 +4204,9 @@ static const u8 skb_ext_type_len[] = {
+ #if IS_ENABLED(CONFIG_MPTCP)
+ 	[SKB_EXT_MPTCP] = SKB_EXT_CHUNKSIZEOF(struct mptcp_ext),
+ #endif
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++	[SKB_EXT_PACED_CHIRPING] = SKB_EXT_CHUNKSIZEOF(struct paced_chirping_ext),
++#endif
+ };
+ 
+ static __always_inline unsigned int skb_ext_total_length(void)
+@@ -4219,6 +4223,9 @@ static __always_inline unsigned int skb_ext_total_length(void)
+ #endif
+ #if IS_ENABLED(CONFIG_MPTCP)
+ 		skb_ext_type_len[SKB_EXT_MPTCP] +
++#endif
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++		skb_ext_type_len[SKB_EXT_PACED_CHIRPING] +
+ #endif
+ 		0;
+ }
+diff --git a/net/ipv4/Kconfig b/net/ipv4/Kconfig
+index 5eef899a79f0..c31cbe0da27d 100644
+--- a/net/ipv4/Kconfig
++++ b/net/ipv4/Kconfig
+@@ -755,3 +755,10 @@ config TCP_MD5SIG
+ 	  on the Internet.
+ 
+ 	  If unsure, say N.
++
++config PACED_CHIRPING
++       bool
++       select SKB_EXTENSIONS
++       default y
++       help
++       Includes Paced Chirping code into the kernel.
+diff --git a/net/ipv4/Makefile b/net/ipv4/Makefile
+index 5aca177ba0bf..8a5f3f843657 100644
+--- a/net/ipv4/Makefile
++++ b/net/ipv4/Makefile
+@@ -65,6 +65,7 @@ obj-$(CONFIG_TCP_CONG_PRAGUE) += tcp_prague.o
+ obj-$(CONFIG_NET_SOCK_MSG) += tcp_bpf.o
+ obj-$(CONFIG_BPF_STREAM_PARSER) += udp_bpf.o
+ obj-$(CONFIG_NETLABEL) += cipso_ipv4.o
++obj-$(CONFIG_PACED_CHIRPING) += paced_chirping.o
+ 
+ obj-$(CONFIG_XFRM) += xfrm4_policy.o xfrm4_state.o xfrm4_input.o \
+ 		      xfrm4_output.o xfrm4_protocol.o
+diff --git a/net/ipv4/paced_chirping.c b/net/ipv4/paced_chirping.c
+new file mode 100644
+index 000000000000..f5b3f75f9713
+--- /dev/null
++++ b/net/ipv4/paced_chirping.c
+@@ -0,0 +1,1042 @@
++/*
++ * The Paced Chirping start-up extension can be enabled by setting sysctl paced_chirping_enabled to 1.
++ * Paced chirping is described in https://riteproject.files.wordpress.com/2018/07/misundjoakimmastersthesissubmitted180515.pdf
++ *
++ * Authors:
++ *
++ *      Joakim Misund <joakim.misund@gmail.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or (at
++ * your option) any later version.
++ */
++
++#include "paced_chirping.h"
++#include <net/paced_chirping.h>
++
++/* Debugging */
++static unsigned int paced_chirping_trace __read_mostly = 1;
++static unsigned int paced_chirping_log __read_mostly = 1;
++module_param(paced_chirping_trace, uint, 0644);
++module_param(paced_chirping_log, uint, 0644);
++
++/* Initialization values */
++static unsigned int paced_chirping_use_initial_srrt       __read_mostly = 1U;
++static unsigned int paced_chirping_use_cached_information __read_mostly = 0U;
++static unsigned int paced_chirping_gap_pkts_shift         __read_mostly = 6U; /* 2^6 = 64 pkts */
++static unsigned int paced_chirping_load_gap_pkts_shift    __read_mostly = 4U; /* 2^4 = 16 pkts */
++static u32 paced_chirping_initial_gap_ns                  __read_mostly = 120000U;  /* ~ 100mbps */
++static u32 paced_chirping_initial_load_gap_ns             __read_mostly = 2400000U; /* ~ 5mbps */
++
++module_param(paced_chirping_use_cached_information, uint, 0644);
++module_param(paced_chirping_use_initial_srrt, uint, 0644);
++module_param(paced_chirping_gap_pkts_shift, uint, 0644);
++module_param(paced_chirping_load_gap_pkts_shift, uint, 0644);
++module_param(paced_chirping_initial_gap_ns, uint, 0644);
++module_param(paced_chirping_initial_load_gap_ns, uint, 0644);
++
++/* Provides some safety against misbehaviour */
++static u32 paced_chirping_service_time_queueing_delay_thresh_us __read_mostly  =  5000U; /* 5ms */
++static u32 paced_chirping_service_time_queueing_delay_percent   __read_mostly  =   205U; /* 20% */
++static u32 paced_chirping_overload_exit_queueing_delay_thresh_us __read_mostly = 30000U; /* 30ms */
++static u32 paced_chirping_lowest_internal_pacing_gap __read_mostly = 40000U; /* 40us */
++static u32 paced_chirping_lowest_FQ_pacing_gap __read_mostly       = 20000U; /* 20us */
++module_param(paced_chirping_service_time_queueing_delay_thresh_us, uint, 0644);
++module_param(paced_chirping_service_time_queueing_delay_percent, uint, 0644);
++module_param(paced_chirping_overload_exit_queueing_delay_thresh_us, uint, 0644);
++module_param(paced_chirping_lowest_internal_pacing_gap, uint, 0644);
++module_param(paced_chirping_lowest_FQ_pacing_gap, uint, 0644);
++
++/* This is too fragile as is. */
++static u32 paced_chirping_use_proactive_service_time __read_mostly  = 0;
++module_param(paced_chirping_use_proactive_service_time, uint, 0644);
++
++static unsigned int paced_chirping_initial_geometry __read_mostly = 2<<PC_G_G_SHIFT;
++module_param(paced_chirping_initial_geometry, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_initial_geometry, "Initial geometry for chirps scaled by shift 10. (Default: 2 << 10)");
++
++static unsigned int paced_chirping_L __read_mostly = 5U;
++module_param(paced_chirping_L, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_L, "Number of packets that make up an excursion (Default: 5)");
++
++static unsigned int paced_chirping_maximum_initial_gap __read_mostly = 1000000U;
++module_param(paced_chirping_maximum_initial_gap, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_maximum_initial_gap, "Maximum initial average probing gap in nanoseconds (Default: 1ms)");
++
++/* This is useful in case it misbehaves. */
++static unsigned int paced_chirping_maximum_num_chirps __read_mostly = 200U;
++module_param(paced_chirping_maximum_num_chirps, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_maximum_num_chirps, "Number of chirps analysed before Paced Chirping exists (Default: 200)");
++
++static unsigned int paced_chirping_prob_size __read_mostly = 16U;
++module_param(paced_chirping_prob_size, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_prob_size, "Minimum number of packets in a chirp (Default: 16)");
++
++static unsigned int paced_chirping_use_remote_tsval __read_mostly = 0U;
++module_param(paced_chirping_use_remote_tsval, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_use_remote_tsval, "Whether to use remote tsval to calculate inter-arrival gaps (Default: 0)");
++
++inline int paced_chirping_active(struct paced_chirping *pc)
++{
++	return pc && pc->state;
++}
++EXPORT_SYMBOL(paced_chirping_active);
++
++bool paced_chirping_new_chirp_check(struct sock *sk)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++
++	if (tp->chirp.packets_out < tp->chirp.packets)
++		return false;
++
++	return inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
++}
++EXPORT_SYMBOL(paced_chirping_new_chirp_check);
++
++/* A discontinuous link in the sens that it has idle periods
++ * followed by sending at a much higher rate compared to average.
++ * This kind of link cannot be handled by original chirp analysis.
++ * Note that WiFi without aggregation is not discontinuous with this description. */
++static bool paced_chirping_is_discontinuous_link(struct paced_chirping *pc)
++{
++	return (pc->aggregate_estimate>>AGGREGATION_SHIFT) > PC_DISCONT_LINK_AGGREGATION_THRESHOLD;
++}
++
++static struct cc_chirp* get_chirp_struct(struct paced_chirping *pc)
++{
++	return &pc->cur_chirp;
++}
++
++void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++	u32 exit_cwnd_window;
++	u32 upper_limit;
++
++	tp->is_chirping = 0;
++	tp->disable_cwr_upon_ece = 0;
++	tp->disable_kernel_pacing_calculation = 0;
++
++	if (!pc || !paced_chirping_active(pc))
++		return;
++
++	pc->state = 0;
++
++	/* TODO: Reconsider this if discontinuous link */
++	if (!paced_chirping_is_discontinuous_link(pc)) {
++		upper_limit = div_u64((u64)tcp_min_rtt(tp) * NSEC_PER_USEC, pc->gap_avg_ns);
++		exit_cwnd_window = clamp_val(tcp_packets_in_flight(tp), 2U, upper_limit);
++	} else {
++		exit_cwnd_window = max(2U, tcp_packets_in_flight(tp));
++	}
++
++	switch(reason) {
++	case PC_EXIT_ALLOCATION:
++		/* Don't change anything, let SS take over */
++		break;
++	case PC_EXIT_MAX_CHIRPS_REACHED:
++	case PC_EXIT_SYSTEM_LIMITATION:
++		tp->snd_cwnd = exit_cwnd_window;
++		/* Do not set ssthresh as SS should take over (?) */
++		break;
++	case PC_EXIT_LOSS:
++		tp->snd_cwnd = max(2U, exit_cwnd_window>>1);
++		tp->snd_ssthresh = tp->snd_cwnd;
++		break;
++	case PC_EXIT_ESTIMATE_CONVERGENCE:
++	case PC_EXIT_OVERLOAD:
++	default:
++		tp->snd_cwnd = exit_cwnd_window;
++		tp->snd_ssthresh = tp->snd_cwnd;
++	}
++
++	if (tp->snd_cwnd_clamp < tp->snd_cwnd) {
++		tp->snd_cwnd = tp->snd_cwnd_clamp;
++		tp->snd_ssthresh = tp->snd_cwnd_clamp;
++	}
++
++	LOG_PRINT((KERN_DEBUG "[PC-exit] %u-%u-%hu-%hu,"
++		   "%02u,%u,%d,%u,%u,%u,%u,%u,%lld,%u,%u,%u,"  /* pc */
++		   "%u,%u,%u,%u,%u,%u,%u,%llu\n",            /* tp */
++		   ntohl(sk->sk_rcv_saddr),
++		   ntohl(sk->sk_daddr),
++		   sk->sk_num,
++		   ntohs(sk->sk_dport),
++
++		   reason,
++		   pc->gap_avg_ns,
++		   pc->gap_avg_ad,
++		   pc->gap_avg_load_ns,
++		   pc->load_window,
++		   pc->aggregate_estimate>>AGGREGATION_SHIFT,
++		   pc->N,
++		   pc->geometry,
++		   pc->qdelay_from_delta_sum_ns,
++		   pc->next_chirp_number,
++		   pc->state,
++		   pc->send_tstamp_location,
++
++		   tcp_min_rtt(tp),
++		   tp->srtt_us>>3,
++		   tp->snd_cwnd,
++		   tcp_packets_in_flight(tp),
++		   upper_limit,
++		   tp->snd_ssthresh,
++		   tp->mss_cache,
++		   tp->bytes_sent));
++
++	memset(&tp->chirp, 0, sizeof(tp->chirp));
++}
++EXPORT_SYMBOL(paced_chirping_exit);
++
++/******************** Chirp creating functions ********************/
++u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, u32 tso_segs)
++{
++	if (paced_chirping_active(pc))
++		return 1;
++
++	return tso_segs;
++}
++EXPORT_SYMBOL(paced_chirping_tso_segs);
++
++void paced_chirping_chirp_gap(struct sock *sk, struct sk_buff *skb)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++
++	if (tp->chirp.packets > tp->chirp.packets_out) {
++		struct paced_chirping_ext *ext = skb_ext_add(skb, SKB_EXT_PACED_CHIRPING);
++		struct skb_shared_info* info = skb_shinfo(skb);
++		struct chirp *chirp = &tp->chirp;
++		u64 len_ns = chirp->gap_ns;
++
++		if (ext == NULL) {
++			/* Should exit here with PC_EXIT_ALLOCATION but pc is in ca struct */
++			return;
++		}
++
++		chirp->gap_ns = max_t(s32, chirp->gap_ns - chirp->gap_step_ns, 0);
++		chirp->packets_out++;
++		ext->chirp_number = chirp->chirp_number;
++		ext->packets = chirp->packets;
++		ext->scheduled_gap = len_ns;
++		info->pacing_location  = INTERNAL_PACING;
++		info->pacing_tstamp = ktime_get_ns();
++
++		if (chirp->packets_out == chirp->packets) {
++			tp->tcp_wstamp_ns += chirp->guard_interval_ns;
++			ext->scheduled_gap = chirp->guard_interval_ns;
++
++			if (inet_csk(sk)->icsk_ca_ops->new_chirp)
++				inet_csk(sk)->icsk_ca_ops->new_chirp(sk);
++		} else {
++			tp->tcp_wstamp_ns += len_ns;
++		}
++	}
++}
++
++static void paced_chirping_schedule_new_chirp(struct sock *sk,
++					      struct paced_chirping *pc,
++					      u32 N,
++					      u64 gap_avg_ns,
++					      u64 gap_avg_load_ns,
++					      u16 geometry)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++
++	u64 guard_interval_ns;
++	u64 gap_step_ns;
++	u64 initial_gap_ns;
++	u64 average_gap_ns;
++
++	/* A chirp consists of N packets sent with linearly decreasing inter-packet time (increasing rate).
++	 *
++	 * Gap between packet i-1 and i is initial_gap_ns - gap_step_ns * i, where i >= 2 (second packet)
++	 *
++	 * initial_gap_ns is the inter-packet time between the first and second packet
++	 * It is set to the average gap in the chirp times the geometry. Geometry is in the range [1.0, 3.0]
++	 *
++	 * gap_step_ns is the (negative) slope of the inter-packet times
++	 *                   target average gap * (geometry - 1) * 2
++	 * gap_step_ns =     ----------------------------------------
++	 *                                      N
++	 * This calculation makes the actual average gap slightly higher than the target average gap.
++	 *
++	 * guard_interval_ns is the time in-between chirps needed to spread the chirps enough to keep
++	 * the average packet gap to gap_avg_load_ns.
++	 *
++	 * guard_interval_ns = MAX( gap_avg_load_ns + (N-1) * gap_avg_load_ns - average_gap_ns, target average gap )
++	 *
++	 * The chirp length is the total sum of the gaps between the packets in a chirp.
++	 * Denote initial gap by a, and step by s.
++	 * |pkt| -------- |pkt| ------- |pkt| ------ |pkt| ----- |pkt| ----- |pkt| ...
++	 *          a            (a-s)        (a-2s)       (a-3s)      (a-4s)      ...
++	 *
++	 * The sum is a + (a-s) + (a-2s) + ... + (a-(N-2)s)
++	 *            = (N-1) * a - (1 + 2 + ... + (N-2)) * s
++	 *            = (N-1) * a - s * (N-2)*(N-1)/2
++	 * Average gap is then ((N-1) * a - s * (N-2)*(N-1)/2) /(N-1)
++	 *            = a - s * (N-2)/2
++	 */
++
++	initial_gap_ns = (gap_avg_ns * geometry) >> PC_G_G_SHIFT;
++
++	/* Calculate the linear decrease in inter-packet gap */
++	gap_step_ns = gap_avg_ns * ((geometry - (1 << PC_G_G_SHIFT)) << 1);
++	gap_step_ns = DIV64_U64_ROUND_UP(gap_step_ns, N - 1) >> PC_G_G_SHIFT;
++
++	average_gap_ns = initial_gap_ns - ((gap_step_ns * (N - 2)) >> 1);
++
++	/*
++	 * If load gap is smaller than average probe gap, then set probe gap
++	 * to the load gap. We shouldn't really be probing for less than what
++	 * we are "sure" we can claim.
++	 */
++	if (gap_avg_load_ns > average_gap_ns)
++		guard_interval_ns = gap_avg_load_ns + (N - 1) * (gap_avg_load_ns - average_gap_ns);
++	else
++		guard_interval_ns = gap_avg_ns;
++
++	tp->chirp.packets = N;
++	tp->chirp.gap_ns = initial_gap_ns;
++	tp->chirp.gap_step_ns = gap_step_ns;
++	tp->chirp.guard_interval_ns = guard_interval_ns;
++	tp->chirp.packets_out = 0;
++	tp->chirp.chirp_number = pc->next_chirp_number++;
++
++	tp->snd_cwnd = tcp_packets_in_flight(tp) + (N << 1);
++}
++
++static bool enough_data_for_chirp(struct sock *sk, struct tcp_sock *tp, int N)
++{
++	return READ_ONCE(tp->write_seq) - tp->snd_nxt >= tp->mss_cache * N;
++}
++static bool paced_chirping_new_chirp_startup(struct sock *sk, struct paced_chirping *pc)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++	u32 avg_gap_of_chirp = min(pc->gap_avg_ns, pc->gap_avg_load_ns);
++	u32 N = pc->N;
++	u16 geometry = pc->geometry;
++
++	if (pc->next_chirp_number <= PC_INITIAL_CHIRP_NUMBER+1)
++		N = PC_FIRST_ROUND_CHIRPS_SIZE;
++	else if (pc->next_chirp_number <= PC_INITIAL_CHIRP_NUMBER+3)
++		N = PC_SECOND_ROUND_CHIRPS_SIZE;
++
++	 /* Halt sending? */
++	if (tcp_packets_in_flight(tp) >= pc->load_window)
++		return true;
++	if (!enough_data_for_chirp(sk, tp, N))
++		return false; /* Just send away, TODO: Handle app limited */
++
++	/* If there is aggregation, shift the center of the chirps downwards
++	 * Really only useful if average service rate is used. */
++	if (paced_chirping_is_discontinuous_link(pc)) {
++		avg_gap_of_chirp = avg_gap_of_chirp - (avg_gap_of_chirp>>PC_DISCONT_LINK_CHIRP_AVG_SUB_SHIFT);
++		geometry = min_t(u32, pc->geometry, 1536U);
++	}
++	paced_chirping_schedule_new_chirp(sk, pc, N, avg_gap_of_chirp, pc->gap_avg_load_ns, geometry);
++
++	return false;
++}
++
++bool paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc)
++{
++	if (!pc || !paced_chirping_active(pc))
++		return false;
++	return paced_chirping_new_chirp_startup(sk, pc);
++}
++EXPORT_SYMBOL(paced_chirping_new_chirp);
++
++/* Returns the inter-arrival time between the ack that acked this packet and the ack
++ * that acked the previous packet. If the same ack acked multiple packets this will
++ * (currently) return 0 for the packets after the first.
++ * Might be reasonable to have inter-arrival time and analysis on a per ack basis. */
++static u64 get_recv_gap_ns(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
++{
++	u64 recv_gap = ULLONG_MAX;
++
++	/* Remote time-stamp based */
++	if (paced_chirping_use_remote_tsval && tp->rx_opt.saw_tstamp) {
++		if (pc->prev_rcv_tsval) {
++			u64 recv_gap_us = (tp->rx_opt.rcv_tsval - pc->prev_rcv_tsval) *
++			                  (USEC_PER_SEC / TCP_TS_HZ);
++			recv_gap = recv_gap_us * NSEC_PER_USEC;
++
++			if (!pc->rcv_tsval_us_granul && tp->srtt_us &&
++			    /* recv_gap_us > srtt(ms) * 2 */
++			    (recv_gap_us > (tp->srtt_us >> (3 + 10 - 1))))
++				pc->rcv_tsval_us_granul = 1;
++		}
++		pc->prev_rcv_tsval = tp->rx_opt.rcv_tsval;
++	}
++
++	/* Local time-stamp based */
++	if (pc->prev_recv_tstamp && !pc->rcv_tsval_us_granul) {
++		recv_gap = (tp->tcp_mstamp - pc->prev_recv_tstamp) * NSEC_PER_USEC;
++	}
++	pc->prev_recv_tstamp = tp->tcp_mstamp;
++
++	return recv_gap;
++}
++
++static u64 get_send_gap_ns(struct paced_chirping *pc, struct sk_buff *skb)
++{
++	struct skb_shared_info* info = skb_shinfo(skb);
++	u64 send_gap = pc->prev_send_tstamp ?
++		       info->pacing_tstamp - pc->prev_send_tstamp : 0;
++
++	pc->prev_send_tstamp = info->pacing_tstamp;
++	pc->send_tstamp_location = info->pacing_location;
++
++	return send_gap;
++}
++
++static u32 paced_chirping_get_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct sk_buff *skb)
++{
++	s64 rtt_us;
++	u32 queue_delay_us;
++	u64 last_ackt = tcp_skb_timestamp_us(skb);
++
++	/* Iterate over all acked pkts and choose the newest timestamp.
++	 * This is necessary to deal with delayed acks. If not, chirp
++	 * estimate will be way too optimistic. */
++	skb_rbtree_walk_from(skb) {
++		if (after(TCP_SKB_CB(skb)->end_seq, tp->snd_una))
++			break;
++		last_ackt = tcp_skb_timestamp_us(skb);
++	}
++
++	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, last_ackt);
++	queue_delay_us = (u32)max_t(s64, 0LL, rtt_us - tcp_min_rtt(tp));
++
++	if (paced_chirping_use_remote_tsval && pc->rcv_tsval_us_granul)
++		queue_delay_us = div_u64((u64)max_t(s64, 0LL, pc->qdelay_from_delta_sum_ns), NSEC_PER_USEC);
++
++	return queue_delay_us;
++}
++
++/* Assume in flight stays fairly constant, alright? */
++static inline u32 get_per_packet_ewma_shift(struct tcp_sock *tp)
++{
++	/* Should be at least 16 pkts */
++	return max_t(u32, 4, ilog2(tcp_packets_in_flight(tp) + 2));
++}
++
++static void update_recv_gap_estimate_ns(struct paced_chirping *pc, u32 ewma_shift, u64 recv_gap)
++{
++	s64 difference = (s64)(recv_gap - pc->recv_gap_estimate_ns);
++	EWMA(pc->recv_gap_ad, difference, ewma_shift);
++	EWMA(pc->recv_gap_estimate_ns, recv_gap, ewma_shift);
++}
++
++/* Proactive: Estimates that are based on service rate measured over (usually)
++ *            a fraction of the round-trip time. Needs transient congestion. */
++static u32 paced_chirping_get_proactive_service_time(struct tcp_sock *tp, struct cc_chirp *c)
++{
++	u64 interval = c->rate_interval_ns;
++	u32 delivered = c->rate_delivered;
++
++	if (!interval || !delivered)
++		return UINT_MAX;
++	do_div(interval, delivered);
++
++	return interval;
++}
++
++/* Reactive:  Estimates that are overly conservative unless continuous utilization
++ *            of the link is the case. Needs persistent congestion.
++ * TODO: Data suggests this is too conservative because it does not include
++ * headers. */
++static u32 paced_chirping_get_reactive_service_time(struct tcp_sock *tp)
++{
++	u64 interval = tp->rate_interval_us * NSEC_PER_USEC;
++	u32 delivered = tp->rate_delivered;
++
++	if (!interval || !delivered)
++		return UINT_MAX;
++	do_div(interval, delivered);
++
++	return interval;
++}
++
++static u32 paced_chirping_get_persistent_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
++{
++	/* The minimum queueing delay over a chirp is a hot candidate. */
++	return c->min_qdelay_us == UINT_MAX ? 0 : c->min_qdelay_us;
++}
++
++static u32 paced_chirping_get_best_persistent_service_time_estimate(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
++{
++	u32 reactive_service_time_ns = paced_chirping_get_reactive_service_time(tp);
++	u32 reactive_recv_gap_estimate_ns = pc->recv_gap_estimate_ns;
++	return min(reactive_service_time_ns, reactive_recv_gap_estimate_ns);
++}
++
++static bool paced_chirping_should_use_persistent_service_time(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
++{
++	u64 qdelay_us = paced_chirping_get_persistent_queueing_delay_us(tp, pc, c);
++	/* (RTT + variation) * X%, X scaled by 1024 */
++	u64 threshold = (u64)tcp_min_rtt(tp) * paced_chirping_service_time_queueing_delay_percent;
++	do_div(threshold, 1024U);
++
++	if (paced_chirping_is_discontinuous_link(pc))
++		threshold = max(threshold, 10000ULL);
++
++	return qdelay_us > threshold;
++}
++
++/******************** Chirp analysis function ********************/
++static u32 paced_chirping_run_analysis(struct sock *sk, struct paced_chirping *pc, struct cc_chirp *c, struct sk_buff *skb)
++{
++	struct paced_chirping_ext *ext;
++	struct tcp_sock *tp = tcp_sk(sk);
++
++	s64 rtt_us;           /* RTT measured for this packet*/
++	u32 qdelay;           /* Measured queue delay for this packet */
++	u32 qdelay_diff;      /* Difference in measured queueing delay (this and start of excursion) */
++	u64 send_gap;         /* Gap between this packet and the previous packet */
++	u64 recv_gap;         /* Gap between this packet/ack and the previous packet/ack */
++	u64 scheduled_gap;    /* The gap scheduled between this packet and the next. */
++	u32 packets_in_chirp; /* The number of packets in the current chirp */
++	u32 ewma_shift;       /* shift value to use for per packet EWMA */
++	u32 proactive = UINT_MAX;
++	bool last_pkt;
++
++	ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
++	rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, tcp_skb_timestamp_us(skb));
++
++	if (rtt_us <= 0 || !ext)
++		return 0;
++
++	scheduled_gap = ext->scheduled_gap;
++	packets_in_chirp = ext->packets;
++	send_gap = get_send_gap_ns(pc, skb);
++	recv_gap = get_recv_gap_ns(tp, pc, skb);
++	qdelay = paced_chirping_get_queueing_delay_us(tp, pc, skb);
++	ewma_shift = get_per_packet_ewma_shift(tp);
++
++	c->min_qdelay_us = min(c->min_qdelay_us, qdelay);
++
++	c->packets_acked++;
++
++	if (recv_gap != ULLONG_MAX) {
++		/* Detecting discontinuous links
++		 * TODO: Deal with delayed acks and ack thinning. */
++		if (//recv_gap != 0 &&
++			recv_gap < (pc->gap_avg_ns>>1)) {
++			c->aggregated++;
++		}
++		if (recv_gap > send_gap &&
++		    recv_gap > (pc->gap_avg_ns<<1) &&
++		    c->packets_acked != 1U) { /* Ignore guard interval. */
++			c->jumps++;
++		}
++
++		if (!(recv_gap > (pc->gap_avg_ns<<1)) ||
++		    (pc->prev_qdelay * NSEC_PER_USEC > send_gap &&
++		     c->rate_delivered < tcp_packets_in_flight(tp))) { /* If not jump, collect */
++			c->rate_interval_ns += recv_gap;
++			c->rate_delivered += 1;
++		} else { /* If jump, use estimate */
++
++			if (pc->start_qdelay > pc->prev_qdelay)
++				c->rate_interval_ns += (pc->start_qdelay - pc->prev_qdelay) * NSEC_PER_USEC;
++
++			proactive = paced_chirping_get_proactive_service_time(tp, c);
++
++			c->rate_interval_ns = 0;
++			c->rate_delivered = 0;
++			pc->start_qdelay = qdelay;
++
++			if (proactive != UINT_MAX) {
++				pc->proactive_service_time_ns = proactive;
++				c->rate_interval_ns += (proactive<<3);
++				c->rate_delivered += (1<<3);
++			}
++
++		}
++		pc->prev_qdelay = qdelay;
++
++		/* TODO: This might be superfluous */
++		update_recv_gap_estimate_ns(pc, ewma_shift, recv_gap);
++
++		EWMA(pc->queueing_delay_mad_us, abs((s32)(qdelay - pc->queueing_delay_average_us)), ewma_shift);
++		EWMA(pc->queueing_delay_average_us, qdelay, ewma_shift);
++
++		/* TODO: reset sum if rtt is close to min_rtt and sum close to 0 */
++		pc->qdelay_from_delta_sum_ns = pc->qdelay_from_delta_sum_ns + recv_gap - send_gap;
++	}
++
++	TRACE_PRINT((KERN_DEBUG "[PC-analysis] %u-%u-%hu-%hu,"
++		     "%08u,%08u,%08llu,%08llu,%08llu,%08u,"
++		     "%08u,%02u,%llu,%u,%llu,%u\n",
++		     ntohl(sk->sk_rcv_saddr),
++		     ntohl(sk->sk_daddr),
++		     sk->sk_num,
++		     ntohs(sk->sk_dport),
++
++		     c->chirp_number,
++		     packets_in_chirp,
++		     scheduled_gap,
++		     send_gap,
++		     recv_gap,
++		     qdelay,
++
++		     c->min_qdelay_us,
++		     pc->send_tstamp_location,
++		     tp->tcp_mstamp,
++		     proactive,
++		     c->rate_interval_ns,
++		     c->rate_delivered));
++
++	if (c->packets_acked == 1U) {
++		c->last_delay = qdelay;
++		return 0;
++	}
++
++	last_pkt = c->packets_acked == packets_in_chirp;
++
++	if (c->valid) {
++		bool delay_incr = c->last_delay < qdelay && !last_pkt;
++
++		/* TODO: Scheduled gap is gap between this packet and the next packet, so it shouldn't
++		 *       (really) be compared with send gap, which is between the previous packet and
++		 *       this packet. This is probably why the code before stored send gap in chirp,
++		 *       because it was using the scheduled one, and not timestamps.
++		 *       Old comment: Previously stored scheduled gap in cc_chirp, but are using timestamps now.
++		 *
++		 *       Rectify by storing previous scheduled gap. Also reconsider whether this is
++		 *       necessary or if it should be more tolerant.
++		 */
++		if (!last_pkt && (send_gap << 1) < scheduled_gap)
++			c->valid = 1;
++
++		c->uncounted++;
++
++		if (!c->in_excursion && delay_incr) {
++			c->excursion_start = c->last_delay;
++			c->excursion_len = 0;
++			c->last_sample = send_gap;
++			c->max_q = 0;
++			c->in_excursion = 1;
++		}
++
++		if (c->in_excursion) {
++			qdelay_diff = max(c->last_delay, c->excursion_start) - c->excursion_start;
++
++			if (qdelay_diff >= ((c->max_q>>1) + (c->max_q>>3))) {
++				c->max_q = max(c->max_q, qdelay_diff);
++				c->excursion_len++;
++
++				if (delay_incr) {
++					c->gap_pending += send_gap;
++					c->pending_count++;
++				}
++
++			} else {
++				if (c->excursion_len >= paced_chirping_L) {
++					c->gap_total += c->gap_pending;
++					c->uncounted -= c->pending_count;
++				}
++				c->gap_pending = 0;
++				c->pending_count = 0;
++				c->in_excursion = 0;
++
++				if (delay_incr) {
++					c->excursion_start = c->last_delay;
++					c->excursion_len = 1;
++					c->last_sample = send_gap;
++					c->max_q = 0;
++					c->in_excursion = 1;
++					c->gap_pending = send_gap;
++					c->pending_count = 1;
++				}
++			}
++		}
++
++		c->last_delay = qdelay;
++	}
++
++	/* TODO: Add print statement from logging */
++
++	if (last_pkt) {
++		if (!c->in_excursion)
++			c->last_sample = send_gap;
++
++		c->gap_total += c->uncounted * c->last_sample;
++
++		if (c->gap_total != 0 &&
++		    c->valid &&
++		    packets_in_chirp >= 2U) {
++			return div_u64(c->gap_total, packets_in_chirp - 1);
++		}
++		return UINT_MAX;
++	}
++	return 0;
++}
++
++/******************** Controller/Algorithm functions ********************/
++static u32 paced_chirping_get_smoothed_queueing_delay_us(struct tcp_sock *tp, struct paced_chirping *pc)
++{
++	/* The minimum queueing delay over a chirp is a hot candidate. */
++	return tp->srtt_us ? (tp->srtt_us>>3) - tcp_min_rtt(tp) : 0;
++}
++
++static bool paced_chirping_should_exit_overload(struct tcp_sock *tp, struct paced_chirping *pc, struct cc_chirp *c)
++{
++	u32 qdelay_us = paced_chirping_get_smoothed_queueing_delay_us(tp, pc);
++
++	return qdelay_us >= paced_chirping_overload_exit_queueing_delay_thresh_us;
++}
++
++static void update_gap_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
++{
++	s32 difference = (s32)estimate - (s32)pc->gap_avg_ns;
++
++	EWMA(pc->gap_avg_ad, difference, ewma_shift);
++	EWMA(pc->gap_avg_ns, estimate, ewma_shift);
++}
++
++static void update_gap_load_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift, u32 estimate)
++{
++	if (estimate < pc->gap_avg_load_ns)
++		EWMA(pc->gap_avg_load_ns, estimate, ewma_shift);
++}
++
++static void update_aggregation_estimate(struct paced_chirping *pc, struct cc_chirp *c, u32 ewma_shift)
++{
++	u64 agg = 1;
++
++	if (c->jumps && c->aggregated)
++		agg = (c->aggregated + c->jumps) / c->jumps;
++
++	EWMA(pc->aggregate_estimate, agg << AGGREGATION_SHIFT, ewma_shift);
++}
++
++static void update_chirp_size(struct paced_chirping *pc, struct cc_chirp *c)
++{
++	/* Try to have a chirp cover 4 aggregates. */
++	u32 cover_aggregates = (pc->aggregate_estimate<<PC_CHIRP_SIZE_COVER_AGGREGATION_SHIFT)>>AGGREGATION_SHIFT;
++
++	/* TODO: Make sure 1 or 2 chirps of this size can fit in one RTT. */
++	pc->N = clamp_val(cover_aggregates, PC_CHIRP_SIZE_MIN, PC_CHIRP_SIZE_MAX);
++}
++
++static void update_chirp_geometry(struct paced_chirping *pc, struct cc_chirp *c)
++{
++	u32 low_thresh;
++	u32 rel_diff;
++
++	/* As the load gap approaches the average gap the geometry of the chirps should decrease.
++	 * This increases the likelihood that cross-traffic is able to affect the estimate.
++	 *
++	 * The lower limit aims at keeping at least 2 us difference between each gap.
++	 * The value of 2 is arbitrary. step = (avg * 2 * (geom - 1)) / (N-1). step >= 2000 ->
++	 */
++	low_thresh = 1U << PC_G_G_SHIFT;
++	low_thresh += div_u64((u64)(pc->N-1)<<(10 + PC_G_G_SHIFT), pc->gap_avg_ns+1);
++
++	rel_diff = div_u64((u64)pc->gap_avg_load_ns<<PC_G_G_SHIFT, pc->gap_avg_ns+1);
++
++	pc->geometry = clamp_val(rel_diff, low_thresh, 2U << PC_G_G_SHIFT);
++}
++
++static inline void update_load_window(struct tcp_sock *tp, struct paced_chirping *pc)
++{
++	u64 window = ((u64)tp->srtt_us * NSEC_PER_USEC) >> 3;
++	do_div(window, max(1U, pc->gap_avg_load_ns));
++	pc->load_window = min_t(u32, window, tp->snd_cwnd_clamp);
++}
++
++static u32 get_per_chirp_ewma_shift(struct tcp_sock *tp, u32 chirp_size)
++{
++	/* EWMA shift depends on fraction of packets over RTT in this chirp. */
++	s32 shift = (s32)ilog2(tcp_packets_in_flight(tp) + 1) - (s32)ilog2(chirp_size);
++	return max(1, shift); /* Should be at least 2 chirps */
++}
++
++static void paced_chirping_reset_chirp(struct cc_chirp *c)
++{
++	c->gap_total = 0;
++	c->gap_pending = 0;
++	c->chirp_number = 0;
++	c->packets_acked = 0;
++	c->uncounted = 0;
++	c->in_excursion = 0;
++	c->valid = 1;
++	c->excursion_len = 0;
++	c->ack_cnt = 0;
++	c->pending_count = 0;
++	c->excursion_start = 0;
++	c->max_q = 0;
++	c->jumps = 0;
++	c->aggregated = 0;
++
++	//c->rate_interval_ns = 0;
++	//c->rate_delivered = 0;
++
++	c->min_qdelay_us = UINT_MAX;
++}
++
++static void paced_chirping_pkt_acked_startup(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb)
++{
++	struct paced_chirping_ext *ext;
++	struct tcp_sock *tp = tcp_sk(sk);
++	struct cc_chirp *c;
++	u32 ewma_shift;
++	u32 estimate;
++	u32 proactive_service_time;
++	u32 persistent_service_time;
++
++	ext = skb_ext_find(skb, SKB_EXT_PACED_CHIRPING);
++	if (!ext)
++		return;
++
++	c = get_chirp_struct(pc);
++	if (c->chirp_number != ext->chirp_number) {
++		paced_chirping_reset_chirp(c);
++		c->chirp_number = ext->chirp_number;
++	}
++
++	/* For debugging/non-convergence safety purposes */
++	if (c->chirp_number >= paced_chirping_maximum_num_chirps)
++		paced_chirping_exit(sk, pc, PC_EXIT_MAX_CHIRPS_REACHED);
++
++	if (paced_chirping_should_exit_overload(tp, pc, c))
++		paced_chirping_exit(sk, pc, PC_EXIT_OVERLOAD);
++
++	estimate = paced_chirping_run_analysis(sk, pc, c, skb);
++	if (estimate) {
++		ewma_shift = get_per_chirp_ewma_shift(tp, c->packets_acked + 1);
++
++		/* TODO: I guess here is where discontinuous links are
++		 * allowed to have more latency... Measure variation in
++		 * queue delay. Add to pc struct..
++		 * It makes sense to move faster if there is "proven" overload over time.
++		 * If gap_avg is to be used to drain and set initial alpha, it makes sense
++		 * to move fast here before termination. */
++		persistent_service_time = paced_chirping_get_best_persistent_service_time_estimate(tp, pc, c);
++		if (paced_chirping_should_use_persistent_service_time(tp, pc, c)) {
++			estimate = persistent_service_time;
++			ewma_shift = 1;
++		}
++
++		/* TODO: Think about this..
++		 * It might be better to use gap_avg_ns/2 in case all estimates
++		 * are invalid or false. no information -> slow start  */
++		if (estimate == UINT_MAX || estimate > 100000000U)
++			estimate = pc->gap_avg_ns;
++
++		/* TODO: Does it make sens to try to avoid overshoot if the link
++		 *       itself is making it difficult to estimate?
++		 *       I think no, so all this thought of using proactive might be
++		 *       not worth the complexity. It can however be used to fine tune
++		 *       or improve the estimate from the chirp estimate.
++		 *       In that case it should only be used on packets in an excursion.
++		 * TODO: Maybe the weight should depend on how many packets are in the
++		 *       excursion. If the estimate is overly optimistic
++		 */
++		proactive_service_time = pc->proactive_service_time_ns;
++		if (paced_chirping_use_proactive_service_time &&
++		    paced_chirping_is_discontinuous_link(pc) &&
++		    proactive_service_time != UINT_MAX)
++			estimate = min(proactive_service_time, persistent_service_time);
++
++		update_gap_estimate(pc, c, ewma_shift, estimate);
++		update_gap_load_estimate(pc, c, ewma_shift+1, pc->gap_avg_ns);
++		update_aggregation_estimate(pc, c, ewma_shift);
++		update_chirp_size(pc, c);
++		update_chirp_geometry(pc, c);
++		update_load_window(tp, pc);
++
++		/* Exit if the load has 'catched up' with the average
++		 * Previously trend had to be increasing, but I believe
++		 * that forced overshoot by underestimation followed by increasing
++		 * trend. */
++		if (pc->gap_avg_load_ns <= pc->gap_avg_ns)
++			paced_chirping_exit(sk, pc, PC_EXIT_ESTIMATE_CONVERGENCE);
++
++		if ((!pc->send_tstamp_location || pc->send_tstamp_location == INTERNAL_PACING)
++		    && pc->gap_avg_load_ns < paced_chirping_lowest_internal_pacing_gap) {
++			paced_chirping_exit(sk, pc, PC_EXIT_SYSTEM_LIMITATION);
++		} else if (pc->send_tstamp_location == FQ_PACING &&
++			   pc->gap_avg_load_ns < paced_chirping_lowest_FQ_pacing_gap) {
++			paced_chirping_exit(sk, pc, PC_EXIT_SYSTEM_LIMITATION);
++		}
++
++		/* TODO: KERN_DEBUG is not needed here */
++		TRACE_PRINT((KERN_DEBUG "[PC-estimate] %u-%u-%hu-%hu,"
++			     "%08u,%08u,%08u,%02u,%03u,%02u,%u,%u,%02u,%08llu,"    /* Other variables */
++			     "%08u,%08d,%08u,%02u,%02u,%02u,%05u,%08lld,%06u,%02u,%02u,"  /* pc */
++			     "%08u,%08u,%08u,%04u,%04u,%04u,%05u\n",                /* tp */
++			     ntohl(sk->sk_rcv_saddr),
++			     ntohl(sk->sk_daddr),
++			     sk->sk_num,
++			     ntohs(sk->sk_dport),
++
++			     estimate,
++			     proactive_service_time,
++			     persistent_service_time,
++			     ewma_shift,
++			     c->chirp_number,
++			     c->packets_acked,
++			     c->valid,
++			     c->ack_cnt,
++			     c->rate_delivered,
++			     c->rate_interval_ns,
++
++			     pc->gap_avg_ns,
++			     pc->gap_avg_ad,
++			     pc->gap_avg_load_ns,
++			     pc->load_window,
++			     pc->aggregate_estimate>>AGGREGATION_SHIFT,
++			     pc->N,
++			     pc->geometry,
++			     pc->qdelay_from_delta_sum_ns,
++			     pc->next_chirp_number,
++			     pc->state,
++			     pc->send_tstamp_location,
++
++			     tcp_min_rtt(tp),
++			     c->min_qdelay_us,
++			     tp->srtt_us>>3,
++			     tp->snd_cwnd,
++			     tcp_packets_in_flight(tp),
++			     tp->snd_ssthresh,
++
++			     tp->mss_cache));
++	}
++}
++
++/* Same rtt for delayed acks in original, how to do it here? */
++/* How do you preserve ack-count?  Maybe we can use the update callback */
++void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb)
++{
++	if (!pc || !paced_chirping_active(pc))
++		return;
++
++	paced_chirping_pkt_acked_startup(sk, pc, skb);
++}
++EXPORT_SYMBOL(paced_chirping_pkt_acked);
++
++/* This function is called only once per acknowledgement */
++void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs)
++{
++	struct cc_chirp *c;
++
++	if (!pc || !paced_chirping_active(pc))
++		return;
++
++	c = get_chirp_struct(pc);
++	if (c)
++		c->ack_cnt++;
++}
++EXPORT_SYMBOL(paced_chirping_update);
++
++static inline void paced_chirping_set_initial_gap_avg(struct sock *sk, struct tcp_sock *tp, struct paced_chirping *pc)
++{
++	struct paced_chirping_cache cache;
++
++	if (paced_chirping_use_initial_srrt && tp->srtt_us>>3) {
++		u64 srtt_ns = (u64)tp->srtt_us * NSEC_PER_USEC;
++		pc->gap_avg_ns = srtt_ns >> (3 + paced_chirping_gap_pkts_shift);
++		pc->gap_avg_load_ns = srtt_ns >> (3 + paced_chirping_load_gap_pkts_shift);
++	} else {
++		pc->gap_avg_ns = paced_chirping_initial_gap_ns;
++		pc->gap_avg_load_ns = paced_chirping_initial_load_gap_ns;
++	}
++
++	if (paced_chirping_use_cached_information) {
++		paced_chirping_cache_get(sk, &cache);
++		if (cache.srtt && cache.cwnd && cache.cwnd > TCP_INIT_CWND) {
++			pc->gap_avg_ns = div_u64((u64)cache.srtt, cache.cwnd);
++		}
++	}
++
++	pc->gap_avg_ns = min(pc->gap_avg_ns, paced_chirping_maximum_initial_gap);
++}
++
++static void paced_chirping_init_both(struct sock *sk, struct tcp_sock *tp,
++				     struct paced_chirping *pc)
++{
++	cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
++	sk->sk_pacing_rate = ~0U;
++	sk->sk_gso_max_segs = 1;
++
++	tp->disable_kernel_pacing_calculation = 1;
++	tp->disable_cwr_upon_ece = 1;
++	tp->is_chirping = 1;
++
++	pc->geometry = clamp_val(paced_chirping_initial_geometry, 1U << PC_G_G_SHIFT, 2U << PC_G_G_SHIFT);
++	pc->next_chirp_number = PC_INITIAL_CHIRP_NUMBER;
++	pc->N = max(paced_chirping_prob_size, 2U);
++	paced_chirping_reset_chirp(get_chirp_struct(pc));
++}
++
++struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++	/* If caller does not have memory available try to allocate it. */
++	if (!pc) {
++		pc = kzalloc(sizeof(struct paced_chirping), GFP_NOWAIT | __GFP_NOWARN);
++		if (!pc) {
++			paced_chirping_exit(sk, pc, PC_EXIT_ALLOCATION);
++			return NULL;
++		}
++		pc->allocated_on_heap = 1;
++	} else {
++		pc->allocated_on_heap = 0;
++	}
++
++	/* TODO: If set up in congestion avoidance maybe memset everything to 0.
++	 *        Certainly safer than setting members explicitly. */
++
++	paced_chirping_init_both(sk, tp, pc);
++	paced_chirping_set_initial_gap_avg(sk, tp, pc);
++
++	pc->load_window = TCP_INIT_CWND;
++	pc->recv_gap_estimate_ns = pc->gap_avg_load_ns;
++	pc->proactive_service_time_ns = pc->gap_avg_ns;
++	pc->state = PC_STATE_ACTIVE;
++	pc->prev_recv_tstamp = 0;
++	pc->prev_rcv_tsval = 0;
++
++	pc->aggregate_estimate = 1<<AGGREGATION_SHIFT;
++
++	LOG_PRINT((KERN_DEBUG "[PC-init] %u-%u-%hu-%hu,"
++		   "%u,%u,%u,%u,%u,%u,"  /* Variables */
++		   "%u,%u,%u,%u,%u,%u,%u\n", /* Parameters */
++		   ntohl(sk->sk_rcv_saddr),
++		   ntohl(sk->sk_daddr),
++		   sk->sk_num,
++		   ntohs(sk->sk_dport),
++
++		   pc->gap_avg_ns,
++		   pc->gap_avg_load_ns,
++		   pc->state,
++		   pc->allocated_on_heap,
++		   tcp_min_rtt(tp),
++		   tp->srtt_us>>3,
++
++		   paced_chirping_initial_geometry,
++		   paced_chirping_L,
++		   paced_chirping_maximum_initial_gap,
++		   paced_chirping_maximum_num_chirps,
++		   paced_chirping_prob_size,
++		   paced_chirping_use_remote_tsval,
++		   paced_chirping_use_cached_information));
++
++	return pc;
++}
++EXPORT_SYMBOL(paced_chirping_init);
++
++void paced_chirping_release(struct sock *sk, struct paced_chirping* pc)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++	memset(&tp->chirp, 0, sizeof(tp->chirp));
++
++	if (pc && pc->allocated_on_heap)
++		kfree(pc);
++}
++EXPORT_SYMBOL(paced_chirping_release);
+diff --git a/net/ipv4/paced_chirping.h b/net/ipv4/paced_chirping.h
+new file mode 100644
+index 000000000000..0bd4b541fdab
+--- /dev/null
++++ b/net/ipv4/paced_chirping.h
+@@ -0,0 +1,196 @@
++#ifndef _TCP_PACED_CHIRPING_H
++#define _TCP_PACED_CHIRPING_H
++
++#include <linux/mm.h>
++#include <net/tcp.h>
++#include <linux/inet_diag.h>
++#include <linux/module.h>
++
++#define LOG_PRINT(x) do { if (paced_chirping_log) printk x; if (paced_chirping_trace) trace_printk x;} while (0)
++#define TRACE_PRINT(x) do { if (paced_chirping_trace) trace_printk x;} while (0)
++
++#define EWMA(average, estimate, shift) average = average - (average>>(shift)) + (estimate>>(shift))
++
++/* State values */
++#define PC_STATE_ACTIVE                        0x01
++#define PC_STATE_CONGESTION_AVOIDANCE_CONTEXT  0x02 /* TODO */
++
++/* Used for logging/debugging */
++#define PC_EXIT_SYSTEM_LIMITATION              0x00 /* If system cannot handle e.g. pacing precision */
++#define PC_EXIT_LOSS                           0x01 /* A loss has happened */
++#define PC_EXIT_ESTIMATE_CONVERGENCE           0x02 /* PC is finished */
++#define PC_EXIT_OVERLOAD                       0x03 /* Queueing delay is unacceptable*/
++#define PC_EXIT_ALLOCATION                     0x04 /* Requested allocation failed */
++#define PC_EXIT_MAX_CHIRPS_REACHED             0x05 /* In case of non-convergence */
++
++/* Shifts used to store upscaled values */
++#define PC_G_G_SHIFT                            10U /* Gain and geometry shift */
++#define AGGREGATION_SHIFT                        6U /* Aggregation estimate shift */
++
++/* Constants used in the algorithm */
++#define PC_INITIAL_CHIRP_NUMBER                  1U /* Used in initialization and when scheduling chirps */
++#define PC_FIRST_ROUND_CHIRPS_SIZE               5U /* Number of packets in two first chirps */
++#define PC_SECOND_ROUND_CHIRPS_SIZE              8U /* Number of packets in third and fourth chirp */
++#define PC_CHIRP_SIZE_MIN                       16U /* Minimum number of packets in a chirp */
++#define PC_CHIRP_SIZE_MAX                       64U /* Maximum number of packets in a chirp */
++/* Dealing with discontinuous links */
++#define PC_CHIRP_SIZE_COVER_AGGREGATION_SHIFT    2U /* Chirp size set to aggregate estimate times 2^X */
++#define PC_DISCONT_LINK_AGGREGATION_THRESHOLD    2U /* Deemed discontinuous if aggregate estimate is greater */
++#define PC_DISCONT_LINK_CHIRP_AVG_SUB_SHIFT      2U /* Set chirp avg to est - est/2^X */
++
++struct cc_chirp {
++	/* State variables for online calculation */
++	u64     gap_total;
++	u64     gap_pending;
++
++	u32     chirp_number : 16, /* Chirp number, first chirp has number 0 */
++		packets_acked :  8; /* Used to record the measured queue delays */
++
++	u32     uncounted     : 6,
++		in_excursion  : 1,
++		valid         : 1,
++		excursion_len : 8,
++		ack_cnt       : 8,
++		pending_count : 8;
++
++	u32     excursion_start;      /* Need to be this big */
++	u32     max_q;
++	u32     last_delay;
++	u32     last_sample;
++
++	/* Detecting persistent queueing delay */
++	u32     min_qdelay_us;
++
++	/* Same interpretation as tp members, but
++	 * only over part of a chirp with persistent queueing delay. */
++	u64     rate_interval_ns;
++	u8      rate_delivered;
++
++	/* Heuristic for estimating aggregation */
++	u8      jumps;
++	u8      aggregated;
++};
++
++struct paced_chirping {
++	/* Local timestamps */
++	u64     prev_send_tstamp;	/* Send timestamp of latest handled packet */
++	u8      send_tstamp_location;	/* Where in the stack the last packet was paced */
++	u64     prev_recv_tstamp;	/* Recv timestamp of latest handled packet */
++
++	/* Remote timestamp */
++	u64     prev_rcv_tsval;		/* Receiver side timestamp of latest ACK */
++	u8      rcv_tsval_us_granul;	/* Whether or not heuristic deems ts microsecond */
++
++	/* Estimates */
++	u32     gap_avg_ns;		/* Average gap */
++	s32     gap_avg_ad;		/* Trend of average gap */
++
++	u64     recv_gap_estimate_ns;	/* EWMA over recv gaps */
++	s64     recv_gap_ad;		/* Trend of recv_gap_estimate_ns */
++
++	u32     queueing_delay_average_us;
++	u32     queueing_delay_mad_us;
++
++	/* For discontinuous links */
++	u64     proactive_service_time_ns;
++	s64     proactive_service_time_ad;
++
++	u32     prev_qdelay;
++	u32     start_qdelay;
++
++	/* Keeping load */
++	u32     gap_avg_load_ns; /* Gap used to enforce a certain average load */
++	u32     load_window;     /* In case RTT suddenly increases. RTT/avg_load */
++
++	/* Alternative queueing delay calculation */
++	s64     qdelay_from_delta_sum_ns; /* Sum of deltas between recv gap and send gap. */
++
++	/* Discontinuous links */
++	u32     aggregate_estimate; /* EWMA of aggregated packets / jumps */
++
++	/* */
++	u16     next_chirp_number; /* Should never wrap */
++	u16     state        : 8,  /* Algorithm state */
++		N            : 8;  /* Number of packets in scheduled chirps */
++	u16     geometry     : 16; /* Geometry of scheduled chirps */
++	u8      allocated_on_heap; /* Set if init-function allocated this structure */
++	struct cc_chirp cur_chirp;
++};
++
++/* Guide for putting paced chirping support into your CC module.
++ *
++ * 1. Include "paced_chirping.h". If you are experimenting and building PC functions
++ *    with a module include "paced_chirping.c" directly. Exports might have to be
++ *    commented out.
++ *
++ * 2. Add a struct paced_chirping in the private data structure of you CC module.
++ *    If there isn't enough space for it (most likely the case), make it a pointer
++ *    and let PC try to allocate memory for you.
++ *
++ * 3. When you include this header-file you get a parameter called paced_chirping_enabled.
++ *    In your init-function, check this variable and call paced_chirping_init if it is set.
++ *    The return value should be stored (if pointer) and indicate whether init was successful.
++ *    Return value of NULL indicates error, any other value indicates success.
++ *
++ * 4. Add paced_chirping_new_chirp to tcp_congestion_ops. You need to implement your own callback
++ *    and call paced_chirping_new_chirp yourself.
++ *
++ * 5. (Currently optional) Call paced_chirping_update on each ack,
++ *    either from cong_control or in_ack_event.
++ *
++ * 6. Disable cwnd and ssthresh updates while paced_chirping_active is true. This can be in
++ *    cong_avoid and pkts_acked, so check.
++ *
++ * 7. (Optional) Call paced_chirping_exit upon loss events. paced_chirping_exit can be
++ *    called at any time if you want to abort paced chirping.
++ *
++ * 8. Call paced_chirping_release from your release function. If you don't have one, implement.
++ *
++ * 9. Add callback for pkt_acked to a function that calls paced_chirping_pkt_acked.
++ */
++
++/*************** Public functions ****************/
++/* TCP CC modules must implement new_chirp and release.
++ * This text is outdated
++ * Additionally either 1 or 2:
++ * 1) cong_avoid
++ * 2) pkts_acked
++ * When either of these functions are called paced_chirping_update must be called.
++ * It might be useful to have two version of paced_chirping_update, one for both.
++ * Currently pkts_acked implementations have to create a "fake" rate_sample.
++ *
++ * When new_chirp is called paced_chirping_new_chirp must be called.
++ * When release is called paced_chirping_release must be called.
++ *
++ * paced_chirping_exit should be called upon loss.
++ *
++ * TCP CC module should not modify cwnd and ssthresh when Paced Chirping is active.
++ *
++ * paced_chirping_exit should be called upon LOSS
++ */
++
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc);
++bool paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc);
++void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs);
++void paced_chirping_pkt_acked(struct sock *sk, struct paced_chirping *pc, struct sk_buff *skb);
++int  paced_chirping_active(struct paced_chirping *pc);
++void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason);
++void paced_chirping_release(struct sock *sk, struct paced_chirping* pc);
++u32  paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, u32 tso_segs);
++
++#else
++
++static inline struct paced_chirping* paced_chirping_init(struct sock *sk, struct paced_chirping *pc) { return NULL; }
++static inline bool paced_chirping_new_chirp(struct sock *sk, struct paced_chirping *pc) { return true; }
++static inline void paced_chirping_update(struct sock *sk, struct paced_chirping *pc, const struct rate_sample *rs) {}
++static inline int paced_chirping_active(struct paced_chirping *pc) { return 0; }
++static inline void paced_chirping_exit(struct sock *sk, struct paced_chirping *pc, u32 reason) {}
++static inline void paced_chirping_release(struct paced_chirping* pc) {}
++static inline u32 paced_chirping_tso_segs(struct sock *sk, struct paced_chirping* pc, u32 tso_segs)
++{
++	return tso_segs;
++}
++#endif
++
++#endif
+diff --git a/net/ipv4/paced_chirping_param.h b/net/ipv4/paced_chirping_param.h
+new file mode 100644
+index 000000000000..9ff3f1372174
+--- /dev/null
++++ b/net/ipv4/paced_chirping_param.h
+@@ -0,0 +1,14 @@
++#ifndef _TCP_PACED_CHIRPING_PARAM_H
++#define _TCP_PACED_CHIRPING_PARAM_H
++
++#include <linux/module.h>
++
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++
++/* Paced Chirping parameters */
++static unsigned int paced_chirping_enabled __read_mostly = 0;
++module_param(paced_chirping_enabled, uint, 0644);
++MODULE_PARM_DESC(paced_chirping_enabled, "Enable paced chirping (Default: 0)");
++#endif
++
++#endif
+diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
+index bac9d5989c5d..60624fceeede 100644
+--- a/net/ipv4/tcp.c
++++ b/net/ipv4/tcp.c
+@@ -2748,6 +2748,12 @@ int tcp_disconnect(struct sock *sk, int flags)
+ 	tp->rx_opt.num_sacks = 0;
+ 	tp->rcv_ooopack = 0;
+ 
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++	tp->chirp.packets = tp->chirp.packets_out = 0;
++	tp->is_chirping = 0;
++#endif
++	tp->disable_kernel_pacing_calculation = 0;
++	tp->disable_cwr_upon_ece = 0;
+ 
+ 	/* Clean up fastopen related fields */
+ 	tcp_free_fastopen_req(tp);
+diff --git a/net/ipv4/tcp_cubic.c b/net/ipv4/tcp_cubic.c
+index d5ee637d6442..e144087dcfc2 100644
+--- a/net/ipv4/tcp_cubic.c
++++ b/net/ipv4/tcp_cubic.c
+@@ -28,6 +28,8 @@
+ #include <linux/module.h>
+ #include <linux/math64.h>
+ #include <net/tcp.h>
++#include "paced_chirping.h"
++#include "paced_chirping_param.h"
+ 
+ #define BICTCP_BETA_SCALE    1024	/* Scale factor beta calculation
+ 					 * max_cwnd = snd_cwnd * beta
+@@ -101,6 +103,7 @@ struct bictcp {
+ 	u32	end_seq;	/* end_seq of the round */
+ 	u32	last_ack;	/* last time when the ACK spacing is close */
+ 	u32	curr_rtt;	/* the minimum rtt of current round */
++	struct paced_chirping *pc;
+ };
+ 
+ static inline void bictcp_reset(struct bictcp *ca)
+@@ -141,6 +144,14 @@ static void bictcp_init(struct sock *sk)
+ 
+ 	bictcp_reset(ca);
+ 
++	if (paced_chirping_enabled) {
++		ca->pc = paced_chirping_init(sk, NULL);
++		if (ca->pc)
++			ca->use_hystart = 0;
++	} else { /* Probably memset to 0 already */
++		ca->pc = NULL;
++	}
++
+ 	if (ca->use_hystart)
+ 		bictcp_hystart_reset(sk);
+ 
+@@ -335,6 +346,9 @@ static void bictcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
+ 	struct tcp_sock *tp = tcp_sk(sk);
+ 	struct bictcp *ca = inet_csk_ca(sk);
+ 
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++		return;
++
+ 	if (!tcp_is_cwnd_limited(sk))
+ 		return;
+ 
+@@ -354,6 +368,9 @@ static u32 bictcp_recalc_ssthresh(struct sock *sk)
+ 	const struct tcp_sock *tp = tcp_sk(sk);
+ 	struct bictcp *ca = inet_csk_ca(sk);
+ 
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++		return tp->snd_cwnd;
++
+ 	ca->epoch_start = 0;	/* end of epoch */
+ 
+ 	/* Wmax and fast convergence */
+@@ -368,7 +385,11 @@ static u32 bictcp_recalc_ssthresh(struct sock *sk)
+ 
+ static void bictcp_state(struct sock *sk, u8 new_state)
+ {
++	struct bictcp *ca = inet_csk_ca(sk);
+ 	if (new_state == TCP_CA_Loss) {
++		if (unlikely(paced_chirping_enabled && paced_chirping_active(ca->pc))) {
++			paced_chirping_exit(sk, ca->pc, PC_EXIT_LOSS);
++		}
+ 		bictcp_reset(inet_csk_ca(sk));
+ 		bictcp_hystart_reset(sk);
+ 	}
+@@ -481,14 +502,54 @@ static void bictcp_acked(struct sock *sk, const struct ack_sample *sample)
+ 		hystart_update(sk, delay);
+ }
+ 
++/* Paced Chirping new functions */
++static bool bictcp_new_chirp(struct sock *sk)
++{
++	struct bictcp *ca = inet_csk_ca(sk);
++	return paced_chirping_new_chirp(sk, ca->pc);
++}
++
++static void bictcp_release(struct sock *sk)
++{
++	struct bictcp *ca = inet_csk_ca(sk);
++	if (paced_chirping_enabled && ca->pc) {
++		paced_chirping_release(sk, ca->pc);
++		ca->pc = NULL;
++	}
++}
++static void bictcp_pkt_acked(struct sock *sk, struct sk_buff *skb)
++{
++	struct bictcp *ca = inet_csk_ca(sk);
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
++		paced_chirping_pkt_acked(sk, ca->pc, skb);
++	}
++}
++
++static u32 bictcp_tso_segs(struct sock *sk, unsigned int mss_now)
++{
++	struct bictcp *ca = inet_csk_ca(sk);
++	u32 tso_segs = tcp_tso_autosize(sk, mss_now,
++					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
++
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++		tso_segs = paced_chirping_tso_segs(sk, ca->pc, tso_segs);
++
++	return tso_segs;
++}
++
++
+ static struct tcp_congestion_ops cubictcp __read_mostly = {
+ 	.init		= bictcp_init,
++	.release	= bictcp_release,
+ 	.ssthresh	= bictcp_recalc_ssthresh,
+ 	.cong_avoid	= bictcp_cong_avoid,
+ 	.set_state	= bictcp_state,
+ 	.undo_cwnd	= tcp_reno_undo_cwnd,
+ 	.cwnd_event	= bictcp_cwnd_event,
+ 	.pkts_acked     = bictcp_acked,
++	.new_chirp      = bictcp_new_chirp,
++	.tso_segs	= bictcp_tso_segs,
++	.pkt_acked      = bictcp_pkt_acked,
+ 	.owner		= THIS_MODULE,
+ 	.name		= "cubic",
+ };
+diff --git a/net/ipv4/tcp_dctcp.c b/net/ipv4/tcp_dctcp.c
+index 8cf81e942675..a5f46ba640ce 100644
+--- a/net/ipv4/tcp_dctcp.c
++++ b/net/ipv4/tcp_dctcp.c
+@@ -41,6 +41,8 @@
+ #include <net/tcp.h>
+ #include <linux/inet_diag.h>
+ #include "tcp_dctcp.h"
++#include "paced_chirping.h"
++#include "paced_chirping_param.h"
+ 
+ #define DCTCP_MAX_ALPHA	1024U
+ 
+@@ -52,6 +54,8 @@ struct dctcp {
+ 	u32 next_seq;
+ 	u32 ce_state;
+ 	u32 loss_cwnd;
++
++	struct paced_chirping *pc;
+ };
+ 
+ static unsigned int dctcp_shift_g __read_mostly = 4; /* g = 1/2^4 */
+@@ -88,6 +92,9 @@ static void dctcp_init(struct sock *sk)
+ 		ca->loss_cwnd = 0;
+ 		ca->ce_state = 0;
+ 
++		if (paced_chirping_enabled)
++			ca->pc = paced_chirping_init(sk, NULL);
++
+ 		dctcp_reset(tp, ca);
+ 		return;
+ 	}
+@@ -105,6 +112,8 @@ static u32 dctcp_ssthresh(struct sock *sk)
+ 	struct tcp_sock *tp = tcp_sk(sk);
+ 
+ 	ca->loss_cwnd = tp->snd_cwnd;
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++		return tp->snd_cwnd;
+ 	return max(tp->snd_cwnd - ((tp->snd_cwnd * ca->dctcp_alpha) >> 11U), 2U);
+ }
+ 
+@@ -170,7 +179,10 @@ static void dctcp_cwnd_event(struct sock *sk, enum tcp_ca_event ev)
+ 		dctcp_ece_ack_update(sk, ev, &ca->prior_rcv_nxt, &ca->ce_state);
+ 		break;
+ 	case CA_EVENT_LOSS:
+-		dctcp_react_to_loss(sk);
++		if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++			paced_chirping_exit(sk, ca->pc, PC_EXIT_LOSS);
++		else
++			dctcp_react_to_loss(sk);
+ 		break;
+ 	default:
+ 		/* Don't care for the rest. */
+@@ -213,17 +225,82 @@ static u32 dctcp_cwnd_undo(struct sock *sk)
+ 	return max(tcp_sk(sk)->snd_cwnd, ca->loss_cwnd);
+ }
+ 
++static void dctcp_release(struct sock *sk)
++{
++	struct dctcp *ca = inet_csk_ca(sk);
++	tcp_sk(sk)->ecn_flags &= ~TCP_ECN_ECT_1;
++	if (paced_chirping_enabled && ca->pc) {
++		paced_chirping_release(sk, ca->pc);
++		ca->pc = NULL;
++	}
++}
++
++static void dctcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
++{
++	struct dctcp *ca = inet_csk_ca(sk);
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++	{
++		return;
++	}
++	tcp_reno_cong_avoid(sk, ack, acked);
++}
++
++/* Not strictly needed.. */
++static void dctcp_acked(struct sock *sk, const struct ack_sample *sample)
++{
++	struct dctcp *ca = inet_csk_ca(sk);
++	struct rate_sample rs;
++	rs.rtt_us = sample->rtt_us;
++	rs.acked_sacked = sample->pkts_acked;
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
++		paced_chirping_update(sk, ca->pc, &rs);
++	}
++}
++
++static bool dctcp_new_chirp (struct sock *sk)
++{
++	struct dctcp *ca = inet_csk_ca(sk);
++	return paced_chirping_new_chirp(sk, ca->pc);
++}
++
++static void dctcp_pkt_acked(struct sock *sk, struct sk_buff *skb)
++{
++	struct dctcp *ca = inet_csk_ca(sk);
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
++		paced_chirping_pkt_acked(sk, ca->pc, skb);
++	}
++}
++
++static u32 dctcp_tso_segs(struct sock *sk, unsigned int mss_now)
++{
++	struct dctcp *ca = inet_csk_ca(sk);
++	u32 tso_segs = tcp_tso_autosize(sk, mss_now,
++					sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
++
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++		tso_segs = paced_chirping_tso_segs(sk, ca->pc, tso_segs);
++
++	return tso_segs;
++}
++
+ static struct tcp_congestion_ops dctcp __read_mostly = {
+ 	.init		= dctcp_init,
++	.release	= dctcp_release,
+ 	.in_ack_event   = dctcp_update_alpha,
+ 	.cwnd_event	= dctcp_cwnd_event,
+ 	.ssthresh	= dctcp_ssthresh,
+-	.cong_avoid	= tcp_reno_cong_avoid,
+ 	.undo_cwnd	= dctcp_cwnd_undo,
+ 	.set_state	= dctcp_state,
+ 	.get_info	= dctcp_get_info,
+ 	.flags		= TCP_CONG_NEEDS_ECN,
+ 	.owner		= THIS_MODULE,
++	/*For paced chirping */
++	.cong_avoid     = dctcp_cong_avoid,
++	.pkts_acked     = dctcp_acked,
++	.new_chirp      = dctcp_new_chirp,
++	.tso_segs	= dctcp_tso_segs,
++	.pkt_acked      = dctcp_pkt_acked,
++
+ 	.name		= "dctcp",
+ };
+ 
+diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c
+index 133b14dd1522..db7fa862a29f 100644
+--- a/net/ipv4/tcp_input.c
++++ b/net/ipv4/tcp_input.c
+@@ -2961,7 +2961,7 @@ static void tcp_try_to_open(struct sock *sk, int flag)
+ 	if (!tcp_any_retrans_done(sk))
+ 		tp->retrans_stamp = 0;
+ 
+-	if (flag & FLAG_ECE)
++	if ((flag & FLAG_ECE) && !unlikely(tp->disable_cwr_upon_ece))
+ 		tcp_enter_cwr(sk);
+ 
+ 	if (inet_csk(sk)->icsk_ca_state != TCP_CA_CWR) {
+@@ -3561,6 +3561,13 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
+ 		if (!fully_acked)
+ 			break;
+ 
++		if (icsk->icsk_ca_ops->pkt_acked) {
++			icsk->icsk_ca_ops->pkt_acked(sk, skb);
++#if IS_ENABLED(CONFIG_PACED_CHIRPING)
++			skb_ext_del(skb, SKB_EXT_PACED_CHIRPING);
++#endif
++		}
++
+ 		tcp_ack_tstamp(sk, skb, prior_snd_una);
+ 
+ 		next = skb_rb_next(skb);
+@@ -3749,7 +3756,8 @@ static void tcp_cong_control(struct sock *sk, u32 ack, u32 acked_sacked,
+ 		/* Advance cwnd if state allows */
+ 		tcp_cong_avoid(sk, ack, acked_sacked);
+ 	}
+-	tcp_update_pacing_rate(sk);
++	if (!tcp_sk(sk)->disable_kernel_pacing_calculation)
++		tcp_update_pacing_rate(sk);
+ }
+ 
+ /* Check that window update is acceptable.
+@@ -6851,7 +6859,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
+ 		if (tp->rx_opt.tstamp_ok)
+ 			tp->advmss -= TCPOLEN_TSTAMP_ALIGNED;
+ 
+-		if (!inet_csk(sk)->icsk_ca_ops->cong_control)
++		if (!inet_csk(sk)->icsk_ca_ops->cong_control && !tp->disable_kernel_pacing_calculation)
+ 			tcp_update_pacing_rate(sk);
+ 
+ 		/* Prevent spurious tcp_cwnd_restart() on first data packet */
+diff --git a/net/ipv4/tcp_metrics.c b/net/ipv4/tcp_metrics.c
+index 6b27c481fe18..b96e0469df3d 100644
+--- a/net/ipv4/tcp_metrics.c
++++ b/net/ipv4/tcp_metrics.c
+@@ -519,6 +519,27 @@ void tcp_init_metrics(struct sock *sk)
+ 	}
+ }
+ 
++void paced_chirping_cache_get(struct sock *sk, struct paced_chirping_cache *pc_cache)
++{
++	struct dst_entry *dst = __sk_dst_get(sk);
++	struct tcp_metrics_block *tm;
++
++	sk_dst_confirm(sk);
++	if (!dst)
++		return;
++	rcu_read_lock();
++	tm = tcp_get_metrics(sk, dst, true);
++	if (!tm) {
++		rcu_read_unlock();
++		return;
++	}
++	pc_cache->srtt = tcp_metric_get(tm, TCP_METRIC_RTT);
++	pc_cache->cwnd = tcp_metric_get(tm, TCP_METRIC_CWND);
++	pc_cache->reordering = tcp_metric_get(tm, TCP_METRIC_REORDERING);
++	rcu_read_unlock();
++}
++EXPORT_SYMBOL(paced_chirping_cache_get);
++
+ bool tcp_peer_is_proven(struct request_sock *req, struct dst_entry *dst)
+ {
+ 	struct tcp_metrics_block *tm;
+diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
+index 6f7051a7ac5a..9ca30e394e37 100644
+--- a/net/ipv4/tcp_output.c
++++ b/net/ipv4/tcp_output.c
+@@ -39,6 +39,7 @@
+ 
+ #include <net/tcp.h>
+ #include <net/mptcp.h>
++#include <net/paced_chirping.h>
+ 
+ #include <linux/compiler.h>
+ #include <linux/gfp.h>
+@@ -1393,11 +1394,14 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
+ 	if (sk->sk_pacing_status != SK_PACING_NONE) {
+ 		unsigned long rate = sk->sk_pacing_rate;
+ 
++		if (paced_chirping_is_chirping(tp)) {
++			paced_chirping_chirp_gap(sk, skb);
++
+ 		/* Original sch_fq does not pace first 10 MSS
+ 		 * Note that tp->data_segs_out overflows after 2^32 packets,
+ 		 * this is a minor annoyance.
+ 		 */
+-		if (rate != ~0UL && rate && tp->data_segs_out >= 10) {
++		} else if (rate != ~0UL && rate && tp->data_segs_out >= 10) {
+ 			u64 len_ns = div64_ul((u64)skb->len * NSEC_PER_SEC, rate);
+ 			u64 credit = tp->tcp_wstamp_ns - prior_wstamp;
+ 
+@@ -2822,6 +2826,9 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
+ 		if (tcp_pacing_check(sk))
+ 			break;
+ 
++		if (paced_chirping_new_chirp_and_send_check(sk))
++			break;
++
+ 		tso_segs = tcp_init_tso_segs(skb, mss_now);
+ 		BUG_ON(!tso_segs);
+ 
+diff --git a/net/ipv4/tcp_prague.c b/net/ipv4/tcp_prague.c
+index 79f8b7e32224..904f4d879934 100644
+--- a/net/ipv4/tcp_prague.c
++++ b/net/ipv4/tcp_prague.c
+@@ -88,6 +88,8 @@
+ #include <net/tcp.h>
+ #include <linux/inet_diag.h>
+ #include <linux/inet.h>
++#include "paced_chirping.h"
++#include "paced_chirping_param.h"
+ 
+ #define MIN_CWND		2U
+ #define PRAGUE_ALPHA_BITS	20U
+@@ -180,6 +182,7 @@ struct prague {
+ 	u8  saw_ce:1,		/* Is there an AQM on the path? */
+ 	    rtt_indep:3,	/* RTT independence mode */
+ 	    in_loss:1;		/* In cwnd reduction caused by loss */
++	struct paced_chirping *pc;
+ };
+ 
+ struct rtt_scaling_ops {
+@@ -503,6 +506,11 @@ static void prague_enter_loss(struct sock *sk)
+ 	struct prague *ca = prague_ca(sk);
+ 	struct tcp_sock *tp = tcp_sk(sk);
+ 
++	if (unlikely(paced_chirping_active(ca->pc))) {
++		paced_chirping_exit(sk, ca->pc, PC_EXIT_LOSS);
++		return;
++	}
++
+ 	ca->loss_cwnd = tp->snd_cwnd;
+ 	ca->loss_cwnd_cnt = ca->cwnd_cnt;
+ 	ca->cwnd_cnt -=
+@@ -648,6 +656,11 @@ static u32 prague_cwnd_undo(struct sock *sk)
+ 
+ static void prague_cong_control(struct sock *sk, const struct rate_sample *rs)
+ {
++	if (unlikely(paced_chirping_active(prague_ca(sk)->pc))) {
++		paced_chirping_update(sk, prague_ca(sk)->pc, rs);
++		return;
++	}
++
+ 	prague_update_cwnd(sk, rs);
+ 	if (prague_should_update_ewma(sk))
+ 		prague_update_alpha(sk);
+@@ -664,8 +677,14 @@ static u32 prague_ssthresh(struct sock *sk)
+ 
+ static u32 prague_tso_segs(struct sock *sk, unsigned int mss_now)
+ {
+-	return max_t(u32, prague_ca(sk)->max_tso_burst,
+-		     sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
++	struct prague *ca = prague_ca(sk);
++	u32 tso_segs = max_t(u32, prague_ca(sk)->max_tso_burst,
++			     sock_net(sk)->ipv4.sysctl_tcp_min_tso_segs);
++
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc))
++		tso_segs = paced_chirping_tso_segs(sk, ca->pc, tso_segs);
++
++	return tso_segs;
+ }
+ 
+ static size_t prague_get_info(struct sock *sk, u32 ext, int *attr,
+@@ -708,6 +727,9 @@ static void prague_release(struct sock *sk)
+ 
+ 	LOG(sk, "Released [delivered_ce=%u,received_ce=%u]",
+ 	    tp->delivered_ce, tp->received_ce);
++
++	paced_chirping_release(sk, prague_ca(sk)->pc);
++	prague_ca(sk)->pc = NULL;
+ }
+ 
+ static void prague_init(struct sock *sk)
+@@ -756,6 +778,9 @@ static void prague_init(struct sock *sk)
+ 	tp->alpha = PRAGUE_MAX_ALPHA;		/* Used ONLY to log alpha */
+ 
+ 	prague_new_round(sk);
++
++	if (paced_chirping_enabled)
++		ca->pc = paced_chirping_init(sk, NULL);
+ }
+ 
+ static bool prague_target_rtt_elapsed(struct sock *sk)
+@@ -836,6 +861,20 @@ rtt_scaling_heuristics[__RTT_CONTROL_MAX] __read_mostly = {
+ 	},
+ };
+ 
++static bool prague_new_chirp(struct sock *sk)
++{
++	return paced_chirping_new_chirp(sk, prague_ca(sk)->pc);
++}
++
++static void prague_pkt_acked(struct sock *sk, struct sk_buff *skb)
++{
++	struct prague *ca = inet_csk_ca(sk);
++	if (paced_chirping_enabled && paced_chirping_active(ca->pc)) {
++		paced_chirping_pkt_acked(sk, ca->pc, skb);
++	}
++}
++
++
+ static struct tcp_congestion_ops prague __read_mostly = {
+ 	.init		= prague_init,
+ 	.release	= prague_release,
+@@ -847,6 +886,8 @@ static struct tcp_congestion_ops prague __read_mostly = {
+ 	.set_state	= prague_state,
+ 	.get_info	= prague_get_info,
+ 	.tso_segs	= prague_tso_segs,
++	.new_chirp      = prague_new_chirp,
++	.pkt_acked      = prague_pkt_acked,
+ 	.flags		= TCP_CONG_NEEDS_ECN | TCP_CONG_NEEDS_ACCECN |
+ 		TCP_CONG_NON_RESTRICTED,
+ 	.owner		= THIS_MODULE,
+diff --git a/net/sched/sch_fq.c b/net/sched/sch_fq.c
+index 2fb76fc0cc31..7c0b2ec37683 100644
+--- a/net/sched/sch_fq.c
++++ b/net/sched/sch_fq.c
+@@ -639,6 +639,9 @@ static struct sk_buff *fq_dequeue(struct Qdisc *sch)
+ 		f->time_next_packet = now + len;
+ 	}
+ out:
++	skb_shinfo(skb)->pacing_location = FQ_PACING;
++	skb_shinfo(skb)->pacing_tstamp = ktime_get_ns();
++
+ 	qdisc_bstats_update(sch, skb);
+ 	return skb;
+ }
+
+-- 
+tg: (06f29b9bbeee..) prague/paced-chirping (depends on: prague/classic-ecn-detection l4s/tcp-cubic-use-hystart)

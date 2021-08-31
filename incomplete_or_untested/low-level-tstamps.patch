@@ -1,0 +1,181 @@
+From: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+Subject: [PATCH] net: return low-level tstamps to sender
+
+Reuse existing timestamping infrastructure but set the timestamp
+to the original (sent) skb instead or in addition to the
+new/cloned skb that is put into the err queue.
+
+The internal timestamp is placed into shinfo to the same location
+as hwtstamps to allow hw filling them. If the timestamp already
+exists, don't overwrite with software timestamp.
+
+Interestingly, prior to 49ca0d8bfaf3b (net-timestamp: no-payload
+option), the orig_skb hwtstamps were set before the clone/alloc
+was made so the timestamp was available on the original. The
+change description does not go into details whether the change
+was intentional or not.
+
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@cs.helsinki.fi>
+
+---
+ include/linux/skbuff.h |  6 +++++-
+ include/net/sock.h     |  8 +++++++-
+ net/core/skbuff.c      | 30 +++++++++++++++++++++++++-----
+ net/core/sock.c        |  7 ++++---
+ 4 files changed, 41 insertions(+), 10 deletions(-)
+
+diff --git a/include/linux/skbuff.h b/include/linux/skbuff.h
+index a828cf99c521..baf7111f573d 100644
+--- a/include/linux/skbuff.h
++++ b/include/linux/skbuff.h
+@@ -518,7 +518,11 @@ struct skb_shared_info {
+ 	/* Warning: this field is not always filled in (UFO)! */
+ 	unsigned short	gso_segs;
+ 	struct sk_buff	*frag_list;
+-	struct skb_shared_hwtstamps hwtstamps;
++	union {
++		struct skb_shared_hwtstamps hwtstamps;
++		/* Overlaps with hwtstamps ktime_t on purpose */
++		ktime_t internal_send_tstamp;
++	};
+ 	unsigned int	gso_type;
+ 	u32		tskey;
+ 
+diff --git a/include/net/sock.h b/include/net/sock.h
+index a5c6ae78df77..4ed6df0dbc76 100644
+--- a/include/net/sock.h
++++ b/include/net/sock.h
+@@ -861,9 +861,14 @@ enum sock_flags {
+ 	SOCK_TXTIME,
+ 	SOCK_XDP, /* XDP is attached */
+ 	SOCK_TSTAMP_NEW, /* Indicates 64 bit timestamps always */
++	SOCK_INTERNAL_SEND_TIMESTAMP, /* Set internal timestamp for the use
++				       * of packet timing on upper layer.
++				       */
+ };
+ 
+-#define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE))
++#define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | \
++			    (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE) | \
++			    (1UL << SOCK_INTERNAL_SEND_TIMESTAMP))
+ 
+ static inline void sock_copy_flags(struct sock *nsk, struct sock *osk)
+ {
+@@ -2608,6 +2613,7 @@ static inline bool sk_listener(const struct sock *sk)
+ 	return (1 << sk->sk_state) & (TCPF_LISTEN | TCPF_NEW_SYN_RECV);
+ }
+ 
++void sock_disable_timestamp(struct sock *sk, unsigned long flags);
+ void sock_enable_timestamp(struct sock *sk, enum sock_flags flag);
+ int sock_recv_errqueue(struct sock *sk, struct msghdr *msg, int len, int level,
+ 		       int type);
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index e578544b2cc7..c91754f1148b 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -4669,7 +4669,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
+ 		     struct sock *sk, int tstype)
+ {
+ 	struct sk_buff *skb;
+-	bool tsonly, opt_stats = false;
++	bool tsonly, opt_stats = false, internal_ts;
+ 
+ 	if (!sk)
+ 		return;
+@@ -4678,9 +4678,14 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
+ 	    skb_shinfo(orig_skb)->tx_flags & SKBTX_IN_PROGRESS)
+ 		return;
+ 
++	internal_ts = sk->sk_flags & SOCK_INTERNAL_SEND_TIMESTAMP;
+ 	tsonly = sk->sk_tsflags & SOF_TIMESTAMPING_OPT_TSONLY;
++
+ 	if (!skb_may_tx_timestamp(sk, tsonly))
+-		return;
++		goto internal_only;
++
++	if (internal_ts && !(sk->sk_tsflags & SOF_TIMESTAMPING_TX_RECORD_MASK))
++		goto internal_only;
+ 
+ 	if (tsonly) {
+ #ifdef CONFIG_INET
+@@ -4696,7 +4701,7 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
+ 		skb = skb_clone(orig_skb, GFP_ATOMIC);
+ 	}
+ 	if (!skb)
+-		return;
++		goto internal_only;
+ 
+ 	if (tsonly) {
+ 		skb_shinfo(skb)->tx_flags |= skb_shinfo(orig_skb)->tx_flags &
+@@ -4704,12 +4709,27 @@ void __skb_tstamp_tx(struct sk_buff *orig_skb,
+ 		skb_shinfo(skb)->tskey = skb_shinfo(orig_skb)->tskey;
+ 	}
+ 
+-	if (hwtstamps)
++	if (hwtstamps) {
+ 		*skb_hwtstamps(skb) = *hwtstamps;
+-	else
++		/* Only alloc_skb paths assign because shinfo hwtstamps overlap */
++		if (tsonly && internal_ts)
++			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
++	} else {
+ 		skb->tstamp = ktime_get_real();
++		if (internal_ts && !skb_shinfo(orig_skb)->internal_send_tstamp)
++			skb_shinfo(orig_skb)->internal_send_tstamp = skb->tstamp;
++	}
+ 
+ 	__skb_complete_tx_timestamp(skb, sk, tstype, opt_stats);
++	return;
++
++internal_only:
++	if (internal_ts) {
++		if (hwtstamps)
++			skb_shinfo(orig_skb)->internal_send_tstamp = hwtstamps->hwtstamp;
++		else if (!skb_shinfo(orig_skb)->internal_send_tstamp)
++			skb_shinfo(orig_skb)->internal_send_tstamp = ktime_get_real();
++	}
+ }
+ EXPORT_SYMBOL_GPL(__skb_tstamp_tx);
+ 
+diff --git a/net/core/sock.c b/net/core/sock.c
+index 727ea1cc633c..1b0252f7b6b7 100644
+--- a/net/core/sock.c
++++ b/net/core/sock.c
+@@ -424,7 +424,7 @@ static bool sock_needs_netstamp(const struct sock *sk)
+ 	}
+ }
+ 
+-static void sock_disable_timestamp(struct sock *sk, unsigned long flags)
++void sock_disable_timestamp(struct sock *sk, unsigned long flags)
+ {
+ 	if (sk->sk_flags & flags) {
+ 		sk->sk_flags &= ~flags;
+@@ -433,7 +433,7 @@ static void sock_disable_timestamp(struct sock *sk, unsigned long flags)
+ 			net_disable_timestamp();
+ 	}
+ }
+-
++EXPORT_SYMBOL(sock_disable_timestamp);
+ 
+ int __sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+ {
+@@ -3147,7 +3147,7 @@ void sock_enable_timestamp(struct sock *sk, enum sock_flags flag)
+ 
+ 		sock_set_flag(sk, flag);
+ 		/*
+-		 * we just set one of the two flags which require net
++		 * we just set one of the three flags which require net
+ 		 * time stamping, but time stamping might have been on
+ 		 * already because of the other one
+ 		 */
+@@ -3156,6 +3156,7 @@ void sock_enable_timestamp(struct sock *sk, enum sock_flags flag)
+ 			net_enable_timestamp();
+ 	}
+ }
++EXPORT_SYMBOL(sock_enable_timestamp);
+ 
+ int sock_recv_errqueue(struct sock *sk, struct msghdr *msg, int len,
+ 		       int level, int type)
+
+-- 
+tg: (2c85ebc57b3e..) prague/low-level-tstamps (depends on: v5.10)
